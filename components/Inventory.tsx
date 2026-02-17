@@ -159,18 +159,16 @@ export const Inventory: React.FC = () => {
         if (availableInBatch > 0) {
           const vendor = vendors.find(v => v.id === inward.vendorId);
           const vName = vendor?.name || (inward.type === 'Transfer' ? 'Inbound Transfer' : 'Standard Supplier');
-          // Fix: Corrected variable names to use 'inward' instead of 'purchase' and 'mat' instead of 'm'
-          const price = inward.unitPrice || mat.costPerUnit;
-          
-          // Fix: Changed 'results.push' to 'batches.push' and corrected property names
           batches.push({
             id: mat.id,
             name: mat.name,
             unit: mat.unit,
             batchId: batchId,
+            vendorName: vName,
             vendorId: inward.vendorId,
-            isLocal: inward.projectId === usageData.projectId,
-            display: `${mat.name} / ${vName} / ${formatCurrency(price)} / ${availableInBatch.toLocaleString()} ${mat.unit}`
+            unitPrice: inward.unitPrice || mat.costPerUnit,
+            available: availableInBatch,
+            isLocal: inward.projectId === usageData.projectId
           });
         }
       });
@@ -523,104 +521,105 @@ export const Inventory: React.FC = () => {
         </div>
       </div>
 
-      {/* Bulk Stock Inward Modal - FULLY MOBILE OPTIMIZED */}
+      {/* Bulk Stock Inward Modal */}
       {showBulkModal && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-6xl h-full sm:h-[90vh] sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col mobile-sheet animate-in slide-in-from-bottom duration-500">
-            {/* Header */}
-            <div className="p-5 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-600 text-white shrink-0">
-               <div className="flex gap-3 sm:gap-4 items-center">
-                 <div className="p-2 sm:p-3 bg-white/20 rounded-xl sm:rounded-2xl">
-                    <Layers size={24} />
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-6xl h-[90vh] shadow-2xl overflow-hidden flex flex-col mobile-sheet animate-in zoom-in-95 duration-200">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30 dark:bg-emerald-900/10 shrink-0">
+               <div className="flex gap-4 items-center">
+                 <div className="p-4 bg-emerald-600 text-white rounded-[1.5rem] shadow-xl">
+                    <Layers size={28} />
                  </div>
                  <div>
-                    <h2 className="text-lg sm:text-2xl font-black uppercase tracking-tighter leading-tight">Bulk Reception</h2>
-                    <p className="text-[9px] sm:text-[10px] font-bold text-white/70 uppercase tracking-widest">Multi-Item Godown Inward</p>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">Bulk Hub Stocking</h2>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Multi-hub reception and multi-vendor log</p>
                  </div>
                </div>
-               <button onClick={() => setShowBulkModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X size={28} /></button>
+               <button onClick={() => setShowBulkModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={36} /></button>
             </div>
 
-            {/* Global Context Controls */}
-            <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 shrink-0">
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase px-1">Arrival Date</label>
-                    <input type="date" className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 text-sm" value={bulkDate} onChange={e => setBulkDate(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase px-1">Primary Supplier</label>
-                    <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white outline-none appearance-none focus:ring-2 focus:ring-emerald-500 text-sm" value={bulkGlobalVendor} onChange={e => { setBulkGlobalVendor(e.target.value); setBulkRows(bulkRows.map(r => ({ ...r, vendorId: e.target.value }))); }}>
-                      <option value="">Choose Supplier...</option>
-                      {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase px-1">Receiving Hub</label>
-                    <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white outline-none appearance-none focus:ring-2 focus:ring-emerald-500 text-sm" value={bulkGlobalProject} onChange={e => { setBulkGlobalProject(e.target.value); setBulkRows(bulkRows.map(r => ({ ...r, projectId: e.target.value }))); }}>
-                      <option value="">Select Godown/Site...</option>
-                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
+            <div className="p-6 bg-slate-50/50 dark:bg-slate-900/20 border-b border-slate-100 dark:border-slate-700 flex flex-wrap gap-6 shrink-0">
+               <div className="space-y-1.5 flex-1 min-w-[200px]">
+                  <label className="text-[9px] font-black text-slate-400 uppercase px-1">Value Date</label>
+                  <input type="date" className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white" value={bulkDate} onChange={e => setBulkDate(e.target.value)} />
+               </div>
+               <div className="space-y-1.5 flex-1 min-w-[200px]">
+                  <label className="text-[9px] font-black text-slate-400 uppercase px-1">Primary Vendor (Auto-Fill)</label>
+                  <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white" value={bulkGlobalVendor} onChange={e => { setBulkGlobalVendor(e.target.value); setBulkRows(bulkRows.map(r => ({ ...r, vendorId: e.target.value }))); }}>
+                    <option value="">Manual Selection</option>
+                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+               </div>
+               <div className="space-y-1.5 flex-1 min-w-[200px]">
+                  <label className="text-[9px] font-black text-slate-400 uppercase px-1">Primary Godown (Auto-Fill)</label>
+                  <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white" value={bulkGlobalProject} onChange={e => { setBulkGlobalProject(e.target.value); setBulkRows(bulkRows.map(r => ({ ...r, projectId: e.target.value }))); }}>
+                    <option value="">Manual Selection</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : '(Site)'}</option>)}
+                  </select>
                </div>
             </div>
 
-            {/* List of Entries - Responsive Grid/Card */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 no-scrollbar bg-slate-50 dark:bg-slate-950">
+            <div className="flex-1 overflow-y-auto p-8 no-scrollbar bg-white dark:bg-slate-800">
                <div className="space-y-4">
                   {bulkRows.map((row, index) => (
-                    <div key={row.id} className="relative bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 p-5 sm:p-6 shadow-sm animate-in slide-in-from-bottom-4 transition-all">
-                       <div className="absolute -top-2 -left-2 w-7 h-7 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-slate-800">
-                          {index + 1}
+                    <div key={row.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 animate-in slide-in-from-left-2 transition-all">
+                       <div className="md:col-span-1 flex items-center justify-center h-10">
+                          <span className="text-xs font-black text-slate-300">#{index + 1}</span>
                        </div>
-                       
-                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                          <div className="md:col-span-4 space-y-1.5">
-                             <label className="text-[8px] font-black text-slate-400 uppercase px-1">Material Asset</label>
-                             <select className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl font-bold dark:text-white text-sm outline-none focus:ring-2 focus:ring-emerald-500" value={row.materialId} onChange={e => updateBulkRow(row.id, 'materialId', e.target.value)}>
-                                <option value="">Select Asset...</option>
-                                {materials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
-                             </select>
+                       <div className="md:col-span-3 space-y-1">
+                          <label className="text-[8px] font-black text-slate-400 uppercase px-1">Material Asset</label>
+                          <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.materialId} onChange={e => updateBulkRow(row.id, 'materialId', e.target.value)}>
+                             <option value="">Choose asset...</option>
+                             {materials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
+                          </select>
+                       </div>
+                       <div className="md:col-span-2 space-y-1">
+                          <label className="text-[8px] font-black text-slate-400 uppercase px-1">Quantity</label>
+                          <input type="number" step={allowDecimalStock ? "0.01" : "1"} className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.quantity} onChange={e => updateBulkRow(row.id, 'quantity', e.target.value)} placeholder="0.00" />
+                       </div>
+                       <div className="md:col-span-2 space-y-1">
+                          <label className="text-[8px] font-black text-slate-400 uppercase px-1">Unit Price</label>
+                          <input type="number" step="0.01" className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.unitPrice} onChange={e => updateBulkRow(row.id, 'unitPrice', e.target.value)} placeholder="0.00" />
+                       </div>
+                       {!bulkGlobalVendor && (
+                          <div className="md:col-span-2 space-y-1">
+                            <label className="text-[8px] font-black text-slate-400 uppercase px-1">Vendor</label>
+                            <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.vendorId} onChange={e => updateBulkRow(row.id, 'vendorId', e.target.value)}>
+                               <option value="">Select Vendor...</option>
+                               {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </select>
                           </div>
-                          
-                          <div className="grid grid-cols-2 md:col-span-4 gap-3">
-                             <div className="space-y-1.5">
-                                <label className="text-[8px] font-black text-slate-400 uppercase px-1">Qty</label>
-                                <input type="number" step={allowDecimalStock ? "0.01" : "1"} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl font-black dark:text-white text-sm outline-none focus:ring-2 focus:ring-emerald-500" value={row.quantity} onChange={e => updateBulkRow(row.id, 'quantity', e.target.value)} placeholder="0.00" />
-                             </div>
-                             <div className="space-y-1.5">
-                                <label className="text-[8px] font-black text-slate-400 uppercase px-1">Unit Price</label>
-                                <input type="number" step="0.01" className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-xl font-black dark:text-white text-sm outline-none focus:ring-2 focus:ring-emerald-500" value={row.unitPrice} onChange={e => updateBulkRow(row.id, 'unitPrice', e.target.value)} placeholder="0.00" />
-                             </div>
+                       )}
+                       {!bulkGlobalProject && (
+                          <div className="md:col-span-2 space-y-1">
+                            <label className="text-[8px] font-black text-slate-400 uppercase px-1">Target Hub</label>
+                            <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.projectId} onChange={e => {
+                               updateBulkRow(row.id, 'projectId', e.target.value);
+                            }}>
+                               <option value="">Select Hub...</option>
+                               {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(G)' : '(S)'}</option>)}
+                            </select>
                           </div>
-
-                          <div className="md:col-span-3 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                             <div>
-                                <p className="text-[8px] font-bold text-slate-400 uppercase">Estimated Value</p>
-                                <p className="text-xs font-black text-emerald-600">
-                                   {formatCurrency((parseFloat(row.quantity) || 0) * (parseFloat(row.unitPrice) || 0))}
-                                </p>
-                             </div>
-                             <button onClick={() => removeBulkRow(row.id)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={18} /></button>
-                          </div>
+                       )}
+                       <div className="md:col-span-1 flex items-center justify-end">
+                          <button onClick={() => removeBulkRow(row.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                        </div>
                     </div>
                   ))}
                </div>
-               <button onClick={addBulkRow} className="mt-6 mb-20 sm:mb-0 flex items-center gap-2 px-6 py-4 bg-white dark:bg-slate-800 text-[#003366] dark:text-blue-400 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-50 transition-all border-2 border-dashed border-slate-200 dark:border-slate-700 w-full justify-center shadow-sm"><Plus size={18} /> Add Another Entry</button>
+               <button onClick={addBulkRow} className="mt-6 flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase hover:bg-slate-200 transition-all border-2 border-dashed border-slate-200 dark:border-slate-600 w-full justify-center"><Plus size={16} /> Add New Hub Entry</button>
             </div>
 
-            {/* Sticky Footer for Mobile */}
-            <div className="p-5 sm:p-8 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)]">
-               <div className="flex justify-between w-full sm:w-auto items-center sm:block">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest sm:mb-1">Total Hub Inward</p>
-                  <p className="text-xl sm:text-2xl font-black text-emerald-600">
+            <div className="p-8 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
+               <div className="text-left">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Hub Reception</p>
+                  <p className="text-xl font-black text-emerald-600">
                     {formatCurrency(bulkRows.reduce((sum, r) => sum + ((parseFloat(r.quantity) || 0) * (parseFloat(r.unitPrice) || 0)), 0))}
                   </p>
                </div>
-               <div className="flex gap-3 w-full sm:w-auto">
-                  <button onClick={() => setShowBulkModal(false)} className="flex-1 sm:flex-none px-6 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 font-black rounded-2xl text-[10px] uppercase tracking-widest">Discard</button>
-                  <button onClick={handleBulkProcureSubmit} className="flex-[2] sm:flex-none px-10 py-4 bg-emerald-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-100 dark:shadow-none active:scale-95 transition-all">Authorize Entry</button>
+               <div className="flex gap-4 w-full sm:w-auto">
+                  <button onClick={() => setShowBulkModal(false)} className="px-10 py-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 font-black rounded-2xl text-xs uppercase tracking-widest">Cancel</button>
+                  <button onClick={handleBulkProcureSubmit} className="px-10 py-4 bg-emerald-600 text-white font-black rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-emerald-100 dark:shadow-none active:scale-95 transition-all">Process Hub Reception</button>
                </div>
             </div>
           </div>
@@ -721,7 +720,7 @@ export const Inventory: React.FC = () => {
       {/* History Modal */}
       {historyMaterial && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-6xl h-[92vh] shadow-2xl overflow-hidden flex flex-col mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
+          <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-6xl h-[90vh] shadow-2xl overflow-hidden flex flex-col mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
             <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-800 shrink-0">
                <div className="flex gap-4 items-center">
                  <div className="w-14 h-14 bg-slate-900 dark:bg-slate-700 text-white rounded-[1.5rem] flex items-center justify-center font-black text-2xl shadow-xl">{historyMaterial.name.charAt(0)}</div>
