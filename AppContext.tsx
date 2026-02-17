@@ -90,6 +90,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [state.syncId]);
 
+  // Initial Load Logic
   useEffect(() => {
     const saved = localStorage.getItem('buildtrack_pro_state_v2');
     if (saved) {
@@ -124,6 +125,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         setSyncError(false);
       } catch (e) {
+        console.error("Sync Failure:", e);
         setSyncError(true);
       } finally {
         setIsSyncing(false);
@@ -131,6 +133,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }, 1500);
   }, []);
+
+  // AUTO-RESYNC WHEN BACK ONLINE
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log("Internet restored. Triggering automatic cloud sync...");
+      if (state.syncId) {
+        saveToDB(state);
+      }
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [state, saveToDB]);
 
   const dispatchUpdate = useCallback((updater: (prev: AppState) => AppState) => {
     setState(prev => {
