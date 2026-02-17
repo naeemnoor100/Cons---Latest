@@ -37,19 +37,30 @@
             --safe-area-inset-top: env(safe-area-inset-top);
             --safe-area-inset-bottom: env(safe-area-inset-bottom);
         }
+        
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: #F4F6F8;
-            -webkit-tap-highlight-color: transparent;
             overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+            touch-action: manipulation;
         }
+        
         .dark body {
-            background-color: #0f172a;
+            background-color: #020617;
         }
         
         ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+            width: 4px;
+            height: 4px;
         }
         ::-webkit-scrollbar-track {
             background: transparent;
@@ -59,7 +70,7 @@
             border-radius: 10px;
         }
         .dark ::-webkit-scrollbar-thumb {
-            background: #475569;
+            background: #334155;
         }
         
         .pb-safe {
@@ -69,16 +80,41 @@
             padding-top: var(--safe-area-inset-top);
         }
 
-        .procore-shadow {
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-        }
-
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
         .no-scrollbar {
             -ms-overflow-style: none;
             scrollbar-width: none;
+        }
+
+        /* Responsive Modal Sheet Logic */
+        .mobile-sheet {
+            max-height: 95vh;
+            border-radius: 2rem 2rem 0 0;
+        }
+        @media (min-width: 1024px) {
+            .mobile-sheet {
+                max-height: 85vh;
+                border-radius: 2.5rem;
+            }
+        }
+        
+        /* Prevents input focus zooming on iOS */
+        @media (max-width: 1024px) {
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+        }
+
+        /* Pulse for sync icon */
+        @keyframes subtle-pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .sync-pulse {
+            animation: subtle-pulse 2s infinite ease-in-out;
         }
     </style>
 <script type="importmap">

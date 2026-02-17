@@ -63,12 +63,117 @@ export const Settings: React.FC = () => {
   });
 
   const sqlSchema = `
--- Create Synchronization Table for BuildTrack Pro
+-- BuildTrack Pro Relational Database Schema
+
+-- 1. Projects Table
+CREATE TABLE IF NOT EXISTS projects (
+    id VARCHAR(50) PRIMARY KEY,
+    sync_id VARCHAR(50),
+    name VARCHAR(255) NOT NULL,
+    client VARCHAR(255),
+    location TEXT,
+    startDate DATE,
+    endDate DATE,
+    budget DECIMAL(15,2),
+    status VARCHAR(50),
+    description TEXT,
+    contactNumber VARCHAR(50),
+    isGodown BOOLEAN DEFAULT FALSE,
+    INDEX (sync_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2. Vendors Table
+CREATE TABLE IF NOT EXISTS vendors (
+    id VARCHAR(50) PRIMARY KEY,
+    sync_id VARCHAR(50),
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    address TEXT,
+    category VARCHAR(100),
+    balance DECIMAL(15,2) DEFAULT 0,
+    INDEX (sync_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. Materials Table
+CREATE TABLE IF NOT EXISTS materials (
+    id VARCHAR(50) PRIMARY KEY,
+    sync_id VARCHAR(50),
+    name VARCHAR(255) NOT NULL,
+    unit VARCHAR(50),
+    costPerUnit DECIMAL(15,2),
+    totalPurchased DECIMAL(15,3),
+    totalUsed DECIMAL(15,3),
+    INDEX (sync_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 4. Expenses Table
+CREATE TABLE IF NOT EXISTS expenses (
+    id VARCHAR(50) PRIMARY KEY,
+    sync_id VARCHAR(50),
+    date DATE,
+    projectId VARCHAR(50),
+    vendorId VARCHAR(50),
+    materialId VARCHAR(50),
+    materialQuantity DECIMAL(15,3),
+    amount DECIMAL(15,2),
+    paymentMethod VARCHAR(50),
+    category VARCHAR(100),
+    notes TEXT,
+    inventoryAction VARCHAR(50),
+    parentPurchaseId VARCHAR(50),
+    INDEX (sync_id),
+    INDEX (projectId),
+    INDEX (vendorId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 5. Incomes Table
+CREATE TABLE IF NOT EXISTS incomes (
+    id VARCHAR(50) PRIMARY KEY,
+    sync_id VARCHAR(50),
+    projectId VARCHAR(50),
+    date DATE,
+    amount DECIMAL(15,2),
+    description TEXT,
+    method VARCHAR(50),
+    invoiceId VARCHAR(50),
+    INDEX (sync_id),
+    INDEX (projectId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 6. Invoices Table
+CREATE TABLE IF NOT EXISTS invoices (
+    id VARCHAR(50) PRIMARY KEY,
+    sync_id VARCHAR(50),
+    projectId VARCHAR(50),
+    date DATE,
+    dueDate DATE,
+    amount DECIMAL(15,2),
+    description TEXT,
+    status VARCHAR(50),
+    INDEX (sync_id),
+    INDEX (projectId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 7. Payments Table
+CREATE TABLE IF NOT EXISTS payments (
+    id VARCHAR(50) PRIMARY KEY,
+    sync_id VARCHAR(50),
+    date DATE,
+    vendorId VARCHAR(50),
+    projectId VARCHAR(50),
+    amount DECIMAL(15,2),
+    method VARCHAR(50),
+    reference TEXT,
+    materialBatchId VARCHAR(50),
+    INDEX (sync_id),
+    INDEX (vendorId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 8. Master Sync Sessions (For metadata and full backup)
 CREATE TABLE IF NOT EXISTS sync_sessions (
     sync_id VARCHAR(50) PRIMARY KEY,
     state_json LONGTEXT,
-    last_updated BIGINT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    last_updated BIGINT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 `;
 
@@ -111,7 +216,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
         const content = event.target?.result as string;
         const newState = JSON.parse(content);
         
-        // Validation: Check for presence of core arrays
         if (newState.projects && Array.isArray(newState.projects) && newState.vendors && Array.isArray(newState.vendors)) {
            if (confirm("CRITICAL WARNING: This action will completely OVERWRITE your current company records with the data from the backup file. This cannot be undone. Proceed?")) {
              await importState({ 
@@ -169,8 +273,8 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                   <div className="flex gap-4 items-center">
                     <div className="p-4 bg-white/10 rounded-2xl"><Database size={24} /></div>
                     <div>
-                      <h3 className="text-lg font-bold uppercase tracking-tighter">MySQL Cloud Setup</h3>
-                      <p className="text-[10px] font-bold text-white/60">DATABASE PERSISTENCE BRIDGE</p>
+                      <h3 className="text-lg font-bold uppercase tracking-tighter">Multi-Table MySQL Setup</h3>
+                      <p className="text-[10px] font-bold text-white/60">RELATIONAL DATABASE BRIDGE</p>
                     </div>
                   </div>
                 </div>
@@ -178,23 +282,23 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-blue-600">
                     <Terminal size={20} />
-                    <h4 className="font-black text-sm uppercase">Step 1: Create Sync Table</h4>
+                    <h4 className="font-black text-sm uppercase">Step 1: Run SQL Script</h4>
                   </div>
                   <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700">
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                      Log in to your hosting panel (cPanel). Open <strong>phpMyAdmin</strong>, select your database, and run the SQL script below. This table stores your company operations securely.
+                      Copy the script below and run it in your <strong>phpMyAdmin</strong>. This will create multiple tables to store your construction business data efficiently.
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex justify-between items-end px-1">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Required SQL Script</label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Relational SQL Script</label>
                      <button onClick={() => copyToClipboard(sqlSchema)} className="flex items-center gap-2 text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-widest">
                        {isCopied ? <Check size={12} /> : <Copy size={12} />} {isCopied ? 'Copied' : 'Copy Schema'}
                      </button>
                   </div>
-                  <pre className="w-full p-4 bg-slate-900 text-blue-400 rounded-2xl text-[10px] font-mono overflow-x-auto border border-slate-700">
+                  <pre className="w-full p-4 bg-slate-900 text-blue-400 rounded-2xl text-[10px] font-mono overflow-x-auto border border-slate-700 h-64">
                     {sqlSchema}
                   </pre>
                 </div>
@@ -202,12 +306,12 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                 <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-2 text-blue-600">
                     <Code2 size={20} />
-                    <h4 className="font-black text-sm uppercase">Step 2: Connect api.php</h4>
+                    <h4 className="font-black text-sm uppercase">Step 2: Update api.php</h4>
                   </div>
                   <div className="p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl flex gap-3">
                      <AlertTriangle className="text-amber-600 shrink-0" size={20} />
                      <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium leading-relaxed">
-                       Upload <code>api.php</code> to your server. Open the file and enter your Database Name, Username, and Password. The app will then use your <strong>Sync ID</strong> to push data to MySQL.
+                       Ensure your <code>api.php</code> is updated with the new relational saving logic. The app will now automatically distribute data across these tables for you.
                      </p>
                   </div>
                 </div>
@@ -254,7 +358,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Export Card */}
                   <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-[2rem] p-6 flex flex-col justify-between hover:border-blue-500 transition-all group">
                     <div className="space-y-3">
                        <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-sm text-blue-600 group-hover:scale-110 transition-transform">
@@ -271,7 +374,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                     </button>
                   </div>
 
-                  {/* Import Card */}
                   <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-[2rem] p-6 flex flex-col justify-between hover:border-amber-500 transition-all group">
                     <div className="space-y-3">
                        <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-sm text-amber-600 group-hover:scale-110 transition-transform">
@@ -324,7 +426,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                 </div>
 
                 <div className="grid grid-cols-1 gap-12">
-                  {/* Trade Categories */}
                   <div className="space-y-4">
                     <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm uppercase tracking-widest">
                       <Layers size={18} className="text-blue-500" /> Expense / Trade Categories
@@ -349,7 +450,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                     </div>
                   </div>
 
-                  {/* Stocking Units */}
                   <div className="space-y-4">
                     <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm uppercase tracking-widest">
                       <Box size={18} className="text-emerald-500" /> Stocking Measurement Units
@@ -374,7 +474,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                     </div>
                   </div>
 
-                  {/* Site Statuses */}
                   <div className="space-y-4">
                     <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm uppercase tracking-widest">
                       <Layout size={18} className="text-amber-500" /> Project Progress Statuses
