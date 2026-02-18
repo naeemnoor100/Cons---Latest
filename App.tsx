@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppProvider } from './AppContext';
 import { Layout } from './components/Layout';
@@ -10,6 +11,7 @@ import { Reports } from './components/Reports';
 import { ProjectIncome } from './components/ProjectIncome';
 import { InvoiceManager } from './components/InvoiceManager';
 import { Settings } from './components/Settings';
+import { WorkerManagement } from './components/WorkerManagement';
 
 const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -20,6 +22,8 @@ const MainApp: React.FC = () => {
         return <Dashboard />;
       case 'projects':
         return <ProjectList />;
+      case 'labor':
+        return <WorkerManagement />;
       case 'invoices':
         return <InvoiceManager />;
       case 'income':

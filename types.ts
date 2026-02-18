@@ -1,3 +1,4 @@
+
 export type UserRole = 'Admin' | 'Accountant' | 'Site Manager';
 
 export interface User {
@@ -21,7 +22,7 @@ export interface Project {
   status: ProjectStatus;
   description?: string;
   contactNumber?: string;
-  isGodown?: boolean; // New property to identify Godowns
+  isGodown?: boolean;
 }
 
 export type VendorCategory = string;
@@ -47,7 +48,7 @@ export interface StockHistoryEntry {
   vendorId?: string;
   note?: string;
   unitPrice?: number;
-  parentPurchaseId?: string; // Links usage to a specific purchase batch
+  parentPurchaseId?: string;
 }
 
 export interface Material {
@@ -69,16 +70,14 @@ export interface Expense {
   vendorId?: string;
   materialId?: string;
   materialQuantity?: number;
-  // unitPrice is used for tracking specific item costs in inventory-linked expenses
   unitPrice?: number;
   amount: number;
   paymentMethod: PaymentMethod;
   notes: string;
   invoiceUrl?: string;
   category: string;
-  // Fix: Added 'Transfer' to allowed inventoryAction values to support inter-site material movement
   inventoryAction?: 'Purchase' | 'Usage' | 'Transfer';
-  parentPurchaseId?: string; // Links a usage expense to the original purchase ID
+  parentPurchaseId?: string;
 }
 
 export interface Invoice {
@@ -112,6 +111,27 @@ export interface Income {
   invoiceId?: string;
 }
 
+// NEW: Labor Management Types
+export interface Worker {
+  id: string;
+  name: string;
+  phone: string;
+  trade: string;
+  dailyWage: number;
+  activeProjectId?: string;
+}
+
+export interface Attendance {
+  id: string;
+  workerId: string;
+  projectId: string;
+  date: string;
+  status: 'Present' | 'Absent' | 'Half-Day';
+  wageEarned: number;
+  isPaid: boolean;
+  paymentId?: string;
+}
+
 export interface AppState {
   projects: Project[];
   vendors: Vendor[];
@@ -120,10 +140,12 @@ export interface AppState {
   payments: Payment[];
   incomes: Income[];
   invoices: Invoice[];
+  workers: Worker[];
+  attendance: Attendance[];
   tradeCategories: string[];
   stockingUnits: string[];
   siteStatuses: string[];
-  allowDecimalStock: boolean; // Control for decimal inputs
+  allowDecimalStock: boolean;
   currentUser: User;
   theme: 'light' | 'dark';
   syncId?: string;

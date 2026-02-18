@@ -1,5 +1,6 @@
+
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice } from './types';
+import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice, Worker, Attendance } from './types';
 import { INITIAL_STATE } from './constants';
 
 const API_PATH = 'api.php';
@@ -29,6 +30,11 @@ interface AppContextType extends AppState {
   addInvoice: (inv: Invoice) => Promise<void>;
   updateInvoice: (inv: Invoice) => Promise<void>;
   deleteInvoice: (id: string) => Promise<void>;
+  addWorker: (w: Worker) => Promise<void>;
+  updateWorker: (w: Worker) => Promise<void>;
+  deleteWorker: (id: string) => Promise<void>;
+  markAttendance: (a: Attendance) => Promise<void>;
+  deleteAttendance: (id: string) => Promise<void>;
   enableCloudSync: (key: string) => Promise<void>;
   disableCloudSync: () => void;
   forceSync: () => Promise<void>;
@@ -60,7 +66,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastSynced, setLastSynced] = useState(new Date());
   const syncDebounceRef = useRef<number | null>(null);
 
-  // Load from MySQL
   const loadFromDB = useCallback(async (customSyncId?: string) => {
     const activeSyncId = customSyncId || state.syncId;
     if (!activeSyncId) {
@@ -71,18 +76,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoading(true);
     try {
       const response = await fetch(`${API_PATH}?action=sync&syncId=${activeSyncId}`);
-      if (response.ok) {
-        const cloudData = await response.json();
+      if (!response.ok) throw new Error("Server Error");
+      
+      const text = await response.text();
+      try {
+        const cloudData = JSON.parse(text);
         if (cloudData && !cloudData.error && cloudData.status !== 'new') {
-          setState({ ...INITIAL_STATE, ...cloudData, syncId: activeSyncId });
+          setState(prev => ({ ...prev, ...cloudData, syncId: activeSyncId }));
           setSyncError(false);
         } else {
+          // If new or error, fallback to local
           const saved = localStorage.getItem('buildtrack_pro_state_v2');
           if (saved) setState(JSON.parse(saved));
         }
+      } catch (jsonErr) {
+        console.error("Invalid JSON from server:", text);
+        setSyncError(true);
       }
     } catch (e) {
-      console.error("MySQL Load Error:", e);
+      console.error("Load Error:", e);
       setSyncError(true);
     } finally {
       setIsLoading(false);
@@ -90,7 +102,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [state.syncId]);
 
-  // Initial Load Logic
   useEffect(() => {
     const saved = localStorage.getItem('buildtrack_pro_state_v2');
     if (saved) {
@@ -106,7 +117,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoading(false);
   }, []);
 
-  // Save to MySQL
   const saveToDB = useCallback((nextState: AppState) => {
     if (syncDebounceRef.current) window.clearTimeout(syncDebounceRef.current);
     
@@ -122,6 +132,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             body: JSON.stringify(nextState)
           });
           if (!res.ok) throw new Error("Sync Failed");
+          const result = await res.json();
+          if (result.error) throw new Error(result.error);
         }
         setSyncError(false);
       } catch (e) {
@@ -133,18 +145,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }, 1500);
   }, []);
-
-  // AUTO-RESYNC WHEN BACK ONLINE
-  useEffect(() => {
-    const handleOnline = () => {
-      console.log("Internet restored. Triggering automatic cloud sync...");
-      if (state.syncId) {
-        saveToDB(state);
-      }
-    };
-    window.addEventListener('online', handleOnline);
-    return () => window.removeEventListener('online', handleOnline);
-  }, [state, saveToDB]);
 
   const dispatchUpdate = useCallback((updater: (prev: AppState) => AppState) => {
     setState(prev => {
@@ -219,6 +219,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? inv : i) }));
   const deleteInvoice = async (id: string) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }));
 
+  const addWorker = async (w: Worker) => dispatchUpdate(prev => ({ ...prev, workers: [...prev.workers, w] }));
+  const updateWorker = async (w: Worker) => dispatchUpdate(prev => ({ ...prev, workers: prev.workers.map(x => x.id === w.id ? w : x) }));
+  const deleteWorker = async (id: string) => dispatchUpdate(prev => ({ ...prev, workers: prev.workers.filter(x => x.id !== id), attendance: prev.attendance.filter(a => a.workerId !== id) }));
+  const markAttendance = async (a: Attendance) => dispatchUpdate(prev => ({ ...prev, attendance: [...prev.attendance, a] }));
+  const deleteAttendance = async (id: string) => dispatchUpdate(prev => ({ ...prev, attendance: prev.attendance.filter(x => x.id !== id) }));
+
   const enableCloudSync = async (key: string) => {
     setState(prev => ({ ...prev, syncId: key }));
     await loadFromDB(key);
@@ -248,6 +254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addPayment, updatePayment, deletePayment,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
+    addWorker, updateWorker, deleteWorker, markAttendance, deleteAttendance,
     enableCloudSync, disableCloudSync, forceSync,
     addTradeCategory, removeTradeCategory,
     addStockingUnit, removeStockingUnit,

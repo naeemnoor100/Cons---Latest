@@ -5,7 +5,6 @@ import {
   Building2, 
   Globe, 
   Save, 
-  LogOut, 
   Plus, 
   X, 
   List, 
@@ -31,7 +30,8 @@ import {
   Box,
   Layout,
   History,
-  FileWarning
+  FileWarning,
+  Zap
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { AppState, Vendor, Material } from '../types';
@@ -50,6 +50,7 @@ export const Settings: React.FC = () => {
   
   const [activeSection, setActiveSection] = useState<'profile' | 'system' | 'master-lists' | 'database' | 'backup'>('profile');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [dbInitStatus, setDbInitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [isCopied, setIsCopied] = useState(false);
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -62,120 +63,25 @@ export const Settings: React.FC = () => {
     email: currentUser.email
   });
 
-  const sqlSchema = `
--- BuildTrack Pro Relational Database Schema
-
--- 1. Projects Table
-CREATE TABLE IF NOT EXISTS projects (
-    id VARCHAR(50) PRIMARY KEY,
-    sync_id VARCHAR(50),
-    name VARCHAR(255) NOT NULL,
-    client VARCHAR(255),
-    location TEXT,
-    startDate DATE,
-    endDate DATE,
-    budget DECIMAL(15,2),
-    status VARCHAR(50),
-    description TEXT,
-    contactNumber VARCHAR(50),
-    isGodown BOOLEAN DEFAULT FALSE,
-    INDEX (sync_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 2. Vendors Table
-CREATE TABLE IF NOT EXISTS vendors (
-    id VARCHAR(50) PRIMARY KEY,
-    sync_id VARCHAR(50),
-    name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50),
-    address TEXT,
-    category VARCHAR(100),
-    balance DECIMAL(15,2) DEFAULT 0,
-    INDEX (sync_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 3. Materials Table
-CREATE TABLE IF NOT EXISTS materials (
-    id VARCHAR(50) PRIMARY KEY,
-    sync_id VARCHAR(50),
-    name VARCHAR(255) NOT NULL,
-    unit VARCHAR(50),
-    costPerUnit DECIMAL(15,2),
-    totalPurchased DECIMAL(15,3),
-    totalUsed DECIMAL(15,3),
-    INDEX (sync_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 4. Expenses Table
-CREATE TABLE IF NOT EXISTS expenses (
-    id VARCHAR(50) PRIMARY KEY,
-    sync_id VARCHAR(50),
-    date DATE,
-    projectId VARCHAR(50),
-    vendorId VARCHAR(50),
-    materialId VARCHAR(50),
-    materialQuantity DECIMAL(15,3),
-    amount DECIMAL(15,2),
-    paymentMethod VARCHAR(50),
-    category VARCHAR(100),
-    notes TEXT,
-    inventoryAction VARCHAR(50),
-    parentPurchaseId VARCHAR(50),
-    INDEX (sync_id),
-    INDEX (projectId),
-    INDEX (vendorId)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 5. Incomes Table
-CREATE TABLE IF NOT EXISTS incomes (
-    id VARCHAR(50) PRIMARY KEY,
-    sync_id VARCHAR(50),
-    projectId VARCHAR(50),
-    date DATE,
-    amount DECIMAL(15,2),
-    description TEXT,
-    method VARCHAR(50),
-    invoiceId VARCHAR(50),
-    INDEX (sync_id),
-    INDEX (projectId)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 6. Invoices Table
-CREATE TABLE IF NOT EXISTS invoices (
-    id VARCHAR(50) PRIMARY KEY,
-    sync_id VARCHAR(50),
-    projectId VARCHAR(50),
-    date DATE,
-    dueDate DATE,
-    amount DECIMAL(15,2),
-    description TEXT,
-    status VARCHAR(50),
-    INDEX (sync_id),
-    INDEX (projectId)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 7. Payments Table
-CREATE TABLE IF NOT EXISTS payments (
-    id VARCHAR(50) PRIMARY KEY,
-    sync_id VARCHAR(50),
-    date DATE,
-    vendorId VARCHAR(50),
-    projectId VARCHAR(50),
-    amount DECIMAL(15,2),
-    method VARCHAR(50),
-    reference TEXT,
-    materialBatchId VARCHAR(50),
-    INDEX (sync_id),
-    INDEX (vendorId)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 8. Master Sync Sessions (For metadata and full backup)
-CREATE TABLE IF NOT EXISTS sync_sessions (
-    sync_id VARCHAR(50) PRIMARY KEY,
-    state_json LONGTEXT,
-    last_updated BIGINT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-`;
+  const handleInitializeDb = async () => {
+    setDbInitStatus('loading');
+    try {
+      const response = await fetch('api.php?action=initialize_db');
+      const data = await response.json();
+      if (data.success) {
+        setDbInitStatus('success');
+        alert("Success! All tables have been created in your MySQL database.");
+      } else {
+        throw new Error(data.error || "Initialization failed");
+      }
+    } catch (e) {
+      console.error(e);
+      setDbInitStatus('error');
+      alert("Error: Connection failed. Please check your api.php database credentials.");
+    } finally {
+      setTimeout(() => setDbInitStatus('idle'), 5000);
+    }
+  };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,55 +91,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }, 800);
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
-  };
-
-  const handleExportJSON = () => {
-    const fullState = {
-      projects, vendors, materials, expenses, incomes, invoices, payments,
-      tradeCategories, stockingUnits, siteStatuses, allowDecimalStock, exportDate: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(fullState, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `BuildTrack_Pro_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-  };
-
-  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const content = event.target?.result as string;
-        const newState = JSON.parse(content);
-        
-        if (newState.projects && Array.isArray(newState.projects) && newState.vendors && Array.isArray(newState.vendors)) {
-           if (confirm("CRITICAL WARNING: This action will completely OVERWRITE your current company records with the data from the backup file. This cannot be undone. Proceed?")) {
-             await importState({ 
-               ...INITIAL_STATE, 
-               ...newState,
-               currentUser // Preserve current user session
-             });
-             alert("Database recovery complete. All records synchronized.");
-           }
-        } else {
-          alert("Error: The selected file is not a valid BuildTrack Pro backup format.");
-        }
-      } catch (err) {
-        alert("System Failure: Failed to parse the backup file. Please ensure it is a valid .json file.");
-      }
-    };
-    reader.readAsText(file);
-    if (jsonFileInputRef.current) jsonFileInputRef.current.value = '';
   };
 
   return (
@@ -268,50 +125,51 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-right-4">
             
             {activeSection === 'database' && (
-              <div className="p-8 space-y-6">
-                <div className="bg-slate-900 p-6 rounded-[2rem] text-white flex justify-between items-center shadow-xl">
+              <div className="p-8 space-y-8">
+                <div className="bg-slate-900 p-6 rounded-[2rem] text-white flex flex-col sm:flex-row justify-between items-center gap-4 shadow-xl">
                   <div className="flex gap-4 items-center">
                     <div className="p-4 bg-white/10 rounded-2xl"><Database size={24} /></div>
                     <div>
-                      <h3 className="text-lg font-bold uppercase tracking-tighter">Multi-Table MySQL Setup</h3>
-                      <p className="text-[10px] font-bold text-white/60">RELATIONAL DATABASE BRIDGE</p>
+                      <h3 className="text-lg font-bold uppercase tracking-tighter leading-none">MySQL Multi-Table Setup</h3>
+                      <p className="text-[10px] font-bold text-white/60 mt-1 uppercase tracking-widest">Automatic Schema Deployment</p>
                     </div>
                   </div>
+                  
+                  <button 
+                    onClick={handleInitializeDb}
+                    disabled={dbInitStatus === 'loading'}
+                    className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${
+                      dbInitStatus === 'loading' ? 'bg-slate-700 text-slate-400' :
+                      dbInitStatus === 'success' ? 'bg-emerald-500 text-white' :
+                      'bg-white text-slate-900 hover:scale-105 active:scale-95'
+                    }`}
+                  >
+                    {dbInitStatus === 'loading' ? <RefreshCw className="animate-spin" size={14} /> : <Zap size={14} />}
+                    {dbInitStatus === 'loading' ? 'Processing...' : dbInitStatus === 'success' ? 'Setup Complete!' : 'Initialize Database'}
+                  </button>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <Terminal size={20} />
-                    <h4 className="font-black text-sm uppercase">Step 1: Run SQL Script</h4>
-                  </div>
-                  <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700">
-                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-                      Copy the script below and run it in your <strong>phpMyAdmin</strong>. This will create multiple tables to store your construction business data efficiently.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-end px-1">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Relational SQL Script</label>
-                     <button onClick={() => copyToClipboard(sqlSchema)} className="flex items-center gap-2 text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-widest">
-                       {isCopied ? <Check size={12} /> : <Copy size={12} />} {isCopied ? 'Copied' : 'Copy Schema'}
-                     </button>
-                  </div>
-                  <pre className="w-full p-4 bg-slate-900 text-blue-400 rounded-2xl text-[10px] font-mono overflow-x-auto border border-slate-700 h-64">
-                    {sqlSchema}
-                  </pre>
+                <div className="p-6 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl flex gap-4">
+                   <div className="p-3 bg-blue-100 dark:bg-blue-800 text-blue-600 rounded-xl shrink-0">
+                      <Terminal size={24} />
+                   </div>
+                   <div className="space-y-1">
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">One-Click Setup</h4>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                        پہلے <code>api.php</code> فائل میں اپنے ڈیٹا بیس کا نام، یوزر نیم اور پاس ورڈ لکھیں، پھر اوپر موجود <strong>Initialize Database</strong> بٹن کو دبائیں۔ یہ ایپ خودکار طریقے سے تمام ٹیبلز بنا دے گی۔
+                      </p>
+                   </div>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700">
                   <div className="flex items-center gap-2 text-blue-600">
                     <Code2 size={20} />
-                    <h4 className="font-black text-sm uppercase">Step 2: Update api.php</h4>
+                    <h4 className="font-black text-sm uppercase">Automatic Syncing</h4>
                   </div>
-                  <div className="p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl flex gap-3">
-                     <AlertTriangle className="text-amber-600 shrink-0" size={20} />
-                     <p className="text-[11px] text-amber-800 dark:text-amber-300 font-medium leading-relaxed">
-                       Ensure your <code>api.php</code> is updated with the new relational saving logic. The app will now automatically distribute data across these tables for you.
+                  <div className="p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex gap-3">
+                     <ShieldCheck className="text-emerald-500 shrink-0" size={20} />
+                     <p className="text-[11px] text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                       Once initialized, all projects, expenses, vendors, and workers will be automatically saved into their respective SQL tables.
                      </p>
                   </div>
                 </div>
@@ -342,64 +200,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                     <Save size={18} /> Update Profile
                   </button>
                 </form>
-              </div>
-            )}
-
-            {activeSection === 'backup' && (
-              <div className="p-8 space-y-8">
-                <div className="flex items-center gap-4 mb-2">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
-                    <History size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">Data Management</h3>
-                    <p className="text-xs text-slate-500 font-medium">Portability and disaster recovery tools.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-[2rem] p-6 flex flex-col justify-between hover:border-blue-500 transition-all group">
-                    <div className="space-y-3">
-                       <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-sm text-blue-600 group-hover:scale-110 transition-transform">
-                          <DownloadCloud size={24} />
-                       </div>
-                       <h4 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">Export Ledger</h4>
-                       <p className="text-[10px] text-slate-500 leading-relaxed font-bold uppercase tracking-widest">Generate a full encrypted JSON snapshot of your current projects, inventory, and financials.</p>
-                    </div>
-                    <button 
-                      onClick={handleExportJSON}
-                      className="mt-6 w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
-                    >
-                      <DownloadCloud size={16} /> Download .JSON
-                    </button>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-[2rem] p-6 flex flex-col justify-between hover:border-amber-500 transition-all group">
-                    <div className="space-y-3">
-                       <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center shadow-sm text-amber-600 group-hover:scale-110 transition-transform">
-                          <UploadCloud size={24} />
-                       </div>
-                       <h4 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">Restore Database</h4>
-                       <p className="text-[10px] text-slate-500 leading-relaxed font-bold uppercase tracking-widest">Import a previous BuildTrack Pro backup file. Warning: This will overwrite your current local state.</p>
-                    </div>
-                    <label className="mt-6 cursor-pointer">
-                      <input type="file" ref={jsonFileInputRef} className="hidden" accept=".json" onChange={handleImportJSON} />
-                      <div className="w-full py-4 bg-amber-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
-                        <UploadCloud size={16} /> Select Backup File
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="p-5 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30 rounded-[1.5rem] flex gap-4 items-start">
-                   <div className="p-2 bg-rose-100 dark:bg-rose-900/50 text-rose-600 rounded-lg shrink-0">
-                      <FileWarning size={20} />
-                   </div>
-                   <div className="space-y-1">
-                      <p className="text-[11px] font-black text-rose-900 dark:text-rose-200 uppercase tracking-tight">Security & Overwrites</p>
-                      <p className="text-[10px] text-rose-700 dark:text-rose-300 font-medium leading-relaxed uppercase tracking-tighter">Restoring from a file will replace all local site data, inventory levels, and financial records. Ensure you have a recent backup of your current state before importing new data.</p>
-                   </div>
-                </div>
               </div>
             )}
 
@@ -445,54 +245,6 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
                       {tradeCategories.map(cat => (
                         <span key={cat} className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest dark:text-slate-300 shadow-sm">
                           {cat} <X size={10} className="cursor-pointer text-slate-400 hover:text-red-500" onClick={() => removeTradeCategory(cat)} />
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm uppercase tracking-widest">
-                      <Box size={18} className="text-emerald-500" /> Stocking Measurement Units
-                    </h3>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="e.g. SQFT, CBM, Pcs..." 
-                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none dark:text-white"
-                        value={newUnit}
-                        onChange={e => setNewUnit(e.target.value)}
-                        onKeyPress={e => e.key === 'Enter' && newUnit && (addStockingUnit(newUnit), setNewUnit(''))}
-                      />
-                      <button onClick={() => { if(newUnit) { addStockingUnit(newUnit); setNewUnit(''); } }} className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"><Plus size={20} /></button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 min-h-[60px]">
-                      {stockingUnits.map(u => (
-                        <span key={u} className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest dark:text-slate-300 shadow-sm">
-                          {u} <X size={10} className="cursor-pointer text-slate-400 hover:text-red-500" onClick={() => removeStockingUnit(u)} />
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm uppercase tracking-widest">
-                      <Layout size={18} className="text-amber-500" /> Project Progress Statuses
-                    </h3>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Planning, Finishing..." 
-                        className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none dark:text-white"
-                        value={newStatus}
-                        onChange={e => setNewStatus(e.target.value)}
-                        onKeyPress={e => e.key === 'Enter' && newStatus && (addSiteStatus(newStatus), setNewStatus(''))}
-                      />
-                      <button onClick={() => { if(newStatus) { addSiteStatus(newStatus); setNewStatus(''); } }} className="p-3 bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-colors"><Plus size={20} /></button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 min-h-[60px]">
-                      {siteStatuses.map(s => (
-                        <span key={s} className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest dark:text-slate-300 shadow-sm">
-                          {s} <X size={10} className="cursor-pointer text-slate-400 hover:text-red-500" onClick={() => removeSiteStatus(s)} />
                         </span>
                       ))}
                     </div>
