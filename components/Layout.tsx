@@ -82,6 +82,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const { currentUser, syncId, isSyncing, syncError, undo, redo, canUndo, canRedo, theme } = useApp();
   const [showSyncCenter, setShowSyncCenter] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const primaryMenuItems = [
     { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} strokeWidth={2.5} /> },
@@ -130,6 +131,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         {/* Universal App Header */}
         <header className="h-16 lg:h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-10 shrink-0 z-40 pt-safe">
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+            >
+              <Menu size={20} />
+            </button>
             <div className="lg:hidden flex items-center gap-2">
                <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white"><Briefcase size={16} strokeWidth={3} /></div>
                <h1 className="text-sm font-black text-[#003366] dark:text-white tracking-tighter uppercase">BT<span className="text-[#FF5A00]">PRO</span></h1>
@@ -214,6 +221,46 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                   ))}
                </div>
             </div>
+          </div>
+        )}
+
+        {/* Mobile Sidebar Drawer (Hamburger Menu) */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-[100] animate-in fade-in duration-200">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+            <aside className="absolute top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col">
+               <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white shadow-lg shadow-orange-200 dark:shadow-none"><Briefcase size={20} strokeWidth={3} /></div>
+                    <h1 className="text-lg font-black text-[#003366] dark:text-white tracking-tighter uppercase">BT<span className="text-[#FF5A00]">PRO</span></h1>
+                  </div>
+                  <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400">
+                    <X size={18} />
+                  </button>
+               </div>
+               <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
+                  {[...primaryMenuItems, ...secondaryMenuItems].map((item) => (
+                    <SidebarItem 
+                      key={item.id} 
+                      {...item} 
+                      isActive={activeTab === item.id} 
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setIsMobileMenuOpen(false);
+                      }} 
+                    />
+                  ))}
+                </nav>
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                  <div className="flex items-center gap-3 p-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <img src={currentUser.avatar} alt={currentUser.name} className="w-10 h-10 rounded-xl object-cover border-2 border-slate-50 dark:border-slate-700" />
+                    <div className="flex-1 overflow-hidden">
+                      <p className="text-xs font-black text-slate-900 dark:text-white truncate">{currentUser.name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{currentUser.role}</p>
+                    </div>
+                  </div>
+                </div>
+            </aside>
           </div>
         )}
       </div>
