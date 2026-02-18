@@ -174,11 +174,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     let nextMaterials = [...prev.materials];
     if (e.materialId && e.materialQuantity) {
-      const isPurchase = e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.vendorId);
+      const type: 'Purchase' | 'Usage' | 'Transfer' = e.inventoryAction === 'Transfer' ? 'Transfer' : 
+                   (e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.vendorId) ? 'Purchase' : 'Usage');
       nextMaterials = nextMaterials.map(m => {
         if (m.id === e.materialId) {
           const hist: StockHistoryEntry = { 
-            id: 'sh-exp-' + e.id, date: e.date, type: isPurchase ? 'Purchase' : 'Usage', quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: isPurchase ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: isPurchase ? undefined : e.parentPurchaseId
+            id: 'sh-exp-' + e.id, date: e.date, type: type, quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: type === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: type !== 'Purchase' ? e.parentPurchaseId : undefined
           };
           const newHistory = [...(m.history || []), hist];
           const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
@@ -213,22 +214,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (existing) {
             newHistory = currentHistory.map(h => {
               if (h.id === historyId) {
-                const isPurchase = e.inventoryAction === 'Purchase';
+                const type: 'Purchase' | 'Usage' | 'Transfer' = e.inventoryAction === 'Transfer' ? 'Transfer' : (e.inventoryAction === 'Purchase' ? 'Purchase' : 'Usage');
                 return {
                   ...h,
+                  type: type,
                   date: e.date,
                   quantity: e.materialQuantity || 0,
                   projectId: e.projectId,
                   vendorId: e.vendorId,
                   note: e.notes,
-                  unitPrice: e.unitPrice || (isPurchase && e.materialQuantity ? e.amount / e.materialQuantity : m.costPerUnit)
+                  unitPrice: e.unitPrice || (type === 'Purchase' && e.materialQuantity ? e.amount / e.materialQuantity : m.costPerUnit)
                 };
               }
               return h;
             });
           } else {
+             const type: 'Purchase' | 'Usage' | 'Transfer' = e.inventoryAction === 'Transfer' ? 'Transfer' : (e.inventoryAction === 'Purchase' ? 'Purchase' : 'Usage');
              const hist: StockHistoryEntry = { 
-                id: historyId, date: e.date, type: e.inventoryAction === 'Purchase' ? 'Purchase' : 'Usage', quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: e.inventoryAction === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: e.inventoryAction === 'Usage' ? e.parentPurchaseId : undefined
+                id: historyId, date: e.date, type: type, quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: type === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: type !== 'Purchase' ? e.parentPurchaseId : undefined
              };
              newHistory = [...currentHistory, hist];
           }

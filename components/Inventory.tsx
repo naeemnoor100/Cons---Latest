@@ -39,7 +39,8 @@ import {
   Copy,
   LayoutGrid,
   Warehouse,
-  Truck
+  Truck,
+  MoveHorizontal
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Material, MaterialUnit, StockHistoryEntry, Expense, Project, Vendor } from '../types';
@@ -74,6 +75,7 @@ export const Inventory: React.FC = () => {
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showUsageModal, setShowUsageModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   
@@ -90,6 +92,17 @@ export const Inventory: React.FC = () => {
   const [bulkGlobalVendor, setBulkGlobalVendor] = useState('');
   const [bulkGlobalProject, setBulkGlobalProject] = useState('');
   const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Transfer State
+  const [transferData, setTransferData] = useState({
+    sourceProjectId: '',
+    destProjectId: '',
+    materialId: '',
+    batchId: '',
+    quantity: '',
+    date: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
 
   useEffect(() => {
     if (historyMaterial) {
@@ -113,6 +126,7 @@ export const Inventory: React.FC = () => {
         setShowProcureModal(false);
         setShowBulkModal(false);
         setShowUsageModal(false);
+        setShowTransferModal(false);
         setShowEditModal(false);
         setShowEditHistoryModal(false);
         setHistoryMaterial(null);
@@ -177,6 +191,38 @@ export const Inventory: React.FC = () => {
     return batches.sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
   }, [materials, usageData.projectId, vendors]);
 
+  const transferSourceMaterials = useMemo(() => {
+    if (!transferData.sourceProjectId) return [];
+    const batches: any[] = [];
+    materials.forEach(mat => {
+      const history = mat.history || [];
+      const inwardEntries = history.filter(h => (h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0);
+      inwardEntries.forEach(inward => {
+        const batchId = inward.id.replace('sh-exp-', '');
+        const deductionsAgainstThisBatch = history.filter(h => h.parentPurchaseId === batchId && h.quantity < 0);
+        const totalDeductedFromBatch = Math.abs(deductionsAgainstThisBatch.reduce((sum, d) => sum + d.quantity, 0));
+        const availableInBatch = inward.quantity - totalDeductedFromBatch;
+
+        if (availableInBatch > 0) {
+          const vendor = vendors.find(v => v.id === inward.vendorId);
+          const vName = vendor?.name || (inward.type === 'Transfer' ? 'Inbound Stock' : 'Standard Supplier');
+          batches.push({
+            id: mat.id,
+            name: mat.name,
+            unit: mat.unit,
+            batchId: batchId,
+            vendorName: vName,
+            vendorId: inward.vendorId,
+            unitPrice: inward.unitPrice || mat.costPerUnit,
+            available: availableInBatch,
+            isLocal: inward.projectId === transferData.sourceProjectId
+          });
+        }
+      });
+    });
+    return batches.sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
+  }, [materials, transferData.sourceProjectId, vendors]);
+
   const selectedBatchForTotal = useMemo(() => {
     return relevantMaterialsForSite.find(b => 
       b.id === usageData.materialId && b.batchId === usageData.batchId
@@ -188,6 +234,75 @@ export const Inventory: React.FC = () => {
   const handleOpenUsageModal = (materialId?: string, projectId?: string) => {
     setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || projects.find(p => !p.isGodown)?.id || projects[0]?.id || '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '' });
     setShowUsageModal(true);
+  };
+
+  const handleOpenTransferModal = () => {
+    setTransferData({
+      sourceProjectId: projects.find(p => p.isGodown)?.id || projects[0]?.id || '',
+      destProjectId: '',
+      materialId: '',
+      batchId: '',
+      quantity: '',
+      date: new Date().toISOString().split('T')[0],
+      notes: ''
+    });
+    setShowTransferModal(true);
+  };
+
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (transferData.sourceProjectId === transferData.destProjectId) {
+      alert("Validation Error: Source and Destination cannot be identical.");
+      return;
+    }
+    const qty = parseFloat(transferData.quantity) || 0;
+    const selectedBatch = transferSourceMaterials.find(b => b.id === transferData.materialId && b.batchId === transferData.batchId);
+    
+    if (!selectedBatch) {
+      alert("Error: Please select a valid material batch.");
+      return;
+    }
+    if (selectedBatch.available < qty) {
+      alert(`Insufficient Stock: Only ${selectedBatch.available} ${selectedBatch.unit} available at source.`);
+      return;
+    }
+
+    const transferId = 'trf-' + Date.now();
+    
+    // 1. Deduction from source
+    await addExpense({
+      id: transferId + '-out',
+      date: transferData.date,
+      projectId: transferData.sourceProjectId,
+      amount: 0, // Zero financial impact, internal movement
+      paymentMethod: 'Bank',
+      category: 'Material',
+      materialId: selectedBatch.id,
+      vendorId: selectedBatch.vendorId,
+      materialQuantity: -qty,
+      inventoryAction: 'Transfer',
+      parentPurchaseId: selectedBatch.batchId,
+      notes: transferData.notes || `Internal Transfer Out to ${projects.find(p => p.id === transferData.destProjectId)?.name}`
+    });
+
+    // 2. Addition to destination
+    await addExpense({
+      id: transferId + '-in',
+      date: transferData.date,
+      projectId: transferData.destProjectId,
+      amount: 0,
+      paymentMethod: 'Bank',
+      category: 'Material',
+      materialId: selectedBatch.id,
+      vendorId: selectedBatch.vendorId,
+      materialQuantity: qty,
+      inventoryAction: 'Transfer',
+      parentPurchaseId: selectedBatch.batchId, // Carry over original batch link for audit trail
+      unitPrice: selectedBatch.unitPrice, // Keep the original valuation
+      notes: transferData.notes || `Internal Transfer In from ${projects.find(p => p.id === transferData.sourceProjectId)?.name}`
+    });
+
+    setShowTransferModal(false);
   };
 
   const handleOpenEditModal = (mat: Material) => {
@@ -458,6 +573,7 @@ export const Inventory: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage godown stock and project site assets.</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+          <button onClick={handleOpenTransferModal} className="flex-1 sm:flex-none bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><MoveHorizontal size={18} /> Internal Transfer</button>
           <button onClick={() => setShowBulkModal(true)} className="flex-1 sm:flex-none bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Layers size={18} /> Bulk Hub Inward</button>
           <button onClick={() => setShowProcureModal(true)} className="flex-1 sm:flex-none bg-slate-900 dark:bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Plus size={18} /> Hub Procure</button>
           <button onClick={() => handleOpenUsageModal()} className="flex-1 sm:flex-none bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><TrendingDown size={18} /> Record Use</button>
@@ -542,6 +658,79 @@ export const Inventory: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Internal Transfer Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
+             <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-indigo-50/30 dark:bg-indigo-900/10">
+                <div className="flex gap-4 items-center">
+                  <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg"><MoveHorizontal size={28} /></div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">Internal Stock Transfer</h2>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Move material between hubs or sites</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowTransferModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
+             </div>
+             <form onSubmit={handleTransferSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Hub (From)</label>
+                      <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.sourceProjectId} onChange={e => setTransferData(p => ({ ...p, sourceProjectId: e.target.value, materialId: '', batchId: '' }))}>
+                         {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}</option>)}
+                      </select>
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Destination Hub (To)</label>
+                      <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.destProjectId} onChange={e => setTransferData(p => ({ ...p, destProjectId: e.target.value }))}>
+                         <option value="">Select Target...</option>
+                         {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}</option>)}
+                      </select>
+                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Material Batch (Available at Source)</label>
+                   <select 
+                    required 
+                    className="w-full px-5 py-4 bg-white dark:bg-slate-900 border-2 border-indigo-100 dark:border-indigo-900 rounded-2xl font-bold dark:text-white outline-none text-xs"
+                    value={`${transferData.materialId}|${transferData.batchId}`}
+                    onChange={e => {
+                      const [mId, bId] = e.target.value.split('|');
+                      setTransferData(p => ({ ...p, materialId: mId, batchId: bId }));
+                    }}
+                   >
+                      <option value="|">Choose source material...</option>
+                      {transferSourceMaterials.map((batch, idx) => (
+                        <option key={idx} value={`${batch.id}|${batch.batchId}`} className={batch.isLocal ? 'text-emerald-600 font-bold' : ''}>
+                          {batch.name} / {batch.vendorName} / {formatCurrency(batch.unitPrice)} / {batch.available} {batch.unit} Available
+                        </option>
+                      ))}
+                   </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Transfer Quantity</label>
+                    <input type="number" step={allowDecimalStock ? "0.01" : "1"} required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none" value={transferData.quantity} onChange={e => setTransferData(p => ({ ...p, quantity: e.target.value }))} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Effective Date</label>
+                    <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={transferData.date} onChange={e => setTransferData(p => ({ ...p, date: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Memo / Internal Note</label>
+                   <textarea rows={2} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={transferData.notes} onChange={e => setTransferData(p => ({ ...p, notes: e.target.value }))} placeholder="Vehicle info, driver, reason..." />
+                </div>
+
+                <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all text-sm">Authorize Internal Move</button>
+             </form>
+          </div>
+        </div>
+      )}
 
       {/* Bulk Stock Inward Modal */}
       {showBulkModal && (
