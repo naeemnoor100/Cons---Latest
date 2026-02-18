@@ -33,6 +33,7 @@ interface AppContextType extends AppState {
   updateWorker: (w: Worker) => Promise<void>;
   deleteWorker: (id: string) => Promise<void>;
   markAttendance: (a: Attendance) => Promise<void>;
+  bulkMarkAttendance: (records: Attendance[]) => Promise<void>;
   deleteAttendance: (id: string) => Promise<void>;
   forceSync: () => Promise<void>;
   addTradeCategory: (cat: string) => void;
@@ -177,14 +178,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       nextMaterials = nextMaterials.map(m => {
         if (m.id === e.materialId) {
           const hist: StockHistoryEntry = { 
-            id: 'sh-exp-' + e.id, date: e.date, type: isPurchase ? 'Purchase' : 'Usage', quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: isPurchase ? (e.amount / e.materialQuantity!) : m.costPerUnit, parentPurchaseId: isPurchase ? undefined : e.parentPurchaseId
+            id: 'sh-exp-' + e.id, date: e.date, type: isPurchase ? 'Purchase' : 'Usage', quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: isPurchase ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: isPurchase ? undefined : e.parentPurchaseId
           };
-          return {
-            ...m,
-            totalPurchased: isPurchase ? m.totalPurchased + e.materialQuantity! : m.totalPurchased,
-            totalUsed: !isPurchase ? m.totalUsed + Math.abs(e.materialQuantity!) : m.totalUsed,
-            history: [...(m.history || []), hist]
-          };
+          const newHistory = [...(m.history || []), hist];
+          const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
+          const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
+          return { ...m, totalPurchased, totalUsed, history: newHistory };
         }
         return m;
       });
@@ -193,25 +192,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const updateExpense = async (e: Expense) => dispatchUpdate(prev => {
-    // Re-calculate the entire material history and vendor balance when an expense is updated
-    // Simplified: Find the material and update its specific history entry
+    const oldExp = prev.expenses.find(x => x.id === e.id);
+    let nextVendors = [...prev.vendors];
+
+    if (oldExp && oldExp.vendorId && oldExp.inventoryAction === 'Purchase') {
+      nextVendors = nextVendors.map(v => v.id === oldExp.vendorId ? { ...v, balance: Math.max(0, v.balance - oldExp.amount) } : v);
+    }
+    if (e.vendorId && e.inventoryAction === 'Purchase') {
+      nextVendors = nextVendors.map(v => v.id === e.vendorId ? { ...v, balance: v.balance + e.amount } : v);
+    }
+
     let nextMaterials = prev.materials.map(m => {
-      if (m.id === e.materialId) {
+      if (m.id === e.materialId || (oldExp && m.id === oldExp.materialId)) {
         const historyId = 'sh-exp-' + e.id;
-        const newHistory = (m.history || []).map(h => {
-          if (h.id === historyId) {
-            return {
-              ...h,
-              date: e.date,
-              quantity: e.materialQuantity || 0,
-              projectId: e.projectId,
-              vendorId: e.vendorId,
-              note: e.notes,
-              unitPrice: e.unitPrice || (e.inventoryAction === 'Purchase' && e.materialQuantity ? e.amount / e.materialQuantity : m.costPerUnit)
-            };
+        const currentHistory = m.history || [];
+        
+        let newHistory;
+        if (m.id === e.materialId) {
+          const existing = currentHistory.find(h => h.id === historyId);
+          if (existing) {
+            newHistory = currentHistory.map(h => {
+              if (h.id === historyId) {
+                const isPurchase = e.inventoryAction === 'Purchase';
+                return {
+                  ...h,
+                  date: e.date,
+                  quantity: e.materialQuantity || 0,
+                  projectId: e.projectId,
+                  vendorId: e.vendorId,
+                  note: e.notes,
+                  unitPrice: e.unitPrice || (isPurchase && e.materialQuantity ? e.amount / e.materialQuantity : m.costPerUnit)
+                };
+              }
+              return h;
+            });
+          } else {
+             const hist: StockHistoryEntry = { 
+                id: historyId, date: e.date, type: e.inventoryAction === 'Purchase' ? 'Purchase' : 'Usage', quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: e.inventoryAction === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: e.inventoryAction === 'Usage' ? e.parentPurchaseId : undefined
+             };
+             newHistory = [...currentHistory, hist];
           }
-          return h;
-        });
+        } else {
+          newHistory = currentHistory.filter(h => h.id !== historyId);
+        }
 
         const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
         const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
@@ -224,7 +247,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { 
       ...prev, 
       expenses: prev.expenses.map(x => x.id === e.id ? e : x),
-      materials: nextMaterials
+      materials: nextMaterials,
+      vendors: nextVendors
     };
   });
 
@@ -259,26 +283,165 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
-  const addPayment = async (p: Payment) => dispatchUpdate(prev => ({
-    ...prev,
-    payments: [...prev.payments, p],
-    vendors: prev.vendors.map(v => v.id === p.vendorId ? { ...v, balance: Math.max(0, v.balance - p.amount) } : v)
-  }));
-  const updatePayment = async (p: Payment) => dispatchUpdate(prev => ({ ...prev, payments: prev.payments.map(x => x.id === p.id ? p : x) }));
-  const deletePayment = async (id: string) => dispatchUpdate(prev => ({ ...prev, payments: prev.payments.filter(x => x.id !== id) }));
+  const addPayment = async (p: Payment) => dispatchUpdate(prev => {
+    const nextVendors = prev.vendors.map(v => v.id === p.vendorId ? { ...v, balance: Math.max(0, v.balance - p.amount) } : v);
+    
+    if (!p.materialBatchId) {
+      let remainingAmountToAllocate = p.amount;
+      const allocatedPayments: Payment[] = [];
+      const masterPaymentId = p.id;
+      
+      const purchaseBills = prev.expenses.filter(e => e.vendorId === p.vendorId && e.inventoryAction === 'Purchase');
+      
+      const billBalances = purchaseBills.map(bill => {
+        const paidForBill = prev.payments
+          .filter(pay => pay.materialBatchId === 'sh-exp-' + bill.id)
+          .reduce((sum, pay) => sum + pay.amount, 0);
+        return { bill, remaining: bill.amount - paidForBill };
+      }).filter(b => b.remaining > 0.01);
+
+      billBalances.sort((a, b) => a.remaining - b.remaining);
+
+      for (const b of billBalances) {
+        if (remainingAmountToAllocate <= 0) break;
+        
+        const payAmount = Math.min(remainingAmountToAllocate, b.remaining);
+        allocatedPayments.push({
+          ...p,
+          id: p.id + '-' + b.bill.id,
+          amount: payAmount,
+          materialBatchId: 'sh-exp-' + b.bill.id,
+          reference: p.reference + ' (Auto-Adjusted)',
+          masterPaymentId,
+          isAllocation: true
+        });
+        remainingAmountToAllocate -= payAmount;
+      }
+
+      if (remainingAmountToAllocate > 0.01) {
+        allocatedPayments.push({
+          ...p,
+          id: p.id + '-advance',
+          amount: remainingAmountToAllocate,
+          reference: p.reference + ' (Advance)',
+          masterPaymentId,
+          isAllocation: true
+        });
+      }
+
+      return {
+        ...prev,
+        payments: [...prev.payments, p, ...allocatedPayments],
+        vendors: nextVendors
+      };
+    }
+
+    return {
+      ...prev,
+      payments: [...prev.payments, p],
+      vendors: nextVendors
+    };
+  });
+
+  const updatePayment = async (p: Payment) => dispatchUpdate(prev => {
+    const actualOldPay = prev.payments.find(x => x.id === p.id);
+    let nextVendors = [...prev.vendors];
+    
+    // Step 1: Revert old master payment from vendor balance
+    if (actualOldPay) {
+      nextVendors = nextVendors.map(v => v.id === actualOldPay.vendorId ? { ...v, balance: v.balance + actualOldPay.amount } : v);
+    }
+
+    // Step 2: Remove old child allocations associated with this master payment
+    const paymentsWithoutOldAllocations = prev.payments.filter(x => x.id !== p.id && x.masterPaymentId !== p.id);
+
+    // Step 3: Apply new payment to vendor balance
+    nextVendors = nextVendors.map(v => v.id === p.vendorId ? { ...v, balance: Math.max(0, v.balance - p.amount) } : v);
+
+    // Step 4: Re-calculate allocations based on the new amount (if no specific batch linked)
+    let newAllocations: Payment[] = [];
+    if (!p.materialBatchId) {
+      let remainingToAlloc = p.amount;
+      const masterPaymentId = p.id;
+      
+      const purchaseBills = prev.expenses.filter(e => e.vendorId === p.vendorId && e.inventoryAction === 'Purchase');
+      const billBalances = purchaseBills.map(bill => {
+        // Find existing payments for this bill, excluding the ones we just removed from state conceptually
+        const paidForBill = paymentsWithoutOldAllocations
+          .filter(pay => pay.materialBatchId === 'sh-exp-' + bill.id)
+          .reduce((sum, pay) => sum + pay.amount, 0);
+        return { bill, remaining: bill.amount - paidForBill };
+      }).filter(b => b.remaining > 0.01);
+
+      billBalances.sort((a, b) => a.remaining - b.remaining);
+
+      for (const b of billBalances) {
+        if (remainingToAlloc <= 0) break;
+        const payAmount = Math.min(remainingToAlloc, b.remaining);
+        newAllocations.push({
+          ...p,
+          id: p.id + '-' + b.bill.id,
+          amount: payAmount,
+          materialBatchId: 'sh-exp-' + b.bill.id,
+          reference: p.reference + ' (Auto-Adjusted)',
+          masterPaymentId,
+          isAllocation: true
+        });
+        remainingToAlloc -= payAmount;
+      }
+
+      if (remainingToAlloc > 0.01) {
+        newAllocations.push({
+          ...p,
+          id: p.id + '-advance',
+          amount: remainingToAlloc,
+          reference: p.reference + ' (Advance)',
+          masterPaymentId,
+          isAllocation: true
+        });
+      }
+    }
+
+    return { 
+      ...prev, 
+      payments: [...paymentsWithoutOldAllocations, p, ...newAllocations],
+      vendors: nextVendors
+    };
+  });
+
+  const deletePayment = async (id: string) => dispatchUpdate(prev => {
+    const payToDelete = prev.payments.find(x => x.id === id);
+    let nextVendors = [...prev.vendors];
+    
+    const nextPayments = prev.payments.filter(x => x.id !== id && x.masterPaymentId !== id);
+
+    if (payToDelete) {
+      if (!payToDelete.isAllocation) {
+        nextVendors = nextVendors.map(v => v.id === payToDelete.vendorId ? { ...v, balance: v.balance + payToDelete.amount } : v);
+      }
+    }
+    
+    return { 
+      ...prev, 
+      payments: nextPayments,
+      vendors: nextVendors
+    };
+  });
 
   const addIncome = async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: [...prev.incomes, i] }));
   const updateIncome = async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.map(inc => inc.id === i.id ? i : inc) }));
   const deleteIncome = async (id: string) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.filter(i => i.id !== id) }));
 
   const addInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: [...prev.invoices, inv] }));
-  const updateInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? inv : i) }));
+  const updateInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? i : i) }));
   const deleteInvoice = async (id: string) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }));
 
   const addWorker = async (w: Worker) => dispatchUpdate(prev => ({ ...prev, workers: [...prev.workers, w] }));
   const updateWorker = async (w: Worker) => dispatchUpdate(prev => ({ ...prev, workers: prev.workers.map(x => x.id === w.id ? w : x) }));
   const deleteWorker = async (id: string) => dispatchUpdate(prev => ({ ...prev, workers: prev.workers.filter(x => x.id !== id), attendance: prev.attendance.filter(a => a.workerId !== id) }));
+  
   const markAttendance = async (a: Attendance) => dispatchUpdate(prev => ({ ...prev, attendance: [...prev.attendance, a] }));
+  const bulkMarkAttendance = async (records: Attendance[]) => dispatchUpdate(prev => ({ ...prev, attendance: [...prev.attendance, ...records] }));
   const deleteAttendance = async (id: string) => dispatchUpdate(prev => ({ ...prev, attendance: prev.attendance.filter(x => x.id !== id) }));
 
   const forceSync = async () => loadFromDB();
@@ -315,7 +478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addPayment, updatePayment, deletePayment,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
-    addWorker, updateWorker, deleteWorker, markAttendance, deleteAttendance,
+    addWorker, updateWorker, deleteWorker, markAttendance, bulkMarkAttendance, deleteAttendance,
     forceSync,
     addTradeCategory, removeTradeCategory,
     addStockingUnit, removeStockingUnit,

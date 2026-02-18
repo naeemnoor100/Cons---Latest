@@ -99,6 +99,8 @@ export interface Payment {
   method: PaymentMethod;
   reference?: string;
   materialBatchId?: string;
+  masterPaymentId?: string;
+  isAllocation?: boolean;
 }
 
 export interface Income {
