@@ -1,10 +1,9 @@
-
 import { AppState, User, Project, Vendor, Material, Expense, Income, Worker, Attendance } from './types';
 
 export const MOCK_USER: User = {
   id: 'u1',
   name: 'Ahmed Khan',
-  email: 'ahmed@buildtrack.pro',
+  email: 'ahmed@buildmaster.pro',
   role: 'Admin',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop'
 };
@@ -12,6 +11,7 @@ export const MOCK_USER: User = {
 export const INITIAL_STATE: AppState = {
   currentUser: MOCK_USER,
   theme: 'light',
+  syncId: 'BUILDMASTER_PRO_DATABASE_ACTIVE', // Auto-enabled global sync key
   projects: [
     {
       id: 'godown-001',

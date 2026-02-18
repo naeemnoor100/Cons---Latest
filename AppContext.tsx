@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice, Worker, Attendance } from './types';
 import { INITIAL_STATE } from './constants';
@@ -35,8 +34,6 @@ interface AppContextType extends AppState {
   deleteWorker: (id: string) => Promise<void>;
   markAttendance: (a: Attendance) => Promise<void>;
   deleteAttendance: (id: string) => Promise<void>;
-  enableCloudSync: (key: string) => Promise<void>;
-  disableCloudSync: () => void;
   forceSync: () => Promise<void>;
   addTradeCategory: (cat: string) => void;
   removeTradeCategory: (cat: string) => void;
@@ -76,25 +73,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsLoading(true);
     try {
       const response = await fetch(`${API_PATH}?action=sync&syncId=${activeSyncId}`);
-      if (!response.ok) throw new Error("Server Error");
+      if (!response.ok) {
+        setSyncError(true);
+        return;
+      }
       
       const text = await response.text();
+      if (text.trim().startsWith('<?php') || text.trim().startsWith('<!DOCTYPE')) {
+        setSyncError(true);
+        return;
+      }
+
       try {
         const cloudData = JSON.parse(text);
         if (cloudData && !cloudData.error && cloudData.status !== 'new') {
-          setState(prev => ({ ...prev, ...cloudData, syncId: activeSyncId }));
+          setState(prev => ({ ...prev, ...cloudData, syncId: INITIAL_STATE.syncId }));
           setSyncError(false);
-        } else {
-          // If new or error, fallback to local
-          const saved = localStorage.getItem('buildtrack_pro_state_v2');
-          if (saved) setState(JSON.parse(saved));
         }
       } catch (jsonErr) {
-        console.error("Invalid JSON from server:", text);
         setSyncError(true);
       }
     } catch (e) {
-      console.error("Load Error:", e);
       setSyncError(true);
     } finally {
       setIsLoading(false);
@@ -107,14 +106,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.syncId) {
-          loadFromDB(parsed.syncId);
-          return;
-        }
-        setState(parsed);
+        setState({ ...parsed, syncId: INITIAL_STATE.syncId });
       } catch (e) {}
     }
-    setIsLoading(false);
+    loadFromDB(INITIAL_STATE.syncId);
   }, []);
 
   const saveToDB = useCallback((nextState: AppState) => {
@@ -131,19 +126,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(nextState)
           });
-          if (!res.ok) throw new Error("Sync Failed");
-          const result = await res.json();
-          if (result.error) throw new Error(result.error);
+          if (!res.ok) throw new Error("Server communication error");
         }
         setSyncError(false);
       } catch (e) {
-        console.error("Sync Failure:", e);
         setSyncError(true);
       } finally {
         setIsSyncing(false);
         setLastSynced(new Date());
       }
-    }, 1500);
+    }, 500);
   }, []);
 
   const dispatchUpdate = useCallback((updater: (prev: AppState) => AppState) => {
@@ -200,8 +192,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ...prev, expenses: [...prev.expenses, e], vendors: nextVendors, materials: nextMaterials };
   });
 
-  const updateExpense = async (e: Expense) => dispatchUpdate(prev => ({ ...prev, expenses: prev.expenses.map(x => x.id === e.id ? e : x) }));
-  const deleteExpense = async (id: string) => dispatchUpdate(prev => ({ ...prev, expenses: prev.expenses.filter(x => x.id !== id) }));
+  const updateExpense = async (e: Expense) => dispatchUpdate(prev => {
+    // Re-calculate the entire material history and vendor balance when an expense is updated
+    // Simplified: Find the material and update its specific history entry
+    let nextMaterials = prev.materials.map(m => {
+      if (m.id === e.materialId) {
+        const historyId = 'sh-exp-' + e.id;
+        const newHistory = (m.history || []).map(h => {
+          if (h.id === historyId) {
+            return {
+              ...h,
+              date: e.date,
+              quantity: e.materialQuantity || 0,
+              projectId: e.projectId,
+              vendorId: e.vendorId,
+              note: e.notes,
+              unitPrice: e.unitPrice || (e.inventoryAction === 'Purchase' && e.materialQuantity ? e.amount / e.materialQuantity : m.costPerUnit)
+            };
+          }
+          return h;
+        });
+
+        const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
+        const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
+
+        return { ...m, history: newHistory, totalPurchased, totalUsed };
+      }
+      return m;
+    });
+
+    return { 
+      ...prev, 
+      expenses: prev.expenses.map(x => x.id === e.id ? e : x),
+      materials: nextMaterials
+    };
+  });
+
+  const deleteExpense = async (id: string) => dispatchUpdate(prev => {
+    const expToDelete = prev.expenses.find(x => x.id === id);
+    if (!expToDelete) return prev;
+
+    let nextMaterials = [...prev.materials];
+    if (expToDelete.materialId) {
+      nextMaterials = nextMaterials.map(m => {
+        if (m.id === expToDelete.materialId) {
+          const historyId = 'sh-exp-' + id;
+          const newHistory = (m.history || []).filter(h => h.id !== historyId);
+          const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
+          const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
+          return { ...m, history: newHistory, totalPurchased, totalUsed };
+        }
+        return m;
+      });
+    }
+
+    let nextVendors = [...prev.vendors];
+    if (expToDelete.vendorId && expToDelete.inventoryAction === 'Purchase') {
+      nextVendors = nextVendors.map(v => v.id === expToDelete.vendorId ? { ...v, balance: Math.max(0, v.balance - expToDelete.amount) } : v);
+    }
+
+    return { 
+      ...prev, 
+      expenses: prev.expenses.filter(x => x.id !== id),
+      materials: nextMaterials,
+      vendors: nextVendors
+    };
+  });
 
   const addPayment = async (p: Payment) => dispatchUpdate(prev => ({
     ...prev,
@@ -225,11 +281,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const markAttendance = async (a: Attendance) => dispatchUpdate(prev => ({ ...prev, attendance: [...prev.attendance, a] }));
   const deleteAttendance = async (id: string) => dispatchUpdate(prev => ({ ...prev, attendance: prev.attendance.filter(x => x.id !== id) }));
 
-  const enableCloudSync = async (key: string) => {
-    setState(prev => ({ ...prev, syncId: key }));
-    await loadFromDB(key);
-  };
-  const disableCloudSync = () => dispatchUpdate(prev => ({ ...prev, syncId: undefined }));
   const forceSync = async () => loadFromDB();
 
   const addTradeCategory = (cat: string) => dispatchUpdate(prev => ({ ...prev, tradeCategories: [...prev.tradeCategories, cat] }));
@@ -240,8 +291,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeSiteStatus = (status: string) => dispatchUpdate(prev => ({ ...prev, siteStatuses: prev.siteStatuses.filter(s => s !== status) }));
 
   const importState = async (newState: AppState) => {
-    setState(newState);
-    saveToDB(newState);
+    const normalizedState = { ...newState, syncId: INITIAL_STATE.syncId };
+    setState(normalizedState);
+    try {
+      await fetch(`${API_PATH}?action=save_state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(normalizedState)
+      });
+      setSyncError(false);
+    } catch (e) {
+      setSyncError(true);
+    }
   };
 
   const value = useMemo(() => ({
@@ -255,7 +316,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
     addWorker, updateWorker, deleteWorker, markAttendance, deleteAttendance,
-    enableCloudSync, disableCloudSync, forceSync,
+    forceSync,
     addTradeCategory, removeTradeCategory,
     addStockingUnit, removeStockingUnit,
     addSiteStatus, removeSiteStatus,

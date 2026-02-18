@@ -196,10 +196,10 @@ export const Inventory: React.FC = () => {
     setShowEditModal(true);
   };
 
-  const handleEditMaterialSubmit = (e: React.FormEvent) => {
+  const handleEditMaterialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMaterial) return;
-    updateMaterial({ ...editingMaterial, name: editFormData.name, unit: editFormData.unit as MaterialUnit });
+    await updateMaterial({ ...editingMaterial, name: editFormData.name, unit: editFormData.unit as MaterialUnit });
     setShowEditModal(false);
     setEditingMaterial(null);
   };
@@ -359,22 +359,35 @@ export const Inventory: React.FC = () => {
   };
 
   const handleDeleteHistoryEntry = async (material: Material, entryId: string) => {
-    if (payments.some(p => p.materialBatchId === entryId)) { alert("Lock Violation: This entry is linked to payments in the Supplier Ledger."); return; }
+    if (payments.some(p => p.materialBatchId === entryId)) { 
+      alert("Lock Violation: This entry is linked to payments in the Supplier Ledger."); 
+      return; 
+    }
+    
     const expenseId = entryId.startsWith('sh-exp-') ? entryId.replace('sh-exp-', '') : null;
-    if (!confirm("Confirm Sync: This will delete the financial expense and revert material stock. Continue?")) return;
+    
+    if (!confirm("Confirm Sync: This will delete the entry and revert stock levels. Continue?")) return;
+    
     if (expenseId) { 
       await deleteExpense(expenseId); 
     } else { 
       const newHistory = material.history?.filter(h => h.id !== entryId) || []; 
       const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0); 
       const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0)); 
-      updateMaterial({ ...material, totalPurchased, totalUsed, history: newHistory }); 
+      await updateMaterial({ ...material, totalPurchased, totalUsed, history: newHistory }); 
     }
+
+    // Force a small delay to allow state to catch up for the ledger view
+    setTimeout(() => {
+      const updated = materials.find(m => m.id === material.id);
+      if (updated) setHistoryMaterial(updated);
+    }, 100);
   };
 
   const handleEditHistorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingHistoryEntry) return;
+    
     const { material, entry: oldEntry } = editingHistoryEntry;
     const newQty = parseFloat(historyEditFormData.quantity) || 0;
     const newPrice = parseFloat(historyEditFormData.unitPrice) || 0;
@@ -397,15 +410,24 @@ export const Inventory: React.FC = () => {
       }
     } else {
       const newHistory = material.history?.map(h => {
-        if (h.id === oldEntry.id) { return { ...h, quantity: newQty, unitPrice: newPrice, projectId: historyEditFormData.projectId || undefined, vendorId: historyEditFormData.vendorId || undefined, date: historyEditFormData.date, note: historyEditFormData.note }; }
+        if (h.id === oldEntry.id) { 
+          return { ...h, quantity: newQty, unitPrice: newPrice, projectId: historyEditFormData.projectId || undefined, vendorId: historyEditFormData.vendorId || undefined, date: historyEditFormData.date, note: historyEditFormData.note }; 
+        }
         return h;
       }) || [];
       const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
       const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
-      updateMaterial({ ...material, totalPurchased, totalUsed, history: newHistory });
+      await updateMaterial({ ...material, totalPurchased, totalUsed, history: newHistory });
     }
+
     setShowEditHistoryModal(false);
     setEditingHistoryEntry(null);
+    
+    // Refresh the ledger material view
+    setTimeout(() => {
+      const updated = materials.find(m => m.id === material.id);
+      if (updated) setHistoryMaterial(updated);
+    }, 100);
   };
 
   const triggerHistoryEdit = (entry: StockHistoryEntry) => {
@@ -880,7 +902,7 @@ export const Inventory: React.FC = () => {
                  <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-1.5">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Quantity Flux</label>
-                     <input type="number" required step={allowDecimalStock ? "0.01" : "1"} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black dark:text-white outline-none" value={usageData.quantity} onChange={e => setUsageData(p => ({ ...p, quantity: e.target.value }))} placeholder="0.00" />
+                     <input type="number" required step={allowDecimalStock ? "0.01" : "1"} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2 font-black dark:text-white outline-none" value={usageData.quantity} onChange={e => setUsageData(p => ({ ...p, quantity: e.target.value }))} placeholder="0.00" />
                    </div>
                    <div className="space-y-1.5">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Entry Date</label>
