@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info
+  Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info, Search, Filter, LayoutGrid, ArrowUpRight
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Expense, PaymentMethod, Material, Payment } from '../types';
@@ -11,6 +11,11 @@ export const ExpenseTracker: React.FC = () => {
   const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, addPayment, payments, allowDecimalStock } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  
+  // Search & Filter State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [projectFilter, setProjectFilter] = useState('All');
   
   // Payment quick action state
   const [showQuickPayModal, setShowQuickPayModal] = useState(false);
@@ -31,17 +36,43 @@ export const ExpenseTracker: React.FC = () => {
     materialQuantity: ''
   });
 
+  // Filtered Expenses Logic
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter(exp => {
+      const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
+      const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
+      const project = projects.find(p => p.id === exp.projectId);
+      
+      const search = searchTerm.toLowerCase();
+      const matchesSearch = 
+        exp.notes.toLowerCase().includes(search) ||
+        (mat?.name || '').toLowerCase().includes(search) ||
+        (vendor?.name || '').toLowerCase().includes(search) ||
+        (project?.name || '').toLowerCase().includes(search) ||
+        exp.category.toLowerCase().includes(search);
+      
+      const matchesCategory = categoryFilter === 'All' || exp.category === categoryFilter;
+      const matchesProject = projectFilter === 'All' || exp.projectId === projectFilter;
+
+      return matchesSearch && matchesCategory && matchesProject;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [expenses, searchTerm, categoryFilter, projectFilter, materials, vendors, projects]);
+
+  const filteredTotal = useMemo(() => {
+    return filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
+  }, [filteredExpenses]);
+
   // Auto-sync amount if material quantity changes during edit for inventory entries
   useEffect(() => {
     if (editingExpense?.materialId && formData.materialQuantity) {
-      const mat = materials.find(m => m.id === editingExpense.materialId);
+      const mat = materials.find(m => m.id === (formData.materialId.split('|')[0]));
       if (mat) {
         const qty = parseFloat(formData.materialQuantity) || 0;
-        const newAmount = qty * mat.costPerUnit;
+        const newAmount = qty * (editingExpense.unitPrice || mat.costPerUnit);
         setFormData(prev => ({ ...prev, amount: newAmount.toFixed(2) }));
       }
     }
-  }, [formData.materialQuantity, editingExpense, materials]);
+  }, [formData.materialQuantity, editingExpense, materials, formData.materialId]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -56,7 +87,7 @@ export const ExpenseTracker: React.FC = () => {
   }, []);
 
   const selectedMaterial = useMemo(() => 
-    materials.find(m => m.id === formData.materialId), [materials, formData.materialId]
+    materials.find(m => m.id === formData.materialId.split('|')[0]), [materials, formData.materialId]
   );
 
   const isPurchase = useMemo(() => !!formData.vendorId, [formData.vendorId]);
@@ -70,16 +101,14 @@ export const ExpenseTracker: React.FC = () => {
       const purchaseEntries = history.filter(h => h.type === 'Purchase');
       
       if (isPurchase) {
-        // Just show basic material info for purchases
         results.push({ id: m.id, name: m.name, unit: m.unit, display: m.name });
         return;
       }
 
-      // Batch-wise lookup for consumption
       purchaseEntries.forEach(purchase => {
         const batchId = purchase.id.replace('sh-exp-', '');
         const usagesAgainstThisBatch = history.filter(h => h.type === 'Usage' && h.parentPurchaseId === batchId);
-        const totalUsedFromBatch = usagesAgainstThisBatch.reduce((sum, u) => sum + u.quantity, 0);
+        const totalUsedFromBatch = usagesAgainstThisBatch.reduce((sum, u) => sum + Math.abs(u.quantity), 0);
         const availableInBatch = purchase.quantity - totalUsedFromBatch;
 
         if (availableInBatch > 0) {
@@ -112,10 +141,8 @@ export const ExpenseTracker: React.FC = () => {
   const handleCreateOrUpdateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Logic for linking to parent batch if it's a consumption
     let parentId = editingExpense?.parentPurchaseId;
     if (formData.category === 'Material' && formData.materialId && formData.materialQuantity && !isPurchase) {
-       // Find the batch in inventory to get the ID and vendor link
        const selection = (siteSpecificInventory as any[]).find(s => 
          (s.id + '|' + s.batchId) === formData.materialId || s.id === formData.materialId
        );
@@ -175,7 +202,7 @@ export const ExpenseTracker: React.FC = () => {
       category: e.category, 
       paymentMethod: e.paymentMethod,
       materialId: e.parentPurchaseId ? `${e.materialId}|${e.parentPurchaseId}` : e.materialId || '',
-      materialQuantity: e.materialQuantity?.toString() || ''
+      materialQuantity: e.materialQuantity ? Math.abs(e.materialQuantity).toString() : ''
     });
     setShowModal(true);
   };
@@ -225,11 +252,48 @@ export const ExpenseTracker: React.FC = () => {
         </div>
         <button 
           onClick={() => { setEditingExpense(null); resetForm(); setShowModal(true); }} 
-          className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-100 active:scale-95 transition-all"
+          className="w-full sm:w-auto bg-[#003366] text-white px-6 py-4 rounded-[1.5rem] font-black flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all text-xs uppercase tracking-widest"
         >
           <Plus size={20} />
           Record Expense
         </button>
+      </div>
+
+      {/* Deep Search & Filters Hub */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+         <div className="lg:col-span-2 relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Deep Search in Ledger (Notes, Vendors, Projects...)" 
+              className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[1.5rem] text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+         </div>
+         <div className="flex gap-2">
+            <div className="relative flex-1">
+               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+               <select className="w-full pl-9 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+                  <option value="All">All Categories</option>
+                  {tradeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+               </select>
+            </div>
+            <div className="relative flex-1">
+               <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+               <select className="w-full pl-9 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+                  <option value="All">All Sites</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+               </select>
+            </div>
+         </div>
+         <div className="bg-slate-900 dark:bg-slate-800 p-4 rounded-[1.5rem] flex items-center justify-between text-white shadow-lg">
+            <div>
+               <p className="text-[8px] font-black text-white/50 uppercase tracking-widest">Filtered Total</p>
+               <p className="text-lg font-black">{formatCurrency(filteredTotal)}</p>
+            </div>
+            <div className="p-2 bg-white/10 rounded-xl"><ArrowUpRight size={18} /></div>
+         </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
@@ -246,7 +310,7 @@ export const ExpenseTracker: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {expenses.slice().reverse().map((exp) => {
+              {filteredExpenses.length > 0 ? filteredExpenses.map((exp) => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
                 const isMaterialPurchase = exp.category === 'Material' && exp.vendorId;
@@ -258,7 +322,7 @@ export const ExpenseTracker: React.FC = () => {
                     <td className="px-8 py-5">
                       <div className="flex flex-col">
                         <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                          {mat ? `${mat.name} (${mat.unit})` : exp.category}
+                          {mat ? `${mat.name} (${mat.unit})` : exp.notes || exp.category}
                         </p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
                           Supplier: {vendor?.name || 'Self / Direct Site Cost'}
@@ -274,7 +338,7 @@ export const ExpenseTracker: React.FC = () => {
                     <td className="px-8 py-5 text-center">
                        {exp.materialQuantity ? (
                          <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${exp.inventoryAction === 'Purchase' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-                           {exp.materialQuantity.toLocaleString()} {mat?.unit || ''}
+                           {Math.abs(exp.materialQuantity).toLocaleString()} {mat?.unit || ''}
                          </span>
                        ) : <span className="text-slate-300">--</span>}
                     </td>
@@ -296,13 +360,20 @@ export const ExpenseTracker: React.FC = () => {
                         {isMaterialPurchase && !isFullyPaid && (
                           <button onClick={() => handleInitiatePay(exp)} className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 p-2.5 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90"><DollarSign size={16} /></button>
                         )}
-                        <button onClick={() => openEdit(exp)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
-                        <button onClick={() => handleDelete(exp.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                        <button onClick={() => openEdit(exp)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm" title="Edit Record"><Pencil size={18} /></button>
+                        <button onClick={() => handleDelete(exp.id)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all shadow-sm"><Trash2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
                 );
-              })}
+              }) : (
+                <tr>
+                   <td colSpan={6} className="px-8 py-20 text-center">
+                      <LayoutGrid size={48} className="mx-auto text-slate-200 mb-4" />
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No entries match your deep search</p>
+                   </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -329,7 +400,7 @@ export const ExpenseTracker: React.FC = () => {
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex items-start gap-3">
                    <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
                    <p className="text-[11px] font-bold text-blue-800 dark:text-blue-200 leading-relaxed uppercase tracking-tight">
-                     <strong>Ledger Sync Active:</strong> Only <strong>Quantity</strong> can be modified for synced entries.
+                     <strong>Ledger Sync Active:</strong> Modifying quantity will auto-adjust the bill amount based on original unit price.
                    </p>
                 </div>
               )}
@@ -401,7 +472,7 @@ export const ExpenseTracker: React.FC = () => {
                            <div className="flex flex-col justify-center bg-white/50 dark:bg-black/20 p-3 rounded-2xl border border-slate-100 dark:border-slate-700">
                               <p className="text-[9px] font-black text-slate-400 uppercase mb-1 px-1">Current Sync Impact</p>
                               <p className="text-base font-black text-slate-900 dark:text-white truncate">
-                                {formatCurrency(calculatedCost)}
+                                {formatCurrency(parseFloat(formData.amount) || 0)}
                               </p>
                            </div>
                         </div>
@@ -455,7 +526,7 @@ export const ExpenseTracker: React.FC = () => {
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Description / Memo</label>
-                <textarea rows={2} readOnly={!!editingExpense?.materialId} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none read-only:opacity-50" value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}></textarea>
+                <textarea rows={2} readOnly={!!editingExpense?.materialId} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none read-only:opacity-50" value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Detail about this expense..."></textarea>
               </div>
 
               <div className="flex gap-4 pt-4">
@@ -464,6 +535,40 @@ export const ExpenseTracker: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Quick Pay Modal */}
+      {showQuickPayModal && selectedExpForPay && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-emerald-50/30 dark:bg-emerald-900/20 flex justify-between items-center">
+                 <div className="flex gap-4 items-center">
+                    <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg"><DollarSign size={24} /></div>
+                    <div>
+                       <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Instant Settle</h2>
+                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Against: {selectedExpForPay.notes || 'Material Bill'}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setShowQuickPayModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={28} /></button>
+              </div>
+              <form onSubmit={handleQuickPaySubmit} className="p-8 space-y-5">
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Amount (Rs.)</label><input type="number" step="0.01" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white" value={payFormData.amount} onChange={e => setPayFormData(p => ({ ...p, amount: e.target.value }))} required /></div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Value Date</label><input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white" value={payFormData.date} onChange={e => setPayFormData(p => ({ ...p, date: e.target.value }))} /></div>
+                 </div>
+                 <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Payment Method</label>
+                    <div className="grid grid-cols-3 gap-2">
+                       {(['Bank', 'Cash', 'Online'] as PaymentMethod[]).map(m => (
+                         <button key={m} type="button" onClick={() => setPayFormData(p => ({ ...p, method: m }))} className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${payFormData.method === m ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white dark:bg-slate-900 border-slate-200 text-slate-500'}`}>{m}</button>
+                       ))}
+                    </div>
+                 </div>
+                 <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Reference / UTR</label><input type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white" value={payFormData.reference} onChange={e => setPayFormData(p => ({ ...p, reference: e.target.value }))} /></div>
+                 <button type="submit" className="w-full bg-emerald-600 text-white py-4 rounded-3xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all text-sm mt-4">Confirm Settlement</button>
+              </form>
+           </div>
         </div>
       )}
     </div>
