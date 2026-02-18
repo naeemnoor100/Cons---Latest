@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  /* Corrected imports for ToggleLeft and ToggleRight from lucide-react */
   Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { useApp } from '../AppContext';
