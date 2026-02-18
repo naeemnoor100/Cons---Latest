@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info, Search, Filter, LayoutGrid, ArrowUpRight
+  /* Corrected imports for ToggleLeft and ToggleRight from lucide-react */
+  Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Expense, PaymentMethod, Material, Payment } from '../types';
@@ -11,6 +12,7 @@ export const ExpenseTracker: React.FC = () => {
   const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, addPayment, payments, allowDecimalStock } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [trackStock, setTrackStock] = useState(false);
   
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,7 +66,7 @@ export const ExpenseTracker: React.FC = () => {
 
   // Auto-sync amount if material quantity changes during edit for inventory entries
   useEffect(() => {
-    if (editingExpense?.materialId && formData.materialQuantity) {
+    if (editingExpense?.materialId && formData.materialQuantity && trackStock) {
       const mat = materials.find(m => m.id === (formData.materialId.split('|')[0]));
       if (mat) {
         const qty = parseFloat(formData.materialQuantity) || 0;
@@ -72,7 +74,7 @@ export const ExpenseTracker: React.FC = () => {
         setFormData(prev => ({ ...prev, amount: newAmount.toFixed(2) }));
       }
     }
-  }, [formData.materialQuantity, editingExpense, materials, formData.materialId]);
+  }, [formData.materialQuantity, editingExpense, materials, formData.materialId, trackStock]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -133,16 +135,11 @@ export const ExpenseTracker: React.FC = () => {
     return results.sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
   }, [materials, formData.projectId, isPurchase, vendors]);
 
-  const calculatedCost = useMemo(() => {
-    if (!selectedMaterial || !formData.materialQuantity) return 0;
-    return (parseFloat(formData.materialQuantity) || 0) * selectedMaterial.costPerUnit;
-  }, [selectedMaterial, formData.materialQuantity]);
-
   const handleCreateOrUpdateExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     
     let parentId = editingExpense?.parentPurchaseId;
-    if (formData.category === 'Material' && formData.materialId && formData.materialQuantity && !isPurchase) {
+    if (trackStock && formData.category === 'Material' && formData.materialId && formData.materialQuantity && !isPurchase) {
        const selection = (siteSpecificInventory as any[]).find(s => 
          (s.id + '|' + s.batchId) === formData.materialId || s.id === formData.materialId
        );
@@ -150,6 +147,9 @@ export const ExpenseTracker: React.FC = () => {
          parentId = selection.batchId;
        }
     }
+
+    const finalMaterialId = trackStock ? formData.materialId.split('|')[0] : undefined;
+    const finalQuantity = trackStock ? (formData.materialId ? parseFloat(formData.materialQuantity) || undefined : undefined) : undefined;
 
     const expData: Expense = {
       id: editingExpense ? editingExpense.id : 'e' + Date.now(),
@@ -160,10 +160,10 @@ export const ExpenseTracker: React.FC = () => {
       paymentMethod: formData.paymentMethod,
       notes: formData.notes || 'General Expense',
       category: formData.category,
-      materialId: formData.materialId.split('|')[0] || undefined,
-      materialQuantity: formData.materialId ? parseFloat(formData.materialQuantity) || undefined : undefined,
-      inventoryAction: editingExpense?.inventoryAction || (isPurchase ? 'Purchase' : 'Usage'),
-      parentPurchaseId: parentId
+      materialId: finalMaterialId,
+      materialQuantity: finalQuantity,
+      inventoryAction: editingExpense?.inventoryAction || (trackStock ? (isPurchase ? 'Purchase' : 'Usage') : undefined),
+      parentPurchaseId: trackStock ? parentId : undefined
     };
 
     if (editingExpense) {
@@ -189,10 +189,12 @@ export const ExpenseTracker: React.FC = () => {
       materialId: '',
       materialQuantity: ''
     });
+    setTrackStock(false);
   };
 
   const openEdit = (e: Expense) => {
     setEditingExpense(e);
+    setTrackStock(!!e.materialId);
     setFormData({
       projectId: e.projectId, 
       vendorId: e.vendorId || '', 
@@ -396,14 +398,6 @@ export const ExpenseTracker: React.FC = () => {
               <button onClick={() => { setShowModal(false); setEditingExpense(null); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
             </div>
             <form onSubmit={handleCreateOrUpdateExpense} className="p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
-              {editingExpense?.materialId && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex items-start gap-3">
-                   <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
-                   <p className="text-[11px] font-bold text-blue-800 dark:text-blue-200 leading-relaxed uppercase tracking-tight">
-                     <strong>Ledger Sync Active:</strong> Modifying quantity will auto-adjust the bill amount based on original unit price.
-                   </p>
-                </div>
-              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Site</label>
@@ -431,53 +425,69 @@ export const ExpenseTracker: React.FC = () => {
                 </div>
               </div>
 
-              {(formData.category === 'Material' || editingExpense?.materialId) && (
-                <div className={`p-6 rounded-[2rem] border space-y-4 transition-colors ${editingExpense?.inventoryAction === 'Purchase' || (!editingExpense && isPurchase) ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100' : 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100'}`}>
+              {formData.category === 'Material' && (
+                <div className={`p-6 rounded-[2rem] border space-y-4 transition-colors ${trackStock ? (isPurchase ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-200' : 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200') : 'bg-slate-50/50 dark:bg-slate-900/10 border-slate-200'}`}>
                    <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         {isPurchase ? <ShoppingCart size={16} className="text-emerald-600" /> : <Package size={16} className="text-blue-600" />}
                         <h4 className="text-[10px] font-black uppercase tracking-widest">Stock Stream Detail</h4>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-black uppercase text-slate-400">Inventory Tracking</span>
+                        <button 
+                          type="button"
+                          onClick={() => setTrackStock(!trackStock)}
+                          className={`p-1 transition-all rounded-lg ${trackStock ? 'text-blue-600' : 'text-slate-300'}`}
+                        >
+                          {trackStock ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                        </button>
+                      </div>
                    </div>
-                   <div className="space-y-4">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 block">Material Source (Batch Wise)</label>
-                      <select 
-                        disabled={!!editingExpense?.materialId}
-                        className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs dark:text-white outline-none disabled:opacity-50"
-                        value={formData.materialId}
-                        onChange={e => setFormData(p => ({ ...p, materialId: e.target.value }))}
-                        required
-                      >
-                         <option value="">Choose asset / batch...</option>
-                         {siteSpecificInventory.map((m: any, idx: number) => (
-                           <option key={idx} value={m.batchId ? `${m.id}|${m.batchId}` : m.id} className={m.isLocal ? 'text-emerald-600 font-bold' : ''}>
-                             {m.display}
-                           </option>
-                         ))}
-                      </select>
-                      {formData.materialId && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                           <div className="space-y-1">
-                             <label className="text-[9px] font-black text-slate-400 uppercase px-1">Update Quantity ({selectedMaterial?.unit})</label>
-                             <input 
-                              type="number" 
-                              step={allowDecimalStock ? "0.01" : "1"} 
-                              className="w-full px-5 py-3 bg-white dark:bg-slate-900 border-2 border-blue-500 dark:border-blue-400 rounded-xl font-black outline-none focus:ring-4 focus:ring-blue-500/10" 
-                              placeholder="0.00"
-                              value={formData.materialQuantity}
-                              onChange={e => setFormData(p => ({ ...p, materialQuantity: e.target.value }))}
-                              required
-                             />
-                           </div>
-                           <div className="flex flex-col justify-center bg-white/50 dark:bg-black/20 p-3 rounded-2xl border border-slate-100 dark:border-slate-700">
-                              <p className="text-[9px] font-black text-slate-400 uppercase mb-1 px-1">Current Sync Impact</p>
-                              <p className="text-base font-black text-slate-900 dark:text-white truncate">
-                                {formatCurrency(parseFloat(formData.amount) || 0)}
-                              </p>
-                           </div>
-                        </div>
-                      )}
-                   </div>
+                   
+                   {trackStock && (
+                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 block">Material Source (Batch Wise)</label>
+                        <select 
+                          disabled={!!editingExpense?.materialId}
+                          className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs dark:text-white outline-none disabled:opacity-50"
+                          value={formData.materialId}
+                          onChange={e => setFormData(p => ({ ...p, materialId: e.target.value }))}
+                          required={trackStock}
+                        >
+                           <option value="">Choose asset / batch...</option>
+                           {siteSpecificInventory.map((m: any, idx: number) => (
+                             <option key={idx} value={m.batchId ? `${m.id}|${m.batchId}` : m.id} className={m.isLocal ? 'text-emerald-600 font-bold' : ''}>
+                               {m.display}
+                             </option>
+                           ))}
+                        </select>
+                        {formData.materialId && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                             <div className="space-y-1">
+                               <label className="text-[9px] font-black text-slate-400 uppercase px-1">Update Quantity ({selectedMaterial?.unit})</label>
+                               <input 
+                                type="number" 
+                                step={allowDecimalStock ? "0.01" : "1"} 
+                                className="w-full px-5 py-3 bg-white dark:bg-slate-900 border-2 border-blue-500 dark:border-blue-400 rounded-xl font-black outline-none focus:ring-4 focus:ring-blue-500/10" 
+                                placeholder="0.00"
+                                value={formData.materialQuantity}
+                                onChange={e => setFormData(p => ({ ...p, materialQuantity: e.target.value }))}
+                                required={trackStock}
+                               />
+                             </div>
+                             <div className="flex flex-col justify-center bg-white/50 dark:bg-black/20 p-3 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1 px-1">Current Sync Impact</p>
+                                <p className="text-base font-black text-slate-900 dark:text-white truncate">
+                                  {formatCurrency(parseFloat(formData.amount) || 0)}
+                                </p>
+                             </div>
+                          </div>
+                        )}
+                     </div>
+                   )}
+                   {!trackStock && (
+                      <p className="text-[9px] text-slate-400 font-medium italic">Inventory tracking is disabled for this record. Use the toggle above to enable automated stock adjustment.</p>
+                   )}
                 </div>
               )}
 
@@ -507,16 +517,16 @@ export const ExpenseTracker: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Expense Date</label>
-                  <input type="date" readOnly={!!editingExpense?.materialId} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none read-only:opacity-50" value={formData.date} onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))} required />
+                  <input type="date" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={formData.date} onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))} required />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Total Bill Amount (Rs.)</label>
                   <input 
                     type="number" 
-                    readOnly={!!editingExpense?.materialId}
+                    readOnly={!!editingExpense?.materialId && trackStock}
                     step="0.01" 
                     placeholder="0.00" 
-                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none read-only:opacity-50" 
+                    className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none ${editingExpense?.materialId && trackStock ? 'opacity-50 cursor-not-allowed' : ''}`} 
                     value={formData.amount} 
                     onChange={(e) => setFormData(p => ({ ...p, amount: e.target.value }))} 
                     required 
@@ -526,7 +536,7 @@ export const ExpenseTracker: React.FC = () => {
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Description / Memo</label>
-                <textarea rows={2} readOnly={!!editingExpense?.materialId} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none read-only:opacity-50" value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Detail about this expense..."></textarea>
+                <textarea rows={2} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={formData.notes} onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Detail about this expense..."></textarea>
               </div>
 
               <div className="flex gap-4 pt-4">
