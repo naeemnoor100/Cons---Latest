@@ -15,6 +15,7 @@ export interface Project {
   id: string;
   name: string;
   client: string;
+  projectManager: string;
   location: string;
   startDate: string;
   endDate: string;

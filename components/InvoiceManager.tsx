@@ -35,10 +35,34 @@ export const InvoiceManager: React.FC = () => {
   const [formData, setFormData] = useState({
     projectId: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+    date: '',
+    dueDate: '',
     description: ''
   });
+
+  useEffect(() => {
+    if (!showModal) return;
+    
+    if (editingInvoice) {
+      setFormData({
+        projectId: editingInvoice.projectId,
+        amount: editingInvoice.amount.toString(),
+        date: editingInvoice.date,
+        dueDate: editingInvoice.dueDate,
+        description: editingInvoice.description
+      });
+    } else {
+      const today = new Date().toISOString().split('T')[0];
+      const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      setFormData({
+        projectId: projects.find(p => !p.isGodown)?.id || projects[0]?.id || '',
+        amount: '',
+        date: today,
+        dueDate: nextWeek,
+        description: ''
+      });
+    }
+  }, [showModal, editingInvoice, projects]);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {

@@ -75,7 +75,7 @@ export const VendorList: React.FC = () => {
   const [contextualMaxLimit, setContextualMaxLimit] = useState<number | null>(null);
   
   const [formData, setFormData] = useState({
-    name: '', phone: '', category: tradeCategories[0] || 'Material', address: '', balance: ''
+    name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: ''
   });
 
   const [paymentFormData, setPaymentFormData] = useState({
@@ -348,7 +348,7 @@ export const VendorList: React.FC = () => {
 
   const handleOpenAddVendor = () => {
     setEditingVendor(null);
-    setFormData({ name: '', phone: '', category: tradeCategories[0] || 'Material', address: '', balance: '' });
+    setFormData({ name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '' });
     setShowModal(true);
   };
 
@@ -358,6 +358,7 @@ export const VendorList: React.FC = () => {
       id: editingVendor ? editingVendor.id : 'v' + Date.now(),
       name: formData.name,
       phone: formData.phone,
+      email: formData.email,
       category: formData.category,
       address: formData.address,
       balance: editingVendor ? editingVendor.balance : (parseFloat(formData.balance) || 0)
@@ -521,7 +522,14 @@ export const VendorList: React.FC = () => {
                                <button 
                                 onClick={() => {
                                   setEditingVendor(vendor);
-                                  setFormData({ name: vendor.name, phone: vendor.phone, category: vendor.category, address: vendor.address, balance: vendor.balance.toString() });
+                                  setFormData({ 
+                                    name: vendor.name, 
+                                    phone: vendor.phone, 
+                                    email: vendor.email || '',
+                                    category: vendor.category, 
+                                    address: vendor.address, 
+                                    balance: vendor.balance.toString() 
+                                  });
                                   setShowModal(true);
                                 }}
                                 className="px-4 py-3 text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
@@ -559,17 +567,21 @@ export const VendorList: React.FC = () => {
                     <label className="text-[10px] font-black uppercase text-slate-400 px-1">Supplier Name</label>
                     <input type="text" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
                  </div>
-                 <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                        <label className="text-[10px] font-black uppercase text-slate-400 px-1">Phone</label>
                        <input type="tel" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black uppercase text-slate-400 px-1">Category</label>
-                       <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.category} onChange={e => setFormData(p => ({ ...p, category: e.target.value }))}>
-                          {tradeCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                       </select>
+                       <label className="text-[10px] font-black uppercase text-slate-400 px-1">Email Address</label>
+                       <input type="email" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="supplier@example.com" />
                     </div>
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Category</label>
+                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.category} onChange={e => setFormData(p => ({ ...p, category: e.target.value }))}>
+                       {tradeCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
                  </div>
                  {!editingVendor && (
                    <div className="space-y-1">
