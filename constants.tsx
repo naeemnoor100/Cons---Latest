@@ -2,8 +2,8 @@ import { AppState, User, Project, Vendor, Material, Expense, Income, Worker, Att
 
 export const MOCK_USER: User = {
   id: 'u1',
-  name: 'Ahmed Khan',
-  email: 'ahmed@buildmaster.pro',
+  name: 'Administrator',
+  email: 'admin@buildmaster.pro',
   role: 'Admin',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop'
 };
@@ -12,20 +12,7 @@ export const INITIAL_STATE: AppState = {
   currentUser: MOCK_USER,
   theme: 'light',
   syncId: 'BUILDMASTER_PRO_DATABASE_ACTIVE', // Auto-enabled global sync key
-  projects: [
-    {
-      id: 'godown-001',
-      name: 'Central Godown (Main Store)',
-      client: 'Internal',
-      location: 'Central Logistics Hub',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: '',
-      budget: 0,
-      status: 'Active',
-      description: 'Primary material reception and distribution hub.',
-      isGodown: true
-    }
-  ],
+  projects: [],
   vendors: [],
   materials: [],
   expenses: [],
