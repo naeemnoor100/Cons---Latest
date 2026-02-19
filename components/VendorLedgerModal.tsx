@@ -26,7 +26,6 @@ interface VendorLedgerModalProps {
   projects: Project[];
   onClose: () => void;
   formatCurrency: (val: number) => string;
-  onPayBalance?: (vendor: Vendor, projectId?: string, amount?: number, materialBatchId?: string) => void;
 }
 
 export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
@@ -37,8 +36,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   filteredCombinedLedger,
   projects,
   onClose,
-  formatCurrency,
-  onPayBalance
+  formatCurrency
 }) => {
   const [activeTab, setActiveTab] = useState<'statement' | 'settlements' | 'stock'>('statement');
 
@@ -195,14 +193,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                               )}
                            </td>
                            <td className="px-8 py-6 text-right">
-                              {item.type === 'PURCHASE' && item.remainingBalance > 0 && (
-                                 <button 
-                                    onClick={() => onPayBalance?.(activeVendor, item.projectId, item.remainingBalance, item.id)}
-                                    className="px-6 py-2.5 bg-[#00A86B] text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 flex items-center gap-2 ml-auto active:scale-95 transition-all"
-                                 >
-                                    <DollarSign size={12} /> Pay Balance
-                                 </button>
-                              )}
+                              <span className="text-slate-200 font-black">--</span>
                            </td>
                         </tr>
                      )) : (

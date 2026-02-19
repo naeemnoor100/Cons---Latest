@@ -45,54 +45,35 @@ import {
 import { useApp } from '../AppContext';
 import { Vendor, VendorCategory, Payment, PaymentMethod, Project } from '../types';
 import { VendorLedgerModal } from './VendorLedgerModal';
-import { SupplierPayments } from './SupplierPayments';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const VendorList: React.FC = () => {
-  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor, addPayment, updatePayment, deletePayment } = useApp();
+  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   
   const [viewingVendorId, setViewingVendorId] = useState<string | null>(null);
   const activeVendor = useMemo(() => vendors.find(v => v.id === viewingVendorId), [vendors, viewingVendorId]);
   
   const [activeDetailTab, setActiveDetailTab] = useState<'statement' | 'payments' | 'supplies'>('statement');
-  const [selectedVendorForPayment, setSelectedVendorForPayment] = useState<Vendor | null>(null);
-  const [editingPaymentRecord, setEditingPaymentRecord] = useState<Payment | null>(null);
   
   const [expandedSettlements, setExpandedSettlements] = useState<Record<string, boolean>>({});
-  const [showManualAllocations, setShowManualAllocations] = useState(false);
-  const [manualAllocations, setManualAllocations] = useState<Record<string, string>>({});
 
   const toggleSettlement = (id: string) => {
     setExpandedSettlements(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const [contextualMaxLimit, setContextualMaxLimit] = useState<number | null>(null);
-  
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: ''
-  });
-
-  const [paymentFormData, setPaymentFormData] = useState({
-    projectId: '', 
-    amount: '', 
-    method: 'Bank' as PaymentMethod, 
-    date: new Date().toISOString().split('T')[0], 
-    reference: '',
-    materialBatchId: ''
   });
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setShowPaymentModal(false);
         setViewingVendorId(null);
-        setEditingPaymentRecord(null);
       }
     };
     window.addEventListener('keydown', handleEsc);
@@ -226,119 +207,6 @@ export const VendorList: React.FC = () => {
       (projects.find(p => p.id === item.projectId)?.name || '').toLowerCase().includes(search)
     );
   }, [combinedLedger, ledgerSearchTerm, projects]);
-
-  const outstandingBills = useMemo(() => {
-    if (!selectedVendorForPayment) return [];
-    return getSuppliesForVendor(selectedVendorForPayment.id).filter(s => s.remainingBalance > 0.01);
-  }, [selectedVendorForPayment, materials, payments]);
-
-  const handleOpenPaymentModal = (vendor: Vendor, prefillProjectId?: string, prefillAmount?: number, materialBatchId?: string) => {
-    setSelectedVendorForPayment(vendor);
-    setEditingPaymentRecord(null);
-    setContextualMaxLimit(prefillAmount || null);
-    setShowManualAllocations(false);
-    setManualAllocations({});
-    
-    setPaymentFormData({
-      projectId: prefillProjectId || projects[0]?.id || '',
-      amount: prefillAmount ? prefillAmount.toString() : '',
-      method: 'Bank',
-      date: new Date().toISOString().split('T')[0],
-      reference: '',
-      materialBatchId: materialBatchId || ''
-    });
-    setShowPaymentModal(true);
-  };
-
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedVendorForPayment) return;
-    
-    const amountNum = parseFloat(paymentFormData.amount) || 0;
-    const totalVendorHeadroom = editingPaymentRecord 
-      ? selectedVendorForPayment.balance + editingPaymentRecord.amount 
-      : selectedVendorForPayment.balance;
-
-    if (amountNum > totalVendorHeadroom + 0.01) {
-      alert(`Payment Forbidden: Amount (${formatCurrency(amountNum)}) exceeds total outstanding vendor balance.`);
-      return;
-    }
-
-    if (contextualMaxLimit !== null && amountNum > contextualMaxLimit + 0.01) {
-      alert(`Ledger Validation Error: This specific bill only has a remaining balance of ${formatCurrency(contextualMaxLimit)}.`);
-      return;
-    }
-
-    const totalAllocated = Object.values(manualAllocations).reduce((sum, v) => sum + (parseFloat(v as string) || 0), 0);
-    if (showManualAllocations && totalAllocated > amountNum + 0.01) {
-       alert(`Validation Error: Total allocations (${formatCurrency(totalAllocated)}) exceed payment amount (${formatCurrency(amountNum)}).`);
-       return;
-    }
-    
-    const masterId = editingPaymentRecord ? editingPaymentRecord.id : 'pay' + Date.now();
-    
-    if (!showManualAllocations) {
-       const paymentData: Payment = {
-         id: masterId,
-         date: paymentFormData.date,
-         vendorId: selectedVendorForPayment.id,
-         projectId: paymentFormData.projectId || projects[0]?.id || 'godown-001',
-         amount: amountNum,
-         method: paymentFormData.method,
-         reference: paymentFormData.reference,
-         materialBatchId: paymentFormData.materialBatchId || undefined,
-         isAllocation: false
-       };
-
-       if (editingPaymentRecord) await updatePayment(paymentData);
-       else await addPayment(paymentData);
-    } else {
-       const unallocated = Math.max(0, amountNum - totalAllocated);
-       const txnDate = paymentFormData.date;
-       const txnRef = paymentFormData.reference;
-       const txnMethod = paymentFormData.method;
-
-       if (editingPaymentRecord) await deletePayment(editingPaymentRecord.id);
-
-       for (const [billId, allocAmount] of Object.entries(manualAllocations)) {
-          const val = parseFloat(allocAmount as string) || 0;
-          if (val > 0) {
-             const bill = outstandingBills.find(b => b.id === billId);
-             await addPayment({
-                id: 'pay-' + Math.random().toString(36).substr(2, 9),
-                date: txnDate,
-                vendorId: selectedVendorForPayment.id,
-                projectId: bill?.projectId || projects[0]?.id,
-                amount: val,
-                method: txnMethod,
-                reference: txnRef ? `${txnRef} (Alloc: ${bill?.materialName})` : `Alloc: ${bill?.materialName}`,
-                materialBatchId: billId,
-                isAllocation: false
-             });
-          }
-       }
-
-       if (unallocated > 0.01) {
-          await addPayment({
-             id: 'pay-' + Math.random().toString(36).substr(2, 9),
-             date: txnDate,
-             vendorId: selectedVendorForPayment.id,
-             projectId: projects[0]?.id,
-             amount: unallocated,
-             method: txnMethod,
-             reference: txnRef ? `${txnRef} (Unallocated)` : `General / Advance`,
-             materialBatchId: undefined,
-             isAllocation: false
-          });
-       }
-    }
-    
-    setShowPaymentModal(false);
-    setSelectedVendorForPayment(null);
-    setEditingPaymentRecord(null);
-    setContextualMaxLimit(null);
-    setManualAllocations({});
-  };
 
   const handleDeleteVendor = (id: string, name: string) => {
     if (confirm(`Are you sure you want to delete ${name}?`)) {
@@ -501,13 +369,6 @@ export const VendorList: React.FC = () => {
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2 items-center">
                          <button 
-                          onClick={() => handleOpenPaymentModal(vendor)}
-                          disabled={vendor.balance <= 0}
-                          className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-xl active:scale-95 ${vendor.balance > 0 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100 dark:shadow-none' : 'bg-slate-100 text-slate-400 shadow-none cursor-not-allowed'}`}
-                         >
-                           <DollarSign size={14} /> Pay
-                         </button>
-                         <button 
                           onClick={() => setViewingVendorId(vendor.id)} 
                           className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm"
                           title="View Full Ledger"
@@ -599,27 +460,6 @@ export const VendorList: React.FC = () => {
         </div>
       )}
 
-      {/* Modern Payment Modal */}
-      {showPaymentModal && selectedVendorForPayment && (
-        <SupplierPayments 
-          selectedVendorForPayment={selectedVendorForPayment}
-          editingPaymentRecord={editingPaymentRecord}
-          paymentFormData={paymentFormData}
-          setPaymentFormData={setPaymentFormData}
-          outstandingBills={outstandingBills}
-          showManualAllocations={showManualAllocations}
-          setShowManualAllocations={setShowManualAllocations}
-          manualAllocations={manualAllocations}
-          setManualAllocations={setManualAllocations}
-          totalAllocatedSum={totalAllocatedSum}
-          contextualMaxLimit={contextualMaxLimit}
-          projects={projects}
-          onClose={() => { setShowPaymentModal(false); setSelectedVendorForPayment(null); setEditingPaymentRecord(null); setContextualMaxLimit(null); }}
-          onSubmit={handleRecordPayment}
-          formatCurrency={formatCurrency}
-        />
-      )}
-
       {/* Vendor Full Ledger Modal */}
       {viewingVendorId && activeVendor && (
         <VendorLedgerModal 
@@ -631,7 +471,6 @@ export const VendorList: React.FC = () => {
           projects={projects}
           onClose={() => setViewingVendorId(null)}
           formatCurrency={formatCurrency}
-          onPayBalance={handleOpenPaymentModal}
         />
       )}
     </div>

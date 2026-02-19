@@ -59,7 +59,7 @@ export const ProjectList: React.FC = () => {
     addExpense, updateExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
-    addMaterial, updateMaterial, addPayment, payments, allowDecimalStock
+    addMaterial, updateMaterial, allowDecimalStock
   } = useApp();
   
   const [filter, setFilter] = useState<string>('All');
@@ -81,7 +81,7 @@ export const ProjectList: React.FC = () => {
   const [logMaterial, setLogMaterial] = useState<Material | null>(null);
 
   const [formData, setFormData] = useState({
-    name: '', client: '', projectManager: '', location: '', contactNumber: '', budget: '', startDate: new Date().toISOString().split('T')[0], endDate: '', description: '', status: 'Active', isGodown: false
+    name: '', client: '', location: '', contactNumber: '', budget: '', startDate: new Date().toISOString().split('T')[0], endDate: '', description: '', status: 'Active', isGodown: false
   });
 
   const [incomeFormData, setIncomeFormData] = useState({
@@ -132,7 +132,7 @@ export const ProjectList: React.FC = () => {
   const handleOpenAddModal = () => {
     setEditingProject(null);
     setFormData({ 
-      name: '', client: '', projectManager: '', location: '', contactNumber: '', budget: '', startDate: new Date().toISOString().split('T')[0], endDate: '', description: '', status: siteStatuses[0] || 'Active', isGodown: false
+      name: '', client: '', location: '', contactNumber: '', budget: '', startDate: new Date().toISOString().split('T')[0], endDate: '', description: '', status: siteStatuses[0] || 'Active', isGodown: false
     });
     setShowModal(true);
   };
@@ -140,7 +140,7 @@ export const ProjectList: React.FC = () => {
   const handleOpenEditProject = (p: Project) => {
     setEditingProject(p);
     setFormData({ 
-      name: p.name, client: p.client, projectManager: p.projectManager || '', location: p.location, contactNumber: p.contactNumber || '', budget: p.budget.toString(), startDate: p.startDate, endDate: p.endDate || p.startDate, description: p.description || '', status: p.status, isGodown: !!p.isGodown
+      name: p.name, client: p.client, location: p.location, contactNumber: p.contactNumber || '', budget: p.budget.toString(), startDate: p.startDate, endDate: p.endDate || p.startDate, description: p.description || '', status: p.status, isGodown: !!p.isGodown
     });
     setShowModal(true);
   };
@@ -151,7 +151,6 @@ export const ProjectList: React.FC = () => {
       id: editingProject ? editingProject.id : 'p' + Date.now(),
       name: formData.name,
       client: formData.client,
-      projectManager: formData.projectManager,
       location: formData.location,
       contactNumber: formData.contactNumber,
       budget: parseFloat(formData.budget) || 0,
@@ -453,10 +452,7 @@ export const ProjectList: React.FC = () => {
                     </div>
                   </div>
                   <h3 className="text-xl font-black text-white uppercase tracking-tighter">{godown.name}</h3>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-slate-500 text-[10px] font-bold uppercase flex items-center gap-1.5"><MapPin size={12} /> {godown.location}</p>
-                    <p className="text-slate-500 text-[10px] font-bold uppercase flex items-center gap-1.5"><Users size={12} /> PM: {godown.projectManager || 'Not Assigned'}</p>
-                  </div>
+                  <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-1.5 mt-1"><MapPin size={12} /> {godown.location}</p>
                 </div>
                 <div className="grid grid-cols-2 border-t border-white/5">
                   <button onClick={() => { setViewingProject(godown); setActiveDetailTab('arrivals'); }} className="py-5 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60 flex items-center justify-center gap-2 hover:bg-emerald-600 hover:text-white transition-all border-r border-white/5"><Package size={14} /> View Stock</button>
@@ -495,15 +491,7 @@ export const ProjectList: React.FC = () => {
                     </div>
                   </div>
                   <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{project.name}</h3>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-slate-400 text-[10px] font-bold uppercase flex items-center gap-1.5"><MapPin size={12} /> {project.location}</p>
-                    <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase flex items-center gap-1.5"><Users size={12} /> PM: {project.projectManager || 'Not Assigned'}</p>
-                    <div className="flex gap-3">
-                      <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase flex items-center gap-1.5"><Calendar size={12} /> {new Date(project.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
-                      <span className="text-slate-300 dark:text-slate-600">|</span>
-                      <p className="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase flex items-center gap-1.5">{new Date(project.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
-                    </div>
-                  </div>
+                  <p className="text-slate-400 text-xs font-bold uppercase flex items-center gap-1.5 mt-1"><MapPin size={12} /> {project.location}</p>
                   
                   <div className="mt-6 flex gap-4">
                      <button onClick={() => { setViewingProject(project); setActiveDetailTab('arrivals'); }} className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Material Arrivals">
@@ -552,10 +540,6 @@ export const ProjectList: React.FC = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{formData.isGodown ? 'Supervisor' : 'Client / Owner'}</label>
                     <input type="text" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={formData.client} onChange={e => setFormData(p => ({ ...p, client: e.target.value }))} placeholder="Incharge name..." />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Manager</label>
-                    <input type="text" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={formData.projectManager} onChange={e => setFormData(p => ({ ...p, projectManager: e.target.value }))} placeholder="Manager name..." />
-                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -568,30 +552,22 @@ export const ProjectList: React.FC = () => {
                   </div>
                 </div>
                 {!formData.isGodown && (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Initial Budget (Rs.)</label>
-                        <input type="number" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none" value={formData.budget} onChange={e => setFormData(p => ({ ...p, budget: e.target.value }))} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Site Status</label>
-                        <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={formData.status} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
-                          {sortedStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Initial Budget (Rs.)</label>
+                      <input type="number" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none" value={formData.budget} onChange={e => setFormData(p => ({ ...p, budget: e.target.value }))} />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Start Date</label>
-                        <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={formData.startDate} onChange={e => setFormData(p => ({ ...p, startDate: e.target.value }))} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">End Date</label>
-                        <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={formData.endDate} onChange={e => setFormData(p => ({ ...p, endDate: e.target.value }))} />
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Start Date</label>
+                      <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={formData.startDate} onChange={e => setFormData(p => ({ ...p, startDate: e.target.value }))} />
                     </div>
-                  </>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Site Status</label>
+                      <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={formData.status} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))}>
+                        {sortedStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 )}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Brief Description</label>
@@ -617,11 +593,7 @@ export const ProjectList: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{viewingProject.name}</h2>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{viewingProject.isGodown ? `Supervisor: ${viewingProject.client}` : `Client: ${viewingProject.client}`}</p>
-                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">PM: {viewingProject.projectManager || 'Not Assigned'}</p>
-                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Period: {new Date(viewingProject.startDate).toLocaleDateString()} - {new Date(viewingProject.endDate).toLocaleDateString()}</p>
-                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">{viewingProject.isGodown ? `Supervisor: ${viewingProject.client}` : `Client: ${viewingProject.client}`}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

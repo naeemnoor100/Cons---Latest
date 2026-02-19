@@ -15,7 +15,6 @@ export interface Project {
   id: string;
   name: string;
   client: string;
-  projectManager: string;
   location: string;
   startDate: string;
   endDate: string;
@@ -91,19 +90,6 @@ export interface Invoice {
   dueDate: string;
 }
 
-export interface Payment {
-  id: string;
-  date: string;
-  vendorId: string;
-  projectId: string;
-  amount: number;
-  method: PaymentMethod;
-  reference?: string;
-  materialBatchId?: string;
-  masterPaymentId?: string;
-  isAllocation?: boolean;
-}
-
 export interface Income {
   id: string;
   projectId: string;
@@ -140,7 +126,6 @@ export interface AppState {
   vendors: Vendor[];
   materials: Material[];
   expenses: Expense[];
-  payments: Payment[];
   incomes: Income[];
   invoices: Invoice[];
   workers: Worker[];

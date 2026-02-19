@@ -8,7 +8,7 @@ import { Expense, PaymentMethod, Material, Payment } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ExpenseTracker: React.FC = () => {
-  const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, addPayment, payments, allowDecimalStock } = useApp();
+  const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, allowDecimalStock } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [trackStock, setTrackStock] = useState(false);
@@ -17,13 +17,6 @@ export const ExpenseTracker: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [projectFilter, setProjectFilter] = useState('All');
-  
-  // Payment quick action state
-  const [showQuickPayModal, setShowQuickPayModal] = useState(false);
-  const [selectedExpForPay, setSelectedExpForPay] = useState<Expense | null>(null);
-  const [payFormData, setPayFormData] = useState({
-    amount: '', date: new Date().toISOString().split('T')[0], method: 'Bank' as PaymentMethod, reference: ''
-  });
 
   const [formData, setFormData] = useState({
     projectId: projects[0]?.id || '', 
@@ -80,7 +73,6 @@ export const ExpenseTracker: React.FC = () => {
       if (e.key === 'Escape') {
         setShowModal(false);
         setEditingExpense(null);
-        setShowQuickPayModal(false);
       }
     };
     window.addEventListener('keydown', handleEsc);
@@ -214,36 +206,6 @@ export const ExpenseTracker: React.FC = () => {
     }
   };
 
-  const handleInitiatePay = (exp: Expense) => {
-    const totalPaidForExp = payments
-      .filter(p => p.materialBatchId === 'sh-exp-' + exp.id)
-      .reduce((sum, p) => sum + p.amount, 0);
-    const remaining = Math.max(0, exp.amount - totalPaidForExp);
-    setSelectedExpForPay(exp);
-    setPayFormData({ amount: remaining.toString(), date: new Date().toISOString().split('T')[0], method: 'Bank', reference: '' });
-    setShowQuickPayModal(true);
-  };
-
-  const handleQuickPaySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedExpForPay || !selectedExpForPay.vendorId) return;
-    const amountNum = parseFloat(payFormData.amount) || 0;
-    if (amountNum <= 0) return;
-    const payment: Payment = {
-      id: 'pay-exp-' + Date.now(),
-      date: payFormData.date,
-      vendorId: selectedExpForPay.vendorId,
-      projectId: selectedExpForPay.projectId,
-      amount: amountNum,
-      method: payFormData.method,
-      reference: payFormData.reference,
-      materialBatchId: 'sh-exp-' + selectedExpForPay.id
-    };
-    addPayment(payment);
-    setShowQuickPayModal(false);
-    setSelectedExpForPay(null);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -315,8 +277,6 @@ export const ExpenseTracker: React.FC = () => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
                 const isMaterialPurchase = exp.category === 'Material' && exp.vendorId;
-                const totalPaidForExp = payments.filter(p => p.materialBatchId === 'sh-exp-' + exp.id).reduce((sum, p) => sum + p.amount, 0);
-                const isFullyPaid = isMaterialPurchase && totalPaidForExp >= (exp.amount - 0.01);
                 return (
                   <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                     <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(exp.date).toLocaleDateString()}</td>
@@ -350,17 +310,9 @@ export const ExpenseTracker: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <p className="text-sm font-black text-red-600">{formatCurrency(exp.amount)}</p>
-                      {isMaterialPurchase && (
-                        <p className={`text-[8px] font-black uppercase mt-0.5 ${isFullyPaid ? 'text-emerald-500' : 'text-amber-500'}`}>
-                          {isFullyPaid ? 'Fully Settled' : `Paid: ${formatCurrency(totalPaidForExp)}`}
-                        </p>
-                      )}
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-1 items-center">
-                        {isMaterialPurchase && !isFullyPaid && (
-                          <button onClick={() => handleInitiatePay(exp)} className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 p-2.5 rounded-xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm active:scale-90"><DollarSign size={16} /></button>
-                        )}
                         <button onClick={() => openEdit(exp)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm" title="Edit Record"><Pencil size={18} /></button>
                         <button onClick={() => handleDelete(exp.id)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all shadow-sm"><Trash2 size={18} /></button>
                       </div>
@@ -544,40 +496,6 @@ export const ExpenseTracker: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
-      )}
-
-      {/* Quick Pay Modal */}
-      {showQuickPayModal && selectedExpForPay && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-emerald-50/30 dark:bg-emerald-900/20 flex justify-between items-center">
-                 <div className="flex gap-4 items-center">
-                    <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg"><DollarSign size={24} /></div>
-                    <div>
-                       <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Instant Settle</h2>
-                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Against: {selectedExpForPay.notes || 'Material Bill'}</p>
-                    </div>
-                 </div>
-                 <button onClick={() => setShowQuickPayModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={28} /></button>
-              </div>
-              <form onSubmit={handleQuickPaySubmit} className="p-8 space-y-5">
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Amount (Rs.)</label><input type="number" step="0.01" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white" value={payFormData.amount} onChange={e => setPayFormData(p => ({ ...p, amount: e.target.value }))} required /></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Value Date</label><input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white" value={payFormData.date} onChange={e => setPayFormData(p => ({ ...p, date: e.target.value }))} /></div>
-                 </div>
-                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Payment Method</label>
-                    <div className="grid grid-cols-3 gap-2">
-                       {(['Bank', 'Cash', 'Online'] as PaymentMethod[]).map(m => (
-                         <button key={m} type="button" onClick={() => setPayFormData(p => ({ ...p, method: m }))} className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${payFormData.method === m ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white dark:bg-slate-900 border-slate-200 text-slate-500'}`}>{m}</button>
-                       ))}
-                    </div>
-                 </div>
-                 <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Reference / UTR</label><input type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white" value={payFormData.reference} onChange={e => setPayFormData(p => ({ ...p, reference: e.target.value }))} /></div>
-                 <button type="submit" className="w-full bg-emerald-600 text-white py-4 rounded-3xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all text-sm mt-4">Confirm Settlement</button>
-              </form>
-           </div>
         </div>
       )}
     </div>
