@@ -459,6 +459,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const importState = async (newState: AppState) => {
     const normalizedState = { ...newState, syncId: INITIAL_STATE.syncId };
     setState(normalizedState);
+    localStorage.setItem('buildtrack_pro_state_v2', JSON.stringify(normalizedState));
     try {
       await fetch(`${API_PATH}?action=save_state`, {
         method: 'POST',
