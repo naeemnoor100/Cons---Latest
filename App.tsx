@@ -12,6 +12,7 @@ import { ProjectIncome } from './components/ProjectIncome';
 import { InvoiceManager } from './components/InvoiceManager';
 import { Settings } from './components/Settings';
 import { WorkerManagement } from './components/WorkerManagement';
+import { SupplierPayments } from './components/SupplierPayments';
 
 const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -30,6 +31,8 @@ const MainApp: React.FC = () => {
         return <ProjectIncome />;
       case 'vendors':
         return <VendorList />;
+      case 'payments':
+        return <SupplierPayments />;
       case 'materials':
         return <Inventory />;
       case 'expenses':

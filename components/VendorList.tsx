@@ -44,6 +44,8 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Vendor, VendorCategory, Payment, PaymentMethod, Project } from '../types';
+import { VendorLedgerModal } from './VendorLedgerModal';
+import { SupplierPayments } from './SupplierPayments';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -587,262 +589,38 @@ export const VendorList: React.FC = () => {
 
       {/* Modern Payment Modal */}
       {showPaymentModal && selectedVendorForPayment && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/20 dark:bg-emerald-900/10 shrink-0">
-               <div className="flex gap-4 items-center">
-                 <div className="p-4 bg-emerald-600 text-white rounded-[1.5rem] shadow-xl shadow-emerald-200 dark:shadow-none">
-                    <DollarSign size={28} />
-                 </div>
-                 <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{editingPaymentRecord ? 'Modify Settlement' : 'New Settlement'}</h2>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Vendor: {selectedVendorForPayment.name}</p>
-                 </div>
-               </div>
-               <button onClick={() => { setShowPaymentModal(false); setSelectedVendorForPayment(null); setEditingPaymentRecord(null); setContextualMaxLimit(null); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
-            </div>
-            
-            <form onSubmit={handleRecordPayment} className="p-8 space-y-6 pb-safe overflow-y-auto no-scrollbar max-h-[80vh]">
-               <div className="bg-slate-900 dark:bg-slate-950 p-6 rounded-[2rem] text-white flex justify-between items-center shadow-2xl">
-                  <div>
-                    <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">
-                      {editingPaymentRecord ? 'Outstanding Prior to Entry' : 'Total Outstanding'}
-                    </p>
-                    <p className="text-xl font-black">
-                      {formatCurrency(editingPaymentRecord ? selectedVendorForPayment.balance + editingPaymentRecord.amount : selectedVendorForPayment.balance)}
-                    </p>
-                  </div>
-                  <ArrowRight className="text-white/20" size={24} />
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Projected Balance</p>
-                    <p className="text-xl font-black text-emerald-500">
-                      {formatCurrency(Math.max(0, (editingPaymentRecord ? selectedVendorForPayment.balance + editingPaymentRecord.amount : selectedVendorForPayment.balance) - (parseFloat(paymentFormData.amount) || 0)))}
-                    </p>
-                  </div>
-               </div>
-
-               {!paymentFormData.materialBatchId && !editingPaymentRecord && outstandingBills.length > 0 && (
-                  <div className="space-y-4">
-                     <div className="flex items-center justify-between px-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Manual Bill Allocation</label>
-                        <button 
-                          type="button" 
-                          onClick={() => setShowManualAllocations(!showManualAllocations)}
-                          className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg transition-all ${showManualAllocations ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}
-                        >
-                          {showManualAllocations ? 'Disable Manual' : 'Enable Manual'}
-                        </button>
-                     </div>
-
-                     {showManualAllocations && (
-                        <div className="bg-slate-50 dark:bg-slate-950 p-5 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800 space-y-4 animate-in fade-in slide-in-from-top-2">
-                           <div className="space-y-3 max-h-[250px] overflow-y-auto no-scrollbar pr-1">
-                              {outstandingBills.map(bill => (
-                                 <div key={bill.id} className="flex items-center justify-between gap-4 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                    <div className="flex-1 min-w-0">
-                                       <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase truncate">{bill.materialName}</p>
-                                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Site: {projects.find(p => p.id === bill.projectId)?.name}</p>
-                                       <p className="text-[9px] text-rose-500 font-black uppercase mt-0.5">Bal: {formatCurrency(bill.remainingBalance)}</p>
-                                    </div>
-                                    <div className="w-32">
-                                       <input 
-                                          type="number" 
-                                          step="0.01"
-                                          placeholder="0.00"
-                                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-black dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
-                                          value={manualAllocations[bill.id] || ''}
-                                          onChange={e => {
-                                             const val = e.target.value;
-                                             const updatedAlloc = { ...manualAllocations, [bill.id]: val };
-                                             setManualAllocations(updatedAlloc);
-                                             const newAllocTotal = Object.entries(updatedAlloc).reduce((sum, [_,v]) => sum + (parseFloat(v as string) || 0), 0);
-                                             setPaymentFormData(prev => ({ ...prev, amount: newAllocTotal.toString() }));
-                                          }}
-                                       />
-                                    </div>
-                                 </div>
-                              ))}
-                           </div>
-                           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[10px] font-black uppercase px-2">
-                              <span className="text-slate-400">Allocated Sum:</span>
-                              <span className="text-blue-600">{formatCurrency(totalAllocatedSum)}</span>
-                           </div>
-                        </div>
-                     )}
-                  </div>
-               )}
-
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center px-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {showManualAllocations ? 'Total Settlement Value' : 'Settlement Amount'}
-                      </label>
-                      {contextualMaxLimit !== null && (
-                        <span className="text-[9px] font-black text-amber-500 uppercase">Limit: {formatCurrency(contextualMaxLimit)}</span>
-                      )}
-                    </div>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      required 
-                      placeholder="0.00" 
-                      className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all`} 
-                      value={paymentFormData.amount} 
-                      onChange={(e) => setPaymentFormData(p => ({ ...p, amount: e.target.value }))} 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Value Date</label>
-                    <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.date} onChange={(e) => setPaymentFormData(p => ({ ...p, date: e.target.value }))} />
-                  </div>
-               </div>
-
-               <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Payment Channel</label>
-                  <div className="grid grid-cols-3 gap-2">
-                     {(['Bank', 'Cash', 'Online'] as PaymentMethod[]).map(m => (
-                       <button
-                         key={m} type="button"
-                         onClick={() => setPaymentFormData(p => ({ ...p, method: m }))}
-                         className={`py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest border-2 transition-all ${paymentFormData.method === m ? 'bg-slate-900 border-slate-900 text-white shadow-xl scale-105' : 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-700 text-slate-500'}`}
-                       >
-                         {m}
-                       </button>
-                     ))}
-                  </div>
-               </div>
-
-               <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Ref / UTR Number</label>
-                  <div className="relative">
-                    <Landmark className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input type="text" placeholder="Optional txn ID..." className="w-full pl-12 pr-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.reference} onChange={(e) => setPaymentFormData(p => ({ ...p, reference: e.target.value }))} />
-                  </div>
-               </div>
-
-               <button 
-                type="submit" 
-                className={`w-full py-5 rounded-[2rem] font-black shadow-2xl active:scale-95 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-3 bg-emerald-600 text-white shadow-emerald-200 dark:shadow-none`}
-               >
-                 <CheckCircle2 size={24} />
-                 {editingPaymentRecord ? 'Finalize Changes' : 'Record Settlement'}
-               </button>
-            </form>
-          </div>
-        </div>
+        <SupplierPayments 
+          selectedVendorForPayment={selectedVendorForPayment}
+          editingPaymentRecord={editingPaymentRecord}
+          paymentFormData={paymentFormData}
+          setPaymentFormData={setPaymentFormData}
+          outstandingBills={outstandingBills}
+          showManualAllocations={showManualAllocations}
+          setShowManualAllocations={setShowManualAllocations}
+          manualAllocations={manualAllocations}
+          setManualAllocations={setManualAllocations}
+          totalAllocatedSum={totalAllocatedSum}
+          contextualMaxLimit={contextualMaxLimit}
+          projects={projects}
+          onClose={() => { setShowPaymentModal(false); setSelectedVendorForPayment(null); setEditingPaymentRecord(null); setContextualMaxLimit(null); }}
+          onSubmit={handleRecordPayment}
+          formatCurrency={formatCurrency}
+        />
       )}
 
       {/* Vendor Full Ledger Modal */}
       {viewingVendorId && activeVendor && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-6xl h-[92vh] shadow-2xl overflow-hidden flex flex-col mobile-sheet animate-in zoom-in-95 duration-300">
-             <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-900 shrink-0">
-                <div className="flex gap-4 items-center">
-                  <div className="w-16 h-16 bg-slate-900 dark:bg-slate-700 text-white rounded-[1.8rem] flex items-center justify-center font-black text-2xl shadow-xl">{activeVendor.name.charAt(0)}</div>
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{activeVendor.name} Ledger</h2>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{activeVendor.category} • {activeVendor.phone}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                   <button className="p-3 bg-slate-50 dark:bg-slate-700 rounded-2xl text-slate-400 hover:text-blue-600 shadow-sm transition-all"><Printer size={20} /></button>
-                   <button onClick={() => setViewingVendorId(null)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={36} /></button>
-                </div>
-             </div>
-
-             {/* Ledger Summary Bar */}
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-8 py-6 bg-slate-50 dark:bg-slate-950/50 border-b border-slate-100 dark:border-slate-800 shrink-0">
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                   <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Purchased</p>
-                   <p className="text-lg font-black text-slate-900 dark:text-white">{formatCurrency(activeVendorStats.totalPurchases)}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                   <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Paid</p>
-                   <p className="text-lg font-black text-emerald-600">{formatCurrency(activeVendorStats.totalPaid)}</p>
-                </div>
-                <div className="bg-[#003366] p-4 rounded-2xl shadow-xl shadow-blue-100 dark:shadow-none">
-                   <p className="text-[9px] font-black text-white/50 uppercase mb-1">Current Payables</p>
-                   <p className="text-lg font-black text-white">{formatCurrency(activeVendor.balance)}</p>
-                </div>
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                   <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Engagement</p>
-                   <p className="text-lg font-black text-blue-600">{activeVendorStats.activeProjectsCount} Hubs/Sites</p>
-                </div>
-             </div>
-
-             <div className="px-8 py-4 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 shrink-0">
-                <div className="relative">
-                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                   <input 
-                    type="text" 
-                    placeholder="Search ledger by date, site, material or reference..." 
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={ledgerSearchTerm}
-                    onChange={(e) => setLedgerSearchTerm(e.target.value)}
-                   />
-                </div>
-             </div>
-
-             <div className="flex-1 overflow-y-auto no-scrollbar p-0 sm:p-8 bg-slate-50/20 dark:bg-slate-950/20">
-                <div className="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                   <table className="w-full text-left min-w-[800px]">
-                      <thead className="bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
-                         <tr>
-                            <th className="px-8 py-5">Value Date</th>
-                            <th className="px-8 py-5">Activity Details</th>
-                            <th className="px-8 py-5">Hub / Project</th>
-                            <th className="px-8 py-5 text-right">Debit (Purchase)</th>
-                            <th className="px-8 py-5 text-right">Credit (Payment)</th>
-                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                         {filteredCombinedLedger.length > 0 ? filteredCombinedLedger.map((item, idx) => (
-                           <tr key={`${item.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                              <td className="px-8 py-5">
-                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-xl ${item.type === 'PURCHASE' ? 'bg-red-50 text-red-600 dark:bg-red-900/10' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/10'}`}>
-                                       {item.type === 'PURCHASE' ? <ShoppingCart size={14} /> : <ArrowDownCircle size={14} />}
-                                    </div>
-                                    <div>
-                                       <p className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase leading-none mb-1">{item.description}</p>
-                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ref: {item.reference}</p>
-                                    </div>
-                                 </div>
-                              </td>
-                              <td className="px-8 py-5">
-                                 <div className="flex items-center gap-2">
-                                    <Briefcase size={12} className="text-blue-500" />
-                                    <span className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-300">{item.type === 'PAYMENT' ? (item as any).siteDisplay : projects.find(p => p.id === item.projectId)?.name || 'General'}</span>
-                                 </div>
-                              </td>
-                              <td className="px-8 py-5 text-right">
-                                 {item.type === 'PURCHASE' ? <span className="text-sm font-black text-red-600">{formatCurrency(item.amount)}</span> : <span className="text-slate-300">--</span>}
-                              </td>
-                              <td className="px-8 py-5 text-right">
-                                 {item.type === 'PAYMENT' ? <span className="text-sm font-black text-emerald-600">{formatCurrency(item.amount)}</span> : <span className="text-slate-300">--</span>}
-                              </td>
-                           </tr>
-                         )) : (
-                            <tr>
-                               <td colSpan={5} className="py-20 text-center text-slate-300 font-bold uppercase text-xs tracking-widest italic">No matching entries found in this ledger</td>
-                            </tr>
-                         )}
-                      </tbody>
-                   </table>
-                </div>
-             </div>
-
-             <div className="p-8 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-900 flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-2">
-                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ledger Auto-Synced</span>
-                </div>
-                <button onClick={() => setViewingVendorId(null)} className="px-10 py-4 bg-slate-900 dark:bg-slate-700 text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all">Close Statement</button>
-             </div>
-          </div>
-        </div>
+        <VendorLedgerModal 
+          activeVendor={activeVendor}
+          activeVendorStats={activeVendorStats}
+          ledgerSearchTerm={ledgerSearchTerm}
+          setLedgerSearchTerm={setLedgerSearchTerm}
+          filteredCombinedLedger={filteredCombinedLedger}
+          projects={projects}
+          onClose={() => setViewingVendorId(null)}
+          formatCurrency={formatCurrency}
+          onPayBalance={handleOpenPaymentModal}
+        />
       )}
     </div>
   );
