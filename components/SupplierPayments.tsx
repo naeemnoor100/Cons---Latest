@@ -20,7 +20,7 @@ import { Vendor, Project, PaymentMethod, Payment } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const SupplierPayments: React.FC = () => {
-  const { payments, vendors, projects, expenses, addPayment, updatePayment, deletePayment } = useApp();
+  const { payments, vendors, projects, expenses, materials, addPayment, updatePayment, deletePayment } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -47,7 +47,28 @@ export const SupplierPayments: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [payments, vendors, searchTerm]);
 
-  const selectedVendor = vendors.find(v => v.id === selectedVendorId);
+  const getVendorBalance = (vendorId: string) => {
+    const supplyList: any[] = [];
+    materials.forEach(mat => {
+      if (mat.history) {
+        mat.history.forEach(h => {
+          if (h.type === 'Purchase' && h.vendorId === vendorId) {
+            const totalPaidForBatch = payments.filter(p => p.materialBatchId === h.id).reduce((sum, p) => sum + p.amount, 0);
+            const value = h.quantity * (h.unitPrice || mat.costPerUnit);
+            supplyList.push({ 
+              remainingBalance: Math.max(0, value - totalPaidForBatch)
+            });
+          }
+        });
+      }
+    });
+    return supplyList.reduce((sum, s) => sum + s.remainingBalance, 0);
+  };
+
+  const selectedVendorBalance = useMemo(() => {
+    if (!selectedVendorId) return 0;
+    return getVendorBalance(selectedVendorId);
+  }, [selectedVendorId, materials, payments]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
