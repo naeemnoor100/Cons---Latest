@@ -48,7 +48,7 @@ export const Settings: React.FC = () => {
     stockingUnits, addStockingUnit, removeStockingUnit,
     siteStatuses, addSiteStatus, removeSiteStatus,
     allowDecimalStock, setAllowDecimalStock,
-    projects, vendors, materials, expenses, incomes, invoices, payments, attendance,
+    projects, vendors, materials, expenses, incomes, invoices, payments,
     importState, forceSync
   } = useApp();
   
@@ -71,8 +71,8 @@ export const Settings: React.FC = () => {
 
   const handleExportData = () => {
     const fullState: AppState = {
-      projects, vendors, materials, expenses, payments, incomes, invoices, workers: [],
-      attendance, tradeCategories, stockingUnits, siteStatuses, allowDecimalStock,
+      projects, vendors, materials, expenses, payments, incomes, invoices,
+      tradeCategories, stockingUnits, siteStatuses, allowDecimalStock,
       currentUser, theme, syncId: 'BUILDMASTER_PRO_DATABASE_ACTIVE'
     };
     
@@ -130,7 +130,7 @@ export const Settings: React.FC = () => {
   const handleTestConnection = async () => {
     setTestStatus('loading');
     try {
-      const response = await fetch('api.php?action=test_connection');
+      const response = await fetch('/api.php?action=test_connection');
       if (!response.ok) throw new Error("HTTP " + response.status);
       const data = await response.json();
       if (data.success) {
@@ -150,7 +150,7 @@ export const Settings: React.FC = () => {
   const handleInitializeDb = async () => {
     setDbInitStatus('loading');
     try {
-      const response = await fetch('api.php?action=initialize_db');
+      const response = await fetch('/api.php?action=initialize_db');
       const data = await response.json();
       if (data.success) {
         setDbInitStatus('success');

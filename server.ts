@@ -25,10 +25,22 @@ async function startServer() {
     const action = req.query.action;
     const syncId = req.query.syncId as string;
 
-    const db = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+    let db;
+    try {
+      const content = fs.readFileSync(DATA_FILE, "utf-8");
+      db = content ? JSON.parse(content) : { sessions: {} };
+    } catch (e) {
+      db = { sessions: {} };
+    }
+    if (!db.sessions) db.sessions = {};
 
     if (action === 'test_connection') {
       return res.json({ success: true, message: "Node Bridge Reachable" });
+    }
+
+    if (action === 'initialize_db') {
+      // In Node environment, db.json is automatically initialized on startup
+      return res.json({ success: true, message: "Database Initialized" });
     }
 
     if (action === 'sync') {
@@ -52,7 +64,14 @@ async function startServer() {
         return res.status(400).json({ error: "Invalid payload" });
       }
 
-      const db = JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
+      let db;
+      try {
+        const content = fs.readFileSync(DATA_FILE, "utf-8");
+        db = content ? JSON.parse(content) : { sessions: {} };
+      } catch (e) {
+        db = { sessions: {} };
+      }
+      if (!db.sessions) db.sessions = {};
       db.sessions[data.syncId] = {
         state: data,
         lastUpdated: Date.now()

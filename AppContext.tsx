@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo, useEf
 import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice } from './types';
 import { INITIAL_STATE } from './constants';
 
-const API_PATH = 'api.php';
+const API_PATH = '/api.php';
 
 interface AppContextType extends AppState {
   updateUser: (u: User) => void;
