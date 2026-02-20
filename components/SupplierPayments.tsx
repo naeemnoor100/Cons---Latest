@@ -246,25 +246,25 @@ export const SupplierPayments: React.FC = () => {
                     onChange={e => setSelectedVendorId(e.target.value)}
                   >
                     <option value="">-- Select Vendor --</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name} (Bal: {formatCurrency(v.balance)})</option>)}
+                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name} (Bal: {formatCurrency(getVendorBalance(v.id))})</option>)}
                   </select>
                </div>
 
-               {selectedVendor && (
+               {selectedVendorId && (
                  <div className="bg-slate-900 dark:bg-slate-950 p-6 rounded-[2rem] text-white flex justify-between items-center shadow-2xl">
                     <div>
                       <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">
                         {editingPayment ? 'Outstanding (Before Edit)' : 'Total Outstanding'}
                       </p>
                       <p className="text-xl font-black">
-                        {formatCurrency(editingPayment ? selectedVendor.balance + editingPayment.amount : selectedVendor.balance)}
+                        {formatCurrency(editingPayment ? selectedVendorBalance + editingPayment.amount : selectedVendorBalance)}
                       </p>
                     </div>
                     <ArrowRight className="text-white/20" size={24} />
                     <div className="text-right">
                       <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Projected Balance</p>
                       <p className="text-xl font-black text-emerald-500">
-                        {formatCurrency(Math.max(0, (editingPayment ? selectedVendor.balance + editingPayment.amount : selectedVendor.balance) - (parseFloat(paymentFormData.amount) || 0)))}
+                        {formatCurrency(Math.max(0, (editingPayment ? selectedVendorBalance + editingPayment.amount : selectedVendorBalance) - (parseFloat(paymentFormData.amount) || 0)))}
                       </p>
                     </div>
                  </div>
