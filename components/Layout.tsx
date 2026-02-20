@@ -98,7 +98,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'vendors', label: 'Suppliers', icon: <Users size={18} /> },
     { id: 'payments', label: 'Payments', icon: <DollarSign size={18} /> },
     { id: 'reports', label: 'Analytics', icon: <BarChart3 size={18} /> },
-    { id: 'ai', label: 'AI Assistant', icon: <Sparkles size={18} className="text-blue-500" />, isSpecial: true },
     { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
   ];
 
