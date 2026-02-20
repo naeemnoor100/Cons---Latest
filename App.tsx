@@ -11,7 +11,6 @@ import { Reports } from './components/Reports';
 import { ProjectIncome } from './components/ProjectIncome';
 import { InvoiceManager } from './components/InvoiceManager';
 import { Settings } from './components/Settings';
-import { WorkerManagement } from './components/WorkerManagement';
 import { SupplierPayments } from './components/SupplierPayments';
 
 const MainApp: React.FC = () => {
@@ -23,8 +22,6 @@ const MainApp: React.FC = () => {
         return <Dashboard />;
       case 'projects':
         return <ProjectList />;
-      case 'labor':
-        return <WorkerManagement />;
       case 'invoices':
         return <InvoiceManager />;
       case 'income':

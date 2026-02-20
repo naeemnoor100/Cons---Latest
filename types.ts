@@ -63,6 +63,19 @@ export interface Material {
 
 export type PaymentMethod = 'Cash' | 'Bank' | 'Online';
 
+export interface Payment {
+  id: string;
+  date: string;
+  vendorId: string;
+  projectId: string;
+  amount: number;
+  method: PaymentMethod;
+  reference?: string;
+  materialBatchId?: string;
+  masterPaymentId?: string;
+  isAllocation?: boolean;
+}
+
 export interface Expense {
   id: string;
   date: string;
@@ -100,27 +113,6 @@ export interface Income {
   invoiceId?: string;
 }
 
-// NEW: Labor Management Types
-export interface Worker {
-  id: string;
-  name: string;
-  phone: string;
-  trade: string;
-  dailyWage: number;
-  activeProjectId?: string;
-}
-
-export interface Attendance {
-  id: string;
-  workerId: string;
-  projectId: string;
-  date: string;
-  status: 'Present' | 'Absent' | 'Half-Day';
-  wageEarned: number;
-  isPaid: boolean;
-  paymentId?: string;
-}
-
 export interface AppState {
   projects: Project[];
   vendors: Vendor[];
@@ -128,8 +120,7 @@ export interface AppState {
   expenses: Expense[];
   incomes: Income[];
   invoices: Invoice[];
-  workers: Worker[];
-  attendance: Attendance[];
+  payments: Payment[];
   tradeCategories: string[];
   stockingUnits: string[];
   siteStatuses: string[];

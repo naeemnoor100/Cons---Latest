@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice, Worker, Attendance } from './types';
+import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice } from './types';
 import { INITIAL_STATE } from './constants';
 
 const API_PATH = 'api.php';
@@ -29,12 +29,6 @@ interface AppContextType extends AppState {
   addInvoice: (inv: Invoice) => Promise<void>;
   updateInvoice: (inv: Invoice) => Promise<void>;
   deleteInvoice: (id: string) => Promise<void>;
-  addWorker: (w: Worker) => Promise<void>;
-  updateWorker: (w: Worker) => Promise<void>;
-  deleteWorker: (id: string) => Promise<void>;
-  markAttendance: (a: Attendance) => Promise<void>;
-  bulkMarkAttendance: (records: Attendance[]) => Promise<void>;
-  deleteAttendance: (id: string) => Promise<void>;
   forceSync: () => Promise<void>;
   addTradeCategory: (cat: string) => void;
   removeTradeCategory: (cat: string) => void;
@@ -478,14 +472,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? i : i) }));
   const deleteInvoice = async (id: string) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }));
 
-  const addWorker = async (w: Worker) => dispatchUpdate(prev => ({ ...prev, workers: [...prev.workers, w] }));
-  const updateWorker = async (w: Worker) => dispatchUpdate(prev => ({ ...prev, workers: prev.workers.map(x => x.id === w.id ? w : x) }));
-  const deleteWorker = async (id: string) => dispatchUpdate(prev => ({ ...prev, workers: prev.workers.filter(x => x.id !== id), attendance: prev.attendance.filter(a => a.workerId !== id) }));
-  
-  const markAttendance = async (a: Attendance) => dispatchUpdate(prev => ({ ...prev, attendance: [...prev.attendance, a] }));
-  const bulkMarkAttendance = async (records: Attendance[]) => dispatchUpdate(prev => ({ ...prev, attendance: [...prev.attendance, ...records] }));
-  const deleteAttendance = async (id: string) => dispatchUpdate(prev => ({ ...prev, attendance: prev.attendance.filter(x => x.id !== id) }));
-
   const forceSync = async () => loadFromDB();
 
   const addTradeCategory = (cat: string) => dispatchUpdate(prev => ({ ...prev, tradeCategories: [...prev.tradeCategories, cat] }));
@@ -521,7 +507,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addPayment, updatePayment, deletePayment,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
-    addWorker, updateWorker, deleteWorker, markAttendance, bulkMarkAttendance, deleteAttendance,
     forceSync,
     addTradeCategory, removeTradeCategory,
     addStockingUnit, removeStockingUnit,
