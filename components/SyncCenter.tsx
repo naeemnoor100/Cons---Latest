@@ -60,8 +60,8 @@ export const SyncCenter: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </div>
             
             <div className="bg-white/60 dark:bg-black/20 p-3.5 rounded-xl flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400">
-               <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-500" /> Multi-Table SSL</span>
-               <span className="flex items-center gap-1.5"><Database size={14} className="text-blue-500" /> MySQL Engine</span>
+               <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-500" /> Secure SSL</span>
+               <span className="flex items-center gap-1.5"><Database size={14} className="text-blue-500" /> Node.js Engine</span>
             </div>
           </div>
 

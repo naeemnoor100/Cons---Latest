@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
-  DollarSign
+  DollarSign,
+  ChevronDown
 } from 'lucide-react';
 import { Vendor, Project } from '../types';
 
@@ -18,6 +19,7 @@ interface VendorLedgerModalProps {
   activeVendorStats: {
     totalPaid: number;
     totalPurchases: number;
+    totalDues: number;
     activeProjectsCount: number;
   };
   ledgerSearchTerm: string;
@@ -25,6 +27,7 @@ interface VendorLedgerModalProps {
   filteredCombinedLedger: any[];
   projects: Project[];
   onClose: () => void;
+  onPayBill?: (bill: any) => void;
   formatCurrency: (val: number) => string;
 }
 
@@ -36,9 +39,15 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   filteredCombinedLedger,
   projects,
   onClose,
+  onPayBill,
   formatCurrency
 }) => {
   const [activeTab, setActiveTab] = useState<'statement' | 'settlements' | 'stock'>('statement');
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+
+  const toggleRow = (id: string) => {
+    setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   const filteredData = filteredCombinedLedger.filter(item => {
     if (activeTab === 'settlements') return item.type === 'PAYMENT';
@@ -91,7 +100,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                      </div>
                      <div>
                         <p className="text-[8px] font-black text-rose-400 uppercase leading-none mb-1">Dues Pending</p>
-                        <p className="text-xs font-black text-rose-900 uppercase">{formatCurrency(activeVendor.balance)}</p>
+                        <p className="text-xs font-black text-rose-900 uppercase">{formatCurrency(activeVendorStats.totalDues)}</p>
                      </div>
                   </div>
                </div>
@@ -156,46 +165,96 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                      {filteredData.length > 0 ? filteredData.map((item, idx) => (
-                        <tr key={`${item.id}-${idx}`} className="hover:bg-slate-50/30 transition-colors">
-                           <td className="px-8 py-6 text-xs font-black text-slate-900">
-                              {new Date(item.date).toLocaleDateString('en-GB')}
-                           </td>
-                           <td className="px-8 py-6">
-                              <div className="flex items-center gap-4">
-                                 <div className={`p-2.5 rounded-xl ${item.type === 'PURCHASE' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                                    {item.type === 'PURCHASE' ? <ArrowUpRight size={16} /> : <ArrowDownCircle size={16} />}
-                                 </div>
-                                 <div>
-                                    <p className="text-xs font-black text-[#001F3F] uppercase leading-none mb-1.5">{item.description}</p>
-                                    <p className={`text-[8px] font-black uppercase tracking-widest ${item.type === 'PURCHASE' ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                       {item.type === 'PURCHASE' ? 'Stock Arrival' : 'Payment Settlement'}
-                                    </p>
-                                 </div>
-                              </div>
-                           </td>
-                           <td className="px-8 py-6">
-                              <span className="text-[10px] font-black uppercase text-slate-500">
-                                 {item.type === 'PAYMENT' ? (item as any).siteDisplay : projects.find(p => p.id === item.projectId)?.name || 'General'}
-                              </span>
-                           </td>
-                           <td className="px-8 py-6">
-                              {item.type === 'PURCHASE' ? (
-                                 <span className="text-sm font-black text-rose-500">{formatCurrency(item.amount)}</span>
-                              ) : (
-                                 <span className="text-slate-200 font-black">--</span>
-                              )}
-                           </td>
-                           <td className="px-8 py-6">
-                              {item.type === 'PAYMENT' ? (
-                                 <span className="text-sm font-black text-emerald-500">{formatCurrency(item.amount)}</span>
-                              ) : (
-                                 <span className="text-slate-200 font-black">--</span>
-                              )}
-                           </td>
-                           <td className="px-8 py-6 text-right">
-                              <span className="text-slate-200 font-black">--</span>
-                           </td>
-                        </tr>
+                        <React.Fragment key={`${item.id}-${idx}`}>
+                          <tr 
+                            onClick={() => item.type === 'PAYMENT' && toggleRow(item.id)}
+                            className={`transition-colors ${item.type === 'PAYMENT' ? 'cursor-pointer hover:bg-slate-50/50' : 'hover:bg-slate-50/30'}`}
+                          >
+                             <td className="px-8 py-6 text-xs font-black text-slate-900">
+                                {new Date(item.date).toLocaleDateString('en-GB')}
+                             </td>
+                             <td className="px-8 py-6">
+                                <div className="flex items-center gap-4">
+                                   <div className={`p-2.5 rounded-xl ${item.type === 'PURCHASE' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                                      {item.type === 'PURCHASE' ? <ArrowUpRight size={16} /> : <ArrowDownCircle size={16} />}
+                                   </div>
+                                   <div>
+                                      <p className="text-xs font-black text-[#001F3F] uppercase leading-none mb-1.5">{item.description}</p>
+                                      <div className="flex items-center gap-2">
+                                         <p className={`text-[8px] font-black uppercase tracking-widest ${item.type === 'PURCHASE' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                            {item.type === 'PURCHASE' ? 'Stock Arrival' : 'Payment Settlement'}
+                                         </p>
+                                         {item.type === 'PURCHASE' && item.unitPrice && (
+                                            <span className="text-[8px] font-bold text-slate-400 uppercase">
+                                               @ {formatCurrency(item.unitPrice)}
+                                            </span>
+                                         )}
+                                         {item.type === 'PAYMENT' && item.settledBills?.length > 0 && (
+                                            <span className="text-[8px] font-black text-blue-500 uppercase flex items-center gap-1">
+                                               <ChevronDown size={10} className={`transition-transform ${expandedRows[item.id] ? 'rotate-180' : ''}`} />
+                                               {item.settledBills.length} Bills Settled
+                                            </span>
+                                         )}
+                                      </div>
+                                   </div>
+                                </div>
+                             </td>
+                             <td className="px-8 py-6">
+                                <span className="text-[10px] font-black uppercase text-slate-500">
+                                   {item.type === 'PAYMENT' ? (item as any).siteDisplay : projects.find(p => p.id === item.projectId)?.name || 'General'}
+                                </span>
+                             </td>
+                             <td className="px-8 py-6">
+                                {item.type === 'PURCHASE' ? (
+                                   <span className="text-sm font-black text-rose-500">{formatCurrency(item.amount)}</span>
+                                ) : (
+                                   <span className="text-slate-200 font-black">--</span>
+                                )}
+                             </td>
+                             <td className="px-8 py-6">
+                                {item.type === 'PAYMENT' ? (
+                                   <span className="text-sm font-black text-emerald-500">{formatCurrency(item.amount)}</span>
+                                ) : (
+                                   <span className="text-slate-200 font-black">--</span>
+                                )}
+                             </td>
+                             <td className="px-8 py-6 text-right">
+                                {item.type === 'PURCHASE' ? (
+                                   <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (item.remainingBalance > 0 && onPayBill) onPayBill(item);
+                                    }}
+                                    className={`text-xs font-black transition-all ${item.remainingBalance > 0 ? 'text-amber-600 hover:scale-110 active:scale-95 cursor-pointer' : 'text-emerald-600'}`}
+                                   >
+                                      {item.remainingBalance > 0 ? `Due: ${formatCurrency(item.remainingBalance)}` : 'Settle'}
+                                   </button>
+                                ) : (
+                                   <span className="text-slate-200 font-black">--</span>
+                                )}
+                             </td>
+                          </tr>
+                          {item.type === 'PAYMENT' && expandedRows[item.id] && item.settledBills?.length > 0 && (
+                            <tr className="bg-slate-50/30 border-l-4 border-emerald-500 animate-in slide-in-from-top-1 duration-200">
+                               <td colSpan={6} className="px-8 py-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                     {item.settledBills.map((bill: any, bIdx: number) => (
+                                        <div key={bIdx} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex justify-between items-center">
+                                           <div>
+                                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Settled Bill</p>
+                                              <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{bill.billName}</p>
+                                           </div>
+                                           <div className="text-right">
+                                              <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Allocated</p>
+                                              <p className="text-xs font-black text-emerald-600">{formatCurrency(bill.amount)}</p>
+                                           </div>
+                                        </div>
+                                     ))}
+                                  </div>
+                               </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                      )) : (
                         <tr>
                            <td colSpan={6} className="py-24 text-center">

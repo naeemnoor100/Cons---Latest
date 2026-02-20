@@ -49,11 +49,18 @@ import { VendorLedgerModal } from './VendorLedgerModal';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const VendorList: React.FC = () => {
-  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor } = useApp();
+  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor, addPayment } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [quickPaymentBill, setQuickPaymentBill] = useState<any | null>(null);
+  const [quickPaymentFormData, setQuickPaymentFormData] = useState({
+    amount: '',
+    method: 'Bank' as PaymentMethod,
+    date: new Date().toISOString().split('T')[0],
+    reference: ''
+  });
   
   const [viewingVendorId, setViewingVendorId] = useState<string | null>(null);
   const activeVendor = useMemo(() => vendors.find(v => v.id === viewingVendorId), [vendors, viewingVendorId]);
@@ -128,6 +135,7 @@ export const VendorList: React.FC = () => {
     const vendorPayments = payments.filter(p => p.vendorId === activeVendor.id && !p.isAllocation);
     const totalPaid = vendorPayments.reduce((sum, p) => sum + p.amount, 0);
     const totalPurchases = vendorSupplies.reduce((sum, s) => sum + s.estimatedValue, 0);
+    const totalDues = vendorSupplies.reduce((sum, s) => sum + s.remainingBalance, 0);
 
     const associatedProjectIds = new Set([
       ...vendorSupplies.map(s => s.projectId),
@@ -138,7 +146,7 @@ export const VendorList: React.FC = () => {
       associatedProjectIds.has(p.id) && p.status === 'Active'
     ).length;
 
-    return { totalPaid, totalPurchases, activeProjectsCount };
+    return { totalPaid, totalPurchases, totalDues, activeProjectsCount };
   }, [activeVendor, payments, vendorSupplies, projects]);
 
   const combinedLedger = useMemo(() => {
@@ -173,6 +181,14 @@ export const VendorList: React.FC = () => {
           .map(pid => projects.find(proj => proj.id === pid)?.name)
           .filter(Boolean);
 
+        const settledBills = allocations.map(a => {
+          const exp = expenses.find(e => 'sh-exp-' + e.id === a.materialBatchId);
+          return {
+            amount: a.amount,
+            billName: exp ? (materials.find(m => m.id === exp.materialId)?.name || 'Purchase Bill') : 'Advance/Unallocated'
+          };
+        });
+
         return {
           id: p.id,
           date: p.date,
@@ -185,6 +201,7 @@ export const VendorList: React.FC = () => {
           isFullyPaid: true,
           remainingBalance: 0,
           materialName,
+          settledBills,
           siteDisplay: projectNames.length > 0 ? projectNames.join(', ') : (projects.find(proj => proj.id === p.projectId)?.name || 'General Office')
         };
       });
@@ -220,6 +237,37 @@ export const VendorList: React.FC = () => {
     setShowModal(true);
   };
 
+  const handleQuickPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickPaymentBill || !activeVendor) return;
+
+    const amountToPay = parseFloat(quickPaymentFormData.amount) || 0;
+    if (amountToPay > quickPaymentBill.remainingBalance + 0.01) {
+      alert(`Payment amount cannot exceed the outstanding balance of ${formatCurrency(quickPaymentBill.remainingBalance)}`);
+      return;
+    }
+
+    const payment: Payment = {
+      id: 'pay' + Date.now(),
+      date: quickPaymentFormData.date,
+      vendorId: activeVendor.id,
+      projectId: quickPaymentBill.projectId || projects[0]?.id || '',
+      amount: amountToPay,
+      method: quickPaymentFormData.method,
+      reference: quickPaymentFormData.reference,
+      materialBatchId: quickPaymentBill.id
+    };
+
+    await addPayment(payment);
+    setQuickPaymentBill(null);
+    setQuickPaymentFormData({
+      amount: '',
+      method: 'Bank',
+      date: new Date().toISOString().split('T')[0],
+      reference: ''
+    });
+  };
+
   const handleVendorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const vendorData: Vendor = {
@@ -235,10 +283,6 @@ export const VendorList: React.FC = () => {
     else await addVendor(vendorData);
     setShowModal(false);
   };
-
-  const totalAllocatedSum = useMemo(() => 
-    Object.values(manualAllocations).reduce((sum, v) => sum + (parseFloat(v as string) || 0), 0)
-  , [manualAllocations]);
 
   return (
     <div className="space-y-6">
@@ -300,6 +344,7 @@ export const VendorList: React.FC = () => {
                 const vendorPayments = payments.filter(p => p.vendorId === vendor.id && !p.isAllocation);
                 const lastPay = vendorPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
                 const vendorSupplies_local = getSuppliesForVendor(vendor.id);
+                const totalOutstanding = vendorSupplies_local.reduce((sum, s) => sum + s.remainingBalance, 0);
                 const associatedProjectIds = new Set([...vendorSupplies_local.map(s => s.projectId), ...vendorPayments.map(p => p.projectId)]);
                 const activeSitesCount = projects.filter(p => associatedProjectIds.has(p.id) && p.status === 'Active').length;
 
@@ -331,15 +376,15 @@ export const VendorList: React.FC = () => {
                     </td>
                     <td className="px-8 py-5">
                       <div className="flex flex-col">
-                        <p className={`text-base font-black ${vendor.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                          {formatCurrency(vendor.balance)}
+                        <p className={`text-base font-black ${totalOutstanding > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {formatCurrency(totalOutstanding)}
                         </p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                           {vendor.balance > 50000 ? (
+                           {totalOutstanding > 50000 ? (
                              <span className="text-[9px] font-bold text-red-500 uppercase flex items-center gap-1">
                                <AlertCircle size={10} /> Critical
                              </span>
-                           ) : vendor.balance > 0 ? (
+                           ) : totalOutstanding > 0 ? (
                              <span className="text-[9px] text-slate-400 font-bold uppercase">Pending</span>
                            ) : (
                              <span className="text-[9px] text-emerald-600 font-bold uppercase flex items-center gap-1">
@@ -470,8 +515,86 @@ export const VendorList: React.FC = () => {
           filteredCombinedLedger={filteredCombinedLedger}
           projects={projects}
           onClose={() => setViewingVendorId(null)}
+          onPayBill={(bill) => {
+            setQuickPaymentBill(bill);
+            setQuickPaymentFormData(prev => ({ ...prev, amount: bill.remainingBalance.toString() }));
+          }}
           formatCurrency={formatCurrency}
         />
+      )}
+
+      {/* Quick Payment Modal */}
+      {quickPaymentBill && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
+               <div className="flex items-center gap-4">
+                  <div className="p-3 bg-emerald-600 text-white rounded-2xl">
+                     <DollarSign size={24} />
+                  </div>
+                  <div>
+                     <h2 className="text-lg font-black uppercase tracking-tight">Settle Bill</h2>
+                     <p className="text-[10px] font-bold text-slate-400 uppercase">{quickPaymentBill.description}</p>
+                  </div>
+               </div>
+               <button onClick={() => setQuickPaymentBill(null)} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+            </div>
+            
+            <form onSubmit={handleQuickPaymentSubmit} className="p-8 space-y-5">
+               <div className="bg-slate-900 p-5 rounded-2xl text-white flex justify-between items-center">
+                  <div>
+                    <p className="text-[8px] font-black text-white/50 uppercase tracking-widest mb-1">Total Outstanding</p>
+                    <p className="text-lg font-black">{formatCurrency(activeVendorStats.totalDues)}</p>
+                  </div>
+                  <ArrowRight className="text-white/20" size={20} />
+                  <div className="text-right">
+                    <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Balance After</p>
+                    <p className="text-lg font-black text-emerald-500">{formatCurrency(activeVendorStats.totalDues - (parseFloat(quickPaymentFormData.amount) || 0))}</p>
+                  </div>
+               </div>
+
+               <div className="space-y-1">
+                  <div className="flex justify-between items-end px-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400">Amount to Pay</label>
+                    <span className="text-[10px] font-black text-amber-600 uppercase">Bill Due: {formatCurrency(quickPaymentBill.remainingBalance)}</span>
+                  </div>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    required 
+                    max={quickPaymentBill.remainingBalance}
+                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10" 
+                    value={quickPaymentFormData.amount} 
+                    onChange={e => setQuickPaymentFormData(p => ({ ...p, amount: e.target.value }))} 
+                  />
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Date</label>
+                    <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={quickPaymentFormData.date} onChange={e => setQuickPaymentFormData(p => ({ ...p, date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Method</label>
+                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={quickPaymentFormData.method} onChange={e => setQuickPaymentFormData(p => ({ ...p, method: e.target.value as PaymentMethod }))}>
+                      <option value="Bank">Bank</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Online">Online</option>
+                    </select>
+                  </div>
+               </div>
+
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 px-1">Reference / UTR</label>
+                  <input type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" placeholder="Optional..." value={quickPaymentFormData.reference} onChange={e => setQuickPaymentFormData(p => ({ ...p, reference: e.target.value }))} />
+               </div>
+
+               <button type="submit" className="w-full bg-emerald-600 text-white py-4 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-all mt-2 shadow-lg shadow-emerald-200 dark:shadow-none">
+                  Confirm Payment
+               </button>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -87,6 +87,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const primaryMenuItems = [
     { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} strokeWidth={2.5} /> },
     { id: 'projects', label: 'Sites', icon: <Briefcase size={18} strokeWidth={2.5} /> },
+    { id: 'labor', label: 'Labor', icon: <HardHat size={18} strokeWidth={2.5} /> },
     { id: 'materials', label: 'Stock', icon: <Package size={18} strokeWidth={2.5} /> },
     { id: 'expenses', label: 'Finance', icon: <Receipt size={18} strokeWidth={2.5} /> },
   ];
@@ -95,7 +96,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'invoices', label: 'Invoices', icon: <FileText size={18} /> },
     { id: 'income', label: 'Revenue', icon: <ArrowUpCircle size={18} /> },
     { id: 'vendors', label: 'Suppliers', icon: <Users size={18} /> },
+    { id: 'payments', label: 'Payments', icon: <DollarSign size={18} /> },
     { id: 'reports', label: 'Analytics', icon: <BarChart3 size={18} /> },
+    { id: 'ai', label: 'AI Assistant', icon: <Sparkles size={18} className="text-blue-500" />, isSpecial: true },
     { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
   ];
 

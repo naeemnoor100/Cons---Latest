@@ -33,8 +33,8 @@ export const AIAssistant: React.FC = () => {
     setLoading(true);
 
     try {
-      /* Fix: Adhering to guidelines: Always initialize GoogleGenAI with { apiKey: process.env.API_KEY } directly */
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      /* Fix: Adhering to guidelines: Always initialize GoogleGenAI with { apiKey: process.env.GEMINI_API_KEY } directly */
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const projectSummary = projects.map(p => `${p.name} (${p.status}, Budget: ${p.budget})`).join(', ');
       const materialSummary = materials.map(m => `${m.name}: ${m.totalPurchased - m.totalUsed} ${m.unit} in stock`).join(', ');
