@@ -315,6 +315,14 @@ export const Inventory: React.FC = () => {
   const handleEditMaterialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMaterial) return;
+    
+    const normalizedNewName = editFormData.name.replace(/[\s.]/g, '').toLowerCase();
+    const duplicate = materials.find(m => m.id !== editingMaterial.id && m.name.replace(/[\s.]/g, '').toLowerCase() === normalizedNewName);
+    if (duplicate) {
+      alert(`This material already exists as "${duplicate.name}".`);
+      return;
+    }
+
     await updateMaterial({ ...editingMaterial, name: editFormData.name, unit: editFormData.unit as MaterialUnit });
     setShowEditModal(false);
     setEditingMaterial(null);
@@ -386,6 +394,12 @@ export const Inventory: React.FC = () => {
     const totalAmount = qty * unitPrice;
     const expenseId = 'e-pro-' + Date.now();
     if (procureData.materialId === 'new') {
+      const normalizedNewName = procureData.newName.replace(/[\s.]/g, '').toLowerCase();
+      const duplicate = materials.find(m => m.name.replace(/[\s.]/g, '').toLowerCase() === normalizedNewName);
+      if (duplicate) {
+        alert(`This material already exists as "${duplicate.name}". Please select it from the dropdown instead of creating a new one.`);
+        return;
+      }
       const newId = 'm' + Date.now();
       await addMaterial({ id: newId, name: procureData.newName, unit: procureData.unit, costPerUnit: unitPrice, totalPurchased: 0, totalUsed: 0, history: [] });
       await addExpense({ id: expenseId, date: procureData.date, projectId: procureData.projectId, vendorId: procureData.vendorId, amount: totalAmount, paymentMethod: 'Bank', category: 'Material', notes: procureData.note || `Procured ${qty} ${procureData.unit} of ${procureData.newName}`, materialId: newId, materialQuantity: qty, inventoryAction: 'Purchase' });

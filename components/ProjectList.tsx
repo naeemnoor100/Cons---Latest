@@ -274,6 +274,12 @@ export const ProjectList: React.FC = () => {
     
     let targetMaterialId = arrivalFormData.materialId;
     if (targetMaterialId === 'new') {
+      const normalizedNewName = arrivalFormData.newMaterialName.replace(/[\s.]/g, '').toLowerCase();
+      const duplicate = materials.find(m => m.name.replace(/[\s.]/g, '').toLowerCase() === normalizedNewName);
+      if (duplicate) {
+        alert(`This material already exists as "${duplicate.name}". Please select it from the dropdown instead of creating a new one.`);
+        return;
+      }
       const newId = 'm' + Date.now();
       await addMaterial({ id: newId, name: arrivalFormData.newMaterialName, unit: arrivalFormData.unit, costPerUnit: unitPrice, totalPurchased: 0, totalUsed: 0, history: [] });
       targetMaterialId = newId;
