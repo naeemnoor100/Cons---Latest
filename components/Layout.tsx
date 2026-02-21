@@ -107,7 +107,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         <div className="h-20 flex items-center px-6 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white shadow-lg shadow-orange-200 dark:shadow-none"><Briefcase size={20} strokeWidth={3} /></div>
-            <h1 className="text-lg font-black text-[#003366] dark:text-white tracking-tighter">BUILDTRACK<span className="text-[#FF5A00]">PRO</span></h1>
+            <h1 className="text-lg font-black text-[#003366] dark:text-white tracking-tighter">BUILDTRACK11<span className="text-[#FF5A00]">PRO</span></h1>
           </div>
         </div>
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
