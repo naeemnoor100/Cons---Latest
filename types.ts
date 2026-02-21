@@ -113,6 +113,37 @@ export interface Income {
   invoiceId?: string;
 }
 
+export interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  phone: string;
+  dailyWage: number;
+  status: 'Active' | 'Inactive';
+  joiningDate: string;
+}
+
+export interface LaborLog {
+  id: string;
+  date: string;
+  employeeId: string;
+  projectId: string;
+  hoursWorked: number;
+  wageAmount: number;
+  status: 'Present' | 'Absent' | 'Half-day';
+  notes?: string;
+}
+
+export interface LaborPayment {
+  id: string;
+  employeeId: string;
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+  reference?: string;
+  notes?: string;
+}
+
 export interface AppState {
   projects: Project[];
   vendors: Vendor[];
@@ -121,6 +152,9 @@ export interface AppState {
   incomes: Income[];
   invoices: Invoice[];
   payments: Payment[];
+  employees: Employee[];
+  laborLogs: LaborLog[];
+  laborPayments: LaborPayment[];
   tradeCategories: string[];
   stockingUnits: string[];
   siteStatuses: string[];

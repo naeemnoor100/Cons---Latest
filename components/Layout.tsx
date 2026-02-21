@@ -66,14 +66,14 @@ const MobileTabItem: React.FC<{
 }> = ({ icon, label, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
+    className={`flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-90 ${
       isActive ? 'text-[#003366] dark:text-white' : 'text-slate-400'
     }`}
   >
-    <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'scale-110' : ''}`}>
-      {icon}
+    <div className={`p-1 rounded-xl transition-all ${isActive ? 'scale-110' : ''}`}>
+      {React.cloneElement(icon as React.ReactElement, { size: 20 })}
     </div>
-    <span className={`text-[9px] font-black uppercase mt-0.5 tracking-tighter ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+    <span className={`text-[8px] font-black uppercase mt-0.5 tracking-tighter ${isActive ? 'opacity-100' : 'opacity-70'}`}>
       {label}
     </span>
   </button>
@@ -83,10 +83,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const { currentUser, syncId, isSyncing, syncError, undo, redo, canUndo, canRedo, theme } = useApp();
   const [showSyncCenter, setShowSyncCenter] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const primaryMenuItems = [
     { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} strokeWidth={2.5} /> },
     { id: 'projects', label: 'Sites', icon: <Briefcase size={18} strokeWidth={2.5} /> },
+    { id: 'labor', label: 'Labor', icon: <HardHat size={18} strokeWidth={2.5} /> },
     { id: 'materials', label: 'Stock', icon: <Package size={18} strokeWidth={2.5} /> },
     { id: 'expenses', label: 'Finance', icon: <Receipt size={18} strokeWidth={2.5} /> },
   ];
@@ -131,9 +133,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         {/* Universal App Header */}
         <header className="h-16 lg:h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-10 shrink-0 z-40 pt-safe">
           <div className="flex items-center gap-3">
-            <div className="lg:hidden flex items-center gap-2">
-               <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white"><Briefcase size={16} strokeWidth={3} /></div>
-               <h1 className="text-sm font-black text-[#003366] dark:text-white tracking-tighter uppercase">BT<span className="text-[#FF5A00]">PRO</span></h1>
+            <div className="lg:hidden flex items-center gap-3">
+               <button 
+                 onClick={() => setShowMobileSidebar(true)}
+                 className="p-2 -ml-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+               >
+                 <Menu size={20} strokeWidth={2.5} />
+               </button>
+               <div className="flex items-center gap-2">
+                 <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white"><Briefcase size={16} strokeWidth={3} /></div>
+                 <h1 className="text-sm font-black text-[#003366] dark:text-white tracking-tighter uppercase">BT<span className="text-[#FF5A00]">PRO</span></h1>
+               </div>
             </div>
             <div className="hidden lg:block">
                <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{primaryMenuItems.find(m => m.id === activeTab)?.label || secondaryMenuItems.find(m => m.id === activeTab)?.label || 'Console'}</h2>
@@ -166,7 +176,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-3 sm:p-4 lg:p-10 no-scrollbar pb-32 lg:pb-10">
+        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-3 sm:p-4 lg:p-10 pb-32 lg:pb-10 scroll-smooth">
           <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
             {children}
           </div>
@@ -189,6 +199,52 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
             onClick={() => setShowMoreMenu(true)} 
           />
         </nav>
+
+        {/* Mobile Sidebar Drawer */}
+        {showMobileSidebar && (
+          <div className="lg:hidden fixed inset-0 z-[150] animate-in fade-in duration-200">
+            <div 
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+              onClick={() => setShowMobileSidebar(false)}
+            ></div>
+            <div className="absolute top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
+              <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white"><Briefcase size={18} strokeWidth={3} /></div>
+                  <h1 className="text-base font-black text-[#003366] dark:text-white tracking-tighter">BT<span className="text-[#FF5A00]">PRO</span></h1>
+                </div>
+                <button 
+                  onClick={() => setShowMobileSidebar(false)}
+                  className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
+                {[...primaryMenuItems, ...secondaryMenuItems].map((item) => (
+                  <SidebarItem 
+                    key={item.id} 
+                    {...item} 
+                    isActive={activeTab === item.id} 
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setShowMobileSidebar(false);
+                    }} 
+                  />
+                ))}
+              </nav>
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
+                  <img src={currentUser.avatar} alt={currentUser.name} className="w-10 h-10 rounded-xl object-cover border-2 border-slate-50 dark:border-slate-700" />
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-xs font-black text-slate-900 dark:text-white truncate">{currentUser.name}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{currentUser.role}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mobile "More" Menu Overlay */}
         {showMoreMenu && (

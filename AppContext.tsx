@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice } from './types';
+import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice, Employee, LaborLog, LaborPayment } from './types';
 import { INITIAL_STATE } from './constants';
 
 const API_PATH = '/api.php';
@@ -29,6 +29,15 @@ interface AppContextType extends AppState {
   addInvoice: (inv: Invoice) => Promise<void>;
   updateInvoice: (inv: Invoice) => Promise<void>;
   deleteInvoice: (id: string) => Promise<void>;
+  addEmployee: (emp: Employee) => Promise<void>;
+  updateEmployee: (emp: Employee) => Promise<void>;
+  deleteEmployee: (id: string) => Promise<void>;
+  addLaborLog: (log: LaborLog) => Promise<void>;
+  updateLaborLog: (log: LaborLog) => Promise<void>;
+  deleteLaborLog: (id: string) => Promise<void>;
+  addLaborPayment: (pay: LaborPayment) => Promise<void>;
+  updateLaborPayment: (pay: LaborPayment) => Promise<void>;
+  deleteLaborPayment: (id: string) => Promise<void>;
   forceSync: () => Promise<void>;
   addTradeCategory: (cat: string) => void;
   removeTradeCategory: (cat: string) => void;
@@ -472,6 +481,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? i : i) }));
   const deleteInvoice = async (id: string) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }));
 
+  const addEmployee = async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: [...prev.employees, emp] }));
+  const updateEmployee = async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.map(e => e.id === emp.id ? emp : e) }));
+  const deleteEmployee = async (id: string) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) }));
+
+  const addLaborLog = async (log: LaborLog) => dispatchUpdate(prev => {
+    const expense: Expense = {
+      id: 'exp-labor-' + log.id,
+      date: log.date,
+      projectId: log.projectId,
+      amount: log.wageAmount,
+      paymentMethod: 'Cash',
+      category: 'Labor',
+      notes: `Labor Wage: ${prev.employees.find(e => e.id === log.employeeId)?.name || 'Unknown'} (${log.status})`
+    };
+    return { ...prev, laborLogs: [...prev.laborLogs, log], expenses: [...prev.expenses, expense] };
+  });
+
+  const updateLaborLog = async (log: LaborLog) => dispatchUpdate(prev => {
+    const expenseId = 'exp-labor-' + log.id;
+    const nextExpenses = prev.expenses.map(exp => {
+      if (exp.id === expenseId) {
+        return {
+          ...exp,
+          date: log.date,
+          projectId: log.projectId,
+          amount: log.wageAmount,
+          notes: `Labor Wage: ${prev.employees.find(e => e.id === log.employeeId)?.name || 'Unknown'} (${log.status})`
+        };
+      }
+      return exp;
+    });
+    return { ...prev, laborLogs: prev.laborLogs.map(l => l.id === log.id ? log : l), expenses: nextExpenses };
+  });
+
+  const deleteLaborLog = async (id: string) => dispatchUpdate(prev => {
+    const expenseId = 'exp-labor-' + id;
+    return { ...prev, laborLogs: prev.laborLogs.filter(l => l.id !== id), expenses: prev.expenses.filter(exp => exp.id !== expenseId) };
+  });
+
+  const addLaborPayment = async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: [...prev.laborPayments, pay] }));
+  const updateLaborPayment = async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.map(p => p.id === pay.id ? pay : p) }));
+  const deleteLaborPayment = async (id: string) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.filter(p => p.id !== id) }));
+
   const forceSync = async () => loadFromDB();
 
   const addTradeCategory = (cat: string) => dispatchUpdate(prev => ({ ...prev, tradeCategories: [...prev.tradeCategories, cat] }));
@@ -507,6 +559,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addPayment, updatePayment, deletePayment,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
+    addEmployee, updateEmployee, deleteEmployee,
+    addLaborLog, updateLaborLog, deleteLaborLog,
+    addLaborPayment, updateLaborPayment, deleteLaborPayment,
     forceSync,
     addTradeCategory, removeTradeCategory,
     addStockingUnit, removeStockingUnit,

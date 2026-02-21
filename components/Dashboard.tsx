@@ -16,7 +16,8 @@ import {
   ArrowRight,
   Wallet,
   Warehouse,
-  LayoutGrid
+  LayoutGrid,
+  HardHat
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -41,14 +42,14 @@ const DashboardCard: React.FC<{
   isPositive?: boolean;
   colorClass: string;
 }> = ({ title, value, icon, trend, isPositive, colorClass }) => (
-  <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all hover:shadow-md">
+  <div className="bg-white dark:bg-slate-800 p-3 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all hover:shadow-md">
     <div className="flex justify-between items-start">
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 truncate">{title}</p>
-        <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white truncate">{value}</h3>
+        <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-0.5 sm:mb-1 truncate">{title}</p>
+        <h3 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white truncate">{value}</h3>
       </div>
-      <div className={`p-2.5 sm:p-3 rounded-xl ${colorClass} text-white shrink-0 ml-2`}>
-        {icon}
+      <div className={`p-2 sm:p-3 rounded-xl ${colorClass} text-white shrink-0 ml-1.5 sm:ml-2`}>
+        {React.cloneElement(icon as React.ReactElement, { size: 16 })}
       </div>
     </div>
     {trend && (
@@ -69,6 +70,7 @@ export const Dashboard: React.FC = () => {
   });
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalLaborCosts = expenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
   const totalIncome = incomes.reduce((sum, i) => sum + i.amount, 0);
   const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.amount, 0);
   const totalReceivables = Math.max(0, totalInvoiced - totalIncome);
@@ -137,12 +139,13 @@ export const Dashboard: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-4">
         <DashboardCard title="Active Sites" value={activeProjectsCount.toString()} icon={<Briefcase size={20} />} colorClass="bg-blue-600" />
         <DashboardCard title="Godown Stock" value={formatCurrency(godownValue)} icon={<Warehouse size={20} />} colorClass="bg-slate-900" />
+        <DashboardCard title="Labor Costs" value={formatCurrency(totalLaborCosts)} icon={<HardHat size={20} />} colorClass="bg-orange-600" />
         <DashboardCard title="Revenue" value={formatCurrency(totalIncome)} icon={<ArrowUpCircle size={20} />} colorClass="bg-emerald-600" />
         <DashboardCard title="Total Costs" value={formatCurrency(totalExpenses)} icon={<TrendingDown size={20} />} colorClass="bg-rose-600" />
-        <div className="col-span-2 lg:col-span-1">
+        <div className="col-span-2 xl:col-span-1">
           <DashboardCard title="Receivables" value={formatCurrency(totalReceivables)} icon={<Wallet size={20} />} colorClass="bg-indigo-600" />
         </div>
       </div>
@@ -212,7 +215,7 @@ export const Dashboard: React.FC = () => {
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white dark:bg-slate-800 w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
             <div className={`p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center ${formData.isGodown ? 'bg-slate-900' : 'bg-[#003366]'} text-white`}>
-              <h2 className="text-lg font-black uppercase tracking-tighter leading-none">New Entry Point</h2>
+              <h2 className="text-lg font-black uppercase tracking-tight leading-none">New Entry Point</h2>
               <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white/10 rounded-lg"><X size={24} /></button>
             </div>
             <form onSubmit={handleCreateProject} className="p-6 sm:p-8 space-y-5 pb-safe overflow-y-auto no-scrollbar">

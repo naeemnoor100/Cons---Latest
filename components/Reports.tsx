@@ -125,16 +125,16 @@ export const Reports: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Executive Reports</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Strategic analytics and financial summaries.</p>
         </div>
-        <div className="flex bg-white dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
+        <div className="flex bg-white dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto overflow-x-auto no-scrollbar">
            <button 
             onClick={() => setReportActiveTab('overview')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${reportActiveTab === 'overview' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'overview' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
            >
              Overview
            </button>
            <button 
             onClick={() => setReportActiveTab('project-drilldown')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${reportActiveTab === 'project-drilldown' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'project-drilldown' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
            >
              Project Drill-Down
            </button>

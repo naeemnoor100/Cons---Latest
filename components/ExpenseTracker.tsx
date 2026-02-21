@@ -223,13 +223,13 @@ export const ExpenseTracker: React.FC = () => {
       </div>
 
       {/* Deep Search & Filters Hub */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-         <div className="lg:col-span-2 relative">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+         <div className="md:col-span-2 relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
-              placeholder="Deep Search in Ledger (Notes, Vendors, Projects...)" 
-              className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[1.5rem] text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+              placeholder="Deep Search in Ledger..." 
+              className="w-full pl-12 pr-4 py-3.5 sm:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl sm:rounded-[1.5rem] text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
@@ -237,23 +237,23 @@ export const ExpenseTracker: React.FC = () => {
          <div className="flex gap-2">
             <div className="relative flex-1">
                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-               <select className="w-full pl-9 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+               <select className="w-full pl-9 pr-4 py-3.5 sm:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl sm:rounded-[1.2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
                   <option value="All">All Categories</option>
                   {tradeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                </select>
             </div>
             <div className="relative flex-1">
                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-               <select className="w-full pl-9 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+               <select className="w-full pl-9 pr-4 py-3.5 sm:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl sm:rounded-[1.2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
                   <option value="All">All Sites</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                </select>
             </div>
          </div>
-         <div className="bg-slate-900 dark:bg-slate-800 p-4 rounded-[1.5rem] flex items-center justify-between text-white shadow-lg">
+         <div className="bg-slate-900 dark:bg-slate-800 p-3 sm:p-4 rounded-2xl sm:rounded-[1.5rem] flex items-center justify-between text-white shadow-lg">
             <div>
-               <p className="text-[8px] font-black text-white/50 uppercase tracking-widest">Filtered Total</p>
-               <p className="text-lg font-black">{formatCurrency(filteredTotal)}</p>
+               <p className="text-[7px] sm:text-[8px] font-black text-white/50 uppercase tracking-widest">Filtered Total</p>
+               <p className="text-base sm:text-lg font-black">{formatCurrency(filteredTotal)}</p>
             </div>
             <div className="p-2 bg-white/10 rounded-xl"><ArrowUpRight size={18} /></div>
          </div>

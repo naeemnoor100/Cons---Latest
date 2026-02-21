@@ -174,7 +174,16 @@ export const ProjectIncome: React.FC = () => {
         <button onClick={() => { setEditingIncome(null); setFormData({ projectId: projects.find(p => !p.isGodown)?.id || '', amount: '', description: '', date: new Date().toISOString().split('T')[0], method: 'Bank', invoiceId: '' }); setShowModal(true); }} className="bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg"><Plus size={20} /> Record Collection</button>
       </div>
 
-      <div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Deep Search Revenue..." className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold outline-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <input 
+          type="text" 
+          placeholder="Deep Search Revenue..." 
+          className="w-full pl-12 pr-4 py-3.5 sm:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
+          value={searchTerm} 
+          onChange={e => setSearchTerm(e.target.value)} 
+        />
+      </div>
 
       <div className="space-y-8">
         {projectIncomesGrouped.map((group) => (

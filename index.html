@@ -49,9 +49,11 @@
             background-color: #F4F6F8;
             overflow: hidden;
             height: 100vh;
+            height: -webkit-fill-available;
             width: 100vw;
             position: fixed;
             touch-action: manipulation;
+            -webkit-overflow-scrolling: touch;
         }
         
         .dark body {
@@ -86,6 +88,20 @@
         .no-scrollbar {
             -ms-overflow-style: none;
             scrollbar-width: none;
+        }
+
+        input, textarea, select {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
+
+        /* Responsive adjustments for small screens */
+        @media (max-width: 380px) {
+            .text-xl { font-size: 1.125rem; line-height: 1.5rem; }
+            .text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+            .p-6 { padding: 1rem; }
+            .p-8 { padding: 1.25rem; }
+            .gap-6 { gap: 1rem; }
         }
 
         /* Responsive Modal Sheet Logic */

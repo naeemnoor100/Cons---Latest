@@ -299,29 +299,29 @@ export const VendorList: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-900 dark:bg-slate-800 p-6 rounded-[2rem] text-white shadow-lg">
-          <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-1">Total Outstanding</p>
-          <p className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</p>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-slate-900 dark:bg-slate-800 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] text-white shadow-lg">
+          <p className="text-[8px] sm:text-[10px] font-bold text-white/50 uppercase tracking-widest mb-0.5 sm:mb-1">Total Outstanding</p>
+          <p className="text-lg sm:text-2xl font-bold">{formatCurrency(totalOutstanding)}</p>
         </div>
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-2xl">
-            <AlertCircle size={24} />
+        <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-3 sm:gap-4">
+          <div className="p-2 sm:p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl sm:rounded-2xl">
+            <AlertCircle size={20} />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">High Balance</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">{highBalanceCount} <span className="text-xs font-medium text-slate-400">Suppliers</span></p>
+            <p className="text-[8px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 sm:mb-1">High Balance</p>
+            <p className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">{highBalanceCount} <span className="text-[10px] font-medium text-slate-400">Suppliers</span></p>
           </div>
         </div>
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4 md:col-span-2">
+        <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4 md:col-span-2">
            <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
-              placeholder="Search by name or phone..." 
+              placeholder="Search suppliers..." 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white font-bold" 
+              className="w-full pl-12 pr-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl sm:rounded-2xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white font-bold" 
             />
           </div>
         </div>

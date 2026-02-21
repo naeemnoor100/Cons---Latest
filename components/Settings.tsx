@@ -186,22 +186,22 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-8">
-        <aside className="w-full md:w-64 space-y-1 shrink-0">
-          <button onClick={() => setActiveSection('profile')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeSection === 'profile' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
-            <User size={18} /> <span className="text-sm font-bold">Profile</span>
+      <div className="flex flex-col md:flex-row gap-6 sm:gap-8">
+        <aside className="w-full md:w-64 flex md:flex-col gap-1 overflow-x-auto no-scrollbar shrink-0 pb-2 md:pb-0 border-b md:border-b-0 border-slate-100 dark:border-slate-800">
+          <button onClick={() => setActiveSection('profile')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'profile' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
+            <User size={18} /> <span className="text-xs sm:text-sm font-bold">Profile</span>
           </button>
-          <button onClick={() => setActiveSection('database')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeSection === 'database' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
-            <Server size={18} /> <span className="text-sm font-bold">Database</span>
+          <button onClick={() => setActiveSection('database')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'database' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
+            <Server size={18} /> <span className="text-xs sm:text-sm font-bold">Database</span>
           </button>
-          <button onClick={() => setActiveSection('master-lists')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeSection === 'master-lists' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
-            <List size={18} /> <span className="text-sm font-bold">Master Lists</span>
+          <button onClick={() => setActiveSection('master-lists')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'master-lists' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
+            <List size={18} /> <span className="text-xs sm:text-sm font-bold">Master Lists</span>
           </button>
-          <button onClick={() => setActiveSection('backup')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeSection === 'backup' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
-            <History size={18} /> <span className="text-sm font-bold">Backup</span>
+          <button onClick={() => setActiveSection('backup')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'backup' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
+            <History size={18} /> <span className="text-xs sm:text-sm font-bold">Backup</span>
           </button>
-          <button onClick={() => setActiveSection('system')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeSection === 'system' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
-            <Globe size={18} /> <span className="text-sm font-bold">Theme</span>
+          <button onClick={() => setActiveSection('system')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'system' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
+            <Globe size={18} /> <span className="text-xs sm:text-sm font-bold">Theme</span>
           </button>
         </aside>
 

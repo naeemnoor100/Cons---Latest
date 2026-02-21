@@ -197,10 +197,11 @@ export const ProjectList: React.FC = () => {
     const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0);
     const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
     const totalInvoiced = projectInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
     const progress = Math.min(100, Math.round((totalSpent / (budget || 1)) * 100)) || 0;
     const categories: Record<string, number> = {};
     actualSiteExpenses.forEach(e => { categories[e.category] = (categories[e.category] || 0) + e.amount; });
-    return { totalSpent, totalCollected, totalInvoiced, receivable: totalInvoiced - totalCollected, progress, categoryBreakdown: categories, allExpenses: projectExpenses, invoices: projectInvoices };
+    return { totalSpent, totalCollected, totalInvoiced, totalLabor, receivable: totalInvoiced - totalCollected, progress, categoryBreakdown: categories, allExpenses: projectExpenses, invoices: projectInvoices };
   }, [expenses, incomes, invoices]);
 
   const projectArrivals = useMemo(() => {
@@ -466,7 +467,7 @@ export const ProjectList: React.FC = () => {
                       <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete Godown ${godown.name}?`)) deleteProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                     </div>
                   </div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tighter">{godown.name}</h3>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">{godown.name}</h3>
                   <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-1.5 mt-1"><MapPin size={12} /> {godown.location}</p>
                 </div>
                 <div className="grid grid-cols-2 border-t border-white/5">
@@ -525,16 +526,16 @@ export const ProjectList: React.FC = () => {
                       <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete ${project.name}?`)) deleteProject(project.id); }} className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
                     </div>
                   </div>
-                  <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{project.name}</h3>
-                  <p className="text-slate-400 text-xs font-bold uppercase flex items-center gap-1.5 mt-1"><MapPin size={12} /> {project.location}</p>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{project.name}</h3>
+                  <p className="text-slate-400 text-[10px] sm:text-xs font-bold uppercase flex items-center gap-1.5 mt-0.5 sm:mt-1"><MapPin size={12} /> {project.location}</p>
                   
-                  <div className="mt-6 flex gap-4">
-                     <button onClick={() => { setViewingProject(project); setActiveDetailTab('arrivals'); }} className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Material Arrivals">
-                        <Package size={20} />
+                  <div className="mt-4 sm:mt-6 flex gap-3 sm:gap-4">
+                     <button onClick={() => { setViewingProject(project); setActiveDetailTab('arrivals'); }} className="p-2.5 sm:p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl sm:rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Material Arrivals">
+                        <Package size={18} />
                      </button>
                      <div className="flex-1">
-                        <div className="flex justify-between text-[10px] font-black text-slate-400 mb-1.5 uppercase tracking-widest"><span>Realized Costs</span><span className="text-blue-600">{metrics.progress}%</span></div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden"><div className="h-full bg-blue-600" style={{ width: `${metrics.progress}%` }}></div></div>
+                        <div className="flex justify-between text-[9px] sm:text-[10px] font-black text-slate-400 mb-1 sm:mb-1.5 uppercase tracking-widest"><span>Realized Costs</span><span className="text-blue-600">{metrics.progress}%</span></div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 sm:h-2 rounded-full overflow-hidden"><div className="h-full bg-blue-600" style={{ width: `${metrics.progress}%` }}></div></div>
                      </div>
                   </div>
                 </div>
@@ -554,7 +555,7 @@ export const ProjectList: React.FC = () => {
                     {formData.isGodown ? <Warehouse size={24} /> : <Briefcase size={24} />}
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{editingProject ? 'Modify Entity' : `Launch New ${formData.isGodown ? 'Godown' : 'Site'}`}</h2>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingProject ? 'Modify Entity' : `Launch New ${formData.isGodown ? 'Godown' : 'Site'}`}</h2>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Database Registration Entry</p>
                   </div>
                 </div>
@@ -627,7 +628,7 @@ export const ProjectList: React.FC = () => {
                     {viewingProject.isGodown ? <Warehouse size={32} /> : <Briefcase size={32} />}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{viewingProject.name}</h2>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none">{viewingProject.name}</h2>
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">{viewingProject.isGodown ? `Supervisor: ${viewingProject.client}` : `Client: ${viewingProject.client}`}</p>
                   </div>
                 </div>
@@ -638,7 +639,7 @@ export const ProjectList: React.FC = () => {
               </div>
               <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/20 dark:bg-slate-900/10 no-scrollbar">
                 {!viewingProject.isGodown && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Master Budget</p>
                       <p className="text-xl font-black text-slate-900 dark:text-white">{formatCurrency(viewingProject.budget)}</p>
@@ -646,6 +647,10 @@ export const ProjectList: React.FC = () => {
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Spent Budget</p>
                       <p className="text-xl font-black text-red-600">{formatCurrency(viewingProjectMetrics.totalSpent)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-1.5">Labor Costs</p>
+                      <p className="text-xl font-black text-orange-600">{formatCurrency(viewingProjectMetrics.totalLabor)}</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1.5">Total Billed</p>
@@ -804,7 +809,7 @@ export const ProjectList: React.FC = () => {
                  <div className="flex gap-4 items-center">
                     <div className="p-3 bg-amber-600 text-white rounded-2xl shadow-lg"><ShoppingCart size={24} /></div>
                     <div>
-                       <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Record Inward Arrival</h2>
+                       <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Record Inward Arrival</h2>
                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-1">Arrival at: {viewingProject.name}</p>
                     </div>
                  </div>
@@ -853,7 +858,7 @@ export const ProjectList: React.FC = () => {
                    <div className="flex gap-4 items-center">
                       <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg"><DollarSign size={24} /></div>
                       <div>
-                         <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{editingIncome ? 'Modify Receipt' : 'Record Collection'}</h2>
+                         <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingIncome ? 'Modify Receipt' : 'Record Collection'}</h2>
                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Project: {viewingProject.name}</p>
                       </div>
                    </div>
@@ -910,7 +915,7 @@ export const ProjectList: React.FC = () => {
                  <div className="flex gap-4 items-center">
                     <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg"><FileText size={24} /></div>
                     <div>
-                       <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">{editingInvoice ? 'Edit Invoice' : 'Generate Invoice'}</h2>
+                       <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingInvoice ? 'Edit Invoice' : 'Generate Invoice'}</h2>
                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Client: {viewingProject.client}</p>
                     </div>
                  </div>
@@ -940,7 +945,7 @@ export const ProjectList: React.FC = () => {
              <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-blue-50/30 dark:bg-blue-900/20">
                 <div className="flex gap-4 items-center">
                   <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><Package size={24} /></div>
-                  <div><h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">Record Consumption</h2><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-tight">Stock Deduction for {viewingProject.name}</p></div>
+                  <div><h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Record Consumption</h2><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-tight">Stock Deduction for {viewingProject.name}</p></div>
                 </div>
                 <button onClick={() => { setShowInventoryUsageModal(false); setUsageMaterialSearch(''); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={28} /></button>
              </div>
@@ -984,7 +989,7 @@ export const ProjectList: React.FC = () => {
                 <div className="flex gap-4 items-center">
                   <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><History size={24} /></div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{logMaterial.name} Ledger</h2>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none">{logMaterial.name} Ledger</h2>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Site Activity Log for {viewingProject.name}</p>
                   </div>
                 </div>
