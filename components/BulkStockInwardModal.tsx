@@ -21,7 +21,7 @@ interface BulkStockInwardModalProps {
   isProjectLocked: (id: string) => boolean;
   addBulkRow: () => void;
   removeBulkRow: (id: string) => void;
-  updateBulkRow: (id: string, field: string, value: string) => void;
+  updateBulkRow: (id: string, field: any, value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
   formatCurrency: (val: number) => string;

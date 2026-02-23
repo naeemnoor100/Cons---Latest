@@ -130,7 +130,7 @@ export const VendorList: React.FC = () => {
   }, [activeVendor, materials, payments]);
 
   const activeVendorStats = useMemo(() => {
-    if (!activeVendor) return { totalPaid: 0, totalPurchases: 0, activeProjectsCount: 0 };
+    if (!activeVendor) return { totalPaid: 0, totalPurchases: 0, totalDues: 0, activeProjectsCount: 0 };
     
     const vendorPayments = payments.filter(p => p.vendorId === activeVendor.id && !p.isAllocation);
     const totalPaid = vendorPayments.reduce((sum, p) => sum + p.amount, 0);

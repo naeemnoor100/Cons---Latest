@@ -49,6 +49,7 @@ export const Settings: React.FC = () => {
     siteStatuses, addSiteStatus, removeSiteStatus,
     allowDecimalStock, setAllowDecimalStock,
     projects, vendors, materials, expenses, incomes, invoices, payments,
+    employees, laborLogs, laborPayments,
     importState, forceSync
   } = useApp();
   
@@ -72,6 +73,7 @@ export const Settings: React.FC = () => {
   const handleExportData = () => {
     const fullState: AppState = {
       projects, vendors, materials, expenses, payments, incomes, invoices,
+      employees, laborLogs, laborPayments,
       tradeCategories, stockingUnits, siteStatuses, allowDecimalStock,
       currentUser, theme, syncId: 'BUILDMASTER_PRO_DATABASE_ACTIVE'
     };
