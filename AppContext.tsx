@@ -93,7 +93,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const cloudData = JSON.parse(text);
         if (cloudData && !cloudData.error && cloudData.status !== 'new') {
-          setState(prev => ({ ...prev, ...cloudData, syncId: INITIAL_STATE.syncId }));
+          setState(prev => {
+            const merged = { ...prev, ...cloudData, syncId: INITIAL_STATE.syncId };
+            // Ensure arrays are never null or undefined
+            merged.projects = merged.projects || [];
+            merged.vendors = merged.vendors || [];
+            merged.materials = merged.materials || [];
+            merged.expenses = merged.expenses || [];
+            merged.payments = merged.payments || [];
+            merged.incomes = merged.incomes || [];
+            merged.invoices = merged.invoices || [];
+            merged.employees = merged.employees || [];
+            merged.laborLogs = merged.laborLogs || [];
+            merged.laborPayments = merged.laborPayments || [];
+            return merged;
+          });
           setSyncError(false);
         }
       } catch (jsonErr) {
@@ -112,7 +126,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setState({ ...parsed, syncId: INITIAL_STATE.syncId });
+        const merged = { ...INITIAL_STATE, ...parsed, syncId: INITIAL_STATE.syncId };
+        merged.projects = merged.projects || [];
+        merged.vendors = merged.vendors || [];
+        merged.materials = merged.materials || [];
+        merged.expenses = merged.expenses || [];
+        merged.payments = merged.payments || [];
+        merged.incomes = merged.incomes || [];
+        merged.invoices = merged.invoices || [];
+        merged.employees = merged.employees || [];
+        merged.laborLogs = merged.laborLogs || [];
+        merged.laborPayments = merged.laborPayments || [];
+        setState(merged);
       } catch (e) {}
     }
     loadFromDB(INITIAL_STATE.syncId);
@@ -534,7 +559,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeSiteStatus = (status: string) => dispatchUpdate(prev => ({ ...prev, siteStatuses: prev.siteStatuses.filter(s => s !== status) }));
 
   const importState = async (newState: AppState) => {
-    const normalizedState = { ...newState, syncId: INITIAL_STATE.syncId };
+    const normalizedState = { ...INITIAL_STATE, ...newState, syncId: INITIAL_STATE.syncId };
+    normalizedState.projects = normalizedState.projects || [];
+    normalizedState.vendors = normalizedState.vendors || [];
+    normalizedState.materials = normalizedState.materials || [];
+    normalizedState.expenses = normalizedState.expenses || [];
+    normalizedState.payments = normalizedState.payments || [];
+    normalizedState.incomes = normalizedState.incomes || [];
+    normalizedState.invoices = normalizedState.invoices || [];
+    normalizedState.employees = normalizedState.employees || [];
+    normalizedState.laborLogs = normalizedState.laborLogs || [];
+    normalizedState.laborPayments = normalizedState.laborPayments || [];
+    
     setState(normalizedState);
     localStorage.setItem('buildtrack_pro_state_v2', JSON.stringify(normalizedState));
     try {

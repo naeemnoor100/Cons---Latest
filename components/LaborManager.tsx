@@ -26,16 +26,16 @@ const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const LaborManager: React.FC = () => {
   const { 
-    employees, 
-    laborLogs, 
-    projects, 
+    employees = [], 
+    laborLogs = [], 
+    projects = [], 
     addEmployee, 
     updateEmployee, 
     deleteEmployee, 
     addLaborLog, 
     updateLaborLog, 
     deleteLaborLog,
-    laborPayments,
+    laborPayments = [],
     addLaborPayment,
     updateLaborPayment,
     deleteLaborPayment
