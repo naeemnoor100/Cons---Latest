@@ -12,8 +12,7 @@ import {
   Calendar,
   CreditCard,
   Pencil,
-  Trash2,
-  Lock
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Vendor, Project, PaymentMethod, Payment } from '../types';
@@ -21,7 +20,7 @@ import { Vendor, Project, PaymentMethod, Payment } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const SupplierPayments: React.FC = () => {
-  const { payments, vendors, projects, expenses, materials, addPayment, updatePayment, deletePayment } = useApp();
+  const { payments, vendors, projects, expenses, materials, addPayment, updatePayment, deletePayment, isProjectLocked } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -168,7 +167,6 @@ export const SupplierPayments: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filteredPayments.map((payment) => {
                 const vendor = vendors.find(v => v.id === payment.vendorId);
-                const isCompleted = payment.projectId ? projects.find(p => p.id === payment.projectId)?.status === 'Completed' : false;
                 return (
                   <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                     <td className="px-8 py-5 text-sm font-bold text-slate-900 dark:text-white">
@@ -188,24 +186,18 @@ export const SupplierPayments: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {!isCompleted ? (
-                          <>
-                            <button 
-                              onClick={() => handleEdit(payment)}
-                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
-                            >
-                              <Pencil size={18} />
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(payment.id)}
-                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
-                        )}
+                        <button 
+                          onClick={() => handleEdit(payment)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
+                        >
+                          <Pencil size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(payment.id)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     </td>
                   </tr>

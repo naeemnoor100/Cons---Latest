@@ -24,8 +24,7 @@ import {
   Target,
   Clock,
   LayoutGrid,
-  TrendingDown,
-  Lock
+  TrendingDown
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Income, PaymentMethod, Project, Invoice } from '../types';
@@ -33,7 +32,7 @@ import { Income, PaymentMethod, Project, Invoice } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ProjectIncome: React.FC = () => {
-  const { projects, incomes, expenses, invoices, addIncome, updateIncome, deleteIncome, updateInvoice } = useApp();
+  const { projects, incomes, expenses, invoices, addIncome, updateIncome, deleteIncome, updateInvoice, isProjectLocked } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -198,32 +197,25 @@ export const ProjectIncome: React.FC = () => {
                 <tr><th className="px-8 py-4">Date</th><th className="px-8 py-4">Milestone</th><th className="px-8 py-4">Method</th><th className="px-8 py-4 text-right">Amount</th><th className="px-8 py-4 text-right">Actions</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                {group.items.map((inc) => {
-                  const isCompleted = group.project.status === 'Completed';
-                  return (
-                    <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
-                      <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(inc.date).toLocaleDateString()}</td>
-                      <td className="px-8 py-5">
-                         <p className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase">{inc.description}</p>
-                         <span className="text-[8px] font-black text-indigo-500 uppercase flex items-center gap-1 mt-0.5"><Receipt size={10} /> Link: #{inc.invoiceId?.slice(-6).toUpperCase()}</span>
-                      </td>
-                      <td className="px-8 py-5 text-xs font-bold text-slate-400">{inc.method}</td>
-                      <td className="px-8 py-5 text-right font-black text-emerald-600">{formatCurrency(inc.amount)}</td>
-                      <td className="px-8 py-5 text-right">
+                {group.items.map((inc) => (
+                  <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                    <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(inc.date).toLocaleDateString()}</td>
+                    <td className="px-8 py-5">
+                       <p className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase">{inc.description}</p>
+                       <span className="text-[8px] font-black text-indigo-500 uppercase flex items-center gap-1 mt-0.5"><Receipt size={10} /> Link: #{inc.invoiceId?.slice(-6).toUpperCase()}</span>
+                    </td>
+                    <td className="px-8 py-5 text-xs font-bold text-slate-400">{inc.method}</td>
+                    <td className="px-8 py-5 text-right font-black text-emerald-600">{formatCurrency(inc.amount)}</td>
+                    <td className="px-8 py-5 text-right">
+                       {!isProjectLocked(inc.projectId) && (
                          <div className="flex justify-end gap-1">
-                            {!isCompleted ? (
-                              <>
-                                <button onClick={() => openEdit(inc)} className="p-2 text-slate-400 hover:text-blue-600"><Pencil size={18} /></button>
-                                <button onClick={() => handleDelete(inc.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={18} /></button>
-                              </>
-                            ) : (
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
-                            )}
+                            <button onClick={() => openEdit(inc)} className="p-2 text-slate-400 hover:text-blue-600"><Pencil size={18} /></button>
+                            <button onClick={() => handleDelete(inc.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={18} /></button>
                          </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                       )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -246,7 +238,7 @@ export const ProjectIncome: React.FC = () => {
                    <label className="text-[10px] font-black uppercase text-slate-400">Project Site</label>
                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.projectId} onChange={e => setFormData(p => ({ ...p, projectId: e.target.value, invoiceId: '' }))} required>
                      <option value="">Select site...</option>
-                     {projects.filter(p => !p.isGodown).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                     {projects.filter(p => !p.isGodown).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                    </select>
                  </div>
                  <div className="space-y-1">
