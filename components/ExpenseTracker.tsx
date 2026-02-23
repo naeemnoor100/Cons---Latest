@@ -8,7 +8,7 @@ import { Expense, PaymentMethod, Material, Payment } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ExpenseTracker: React.FC = () => {
-  const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, allowDecimalStock } = useApp();
+  const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [trackStock, setTrackStock] = useState(false);
@@ -246,7 +246,7 @@ export const ExpenseTracker: React.FC = () => {
                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                <select className="w-full pl-9 pr-4 py-3.5 sm:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl sm:rounded-[1.2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
                   <option value="All">All Sites</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                </select>
             </div>
          </div>
@@ -277,7 +277,7 @@ export const ExpenseTracker: React.FC = () => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
                 const isMaterialPurchase = exp.category === 'Material' && exp.vendorId;
-                const isCompleted = projects.find(p => p.id === exp.projectId)?.status === 'Completed';
+                const isCompleted = isProjectLocked(exp.projectId);
                 return (
                   <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                     <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(exp.date).toLocaleDateString()}</td>
@@ -367,7 +367,7 @@ export const ExpenseTracker: React.FC = () => {
                     required
                   >
                     <option value="" disabled>Select site...</option>
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">

@@ -21,7 +21,7 @@ import {
   Lock
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Employee, LaborLog, PaymentMethod } from '../types';
+import { Employee, LaborLog, PaymentMethod, LaborPayment } from '../types';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -39,7 +39,8 @@ export const LaborManager: React.FC = () => {
     laborPayments = [],
     addLaborPayment,
     updateLaborPayment,
-    deleteLaborPayment
+    deleteLaborPayment,
+    isProjectLocked
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'employees' | 'logs' | 'payments'>('logs');
@@ -141,7 +142,7 @@ export const LaborManager: React.FC = () => {
       employeeId: logFormData.employeeId,
       projectId: logFormData.projectId,
       hoursWorked: parseFloat(logFormData.hoursWorked) || 0,
-      wageAmount: logFormData.status === 'Present' ? wageAmount : (logFormData.status === 'Half-day' ? wageAmount / 2 : 0),
+      wageAmount: logFormData.status === 'Absent' ? 0 : wageAmount,
       status: logFormData.status,
       notes: logFormData.notes
     };
@@ -358,7 +359,7 @@ export const LaborManager: React.FC = () => {
                 {filteredLogs.map(log => {
                   const emp = employees.find(e => e.id === log.employeeId);
                   const proj = projects.find(p => p.id === log.projectId);
-                  const isCompleted = proj?.status === 'Completed';
+                  const isCompleted = isProjectLocked(log.projectId);
                   return (
                     <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                       <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(log.date).toLocaleDateString()}</td>
@@ -535,13 +536,20 @@ export const LaborManager: React.FC = () => {
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.projectId} onChange={e => setLogFormData(p => ({ ...p, projectId: e.target.value }))}>
                     <option value="">Select Site...</option>
                     {projects.filter(p => !p.isGodown).map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>
                     ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Attendance Status</label>
-                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.status} onChange={e => setLogFormData(p => ({ ...p, status: e.target.value as any }))}>
+                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.status} onChange={e => {
+                    const status = e.target.value as any;
+                    setLogFormData(p => ({ 
+                      ...p, 
+                      status,
+                      hoursWorked: status === 'Present' ? '8' : (status === 'Half-day' ? '4' : '0')
+                    }));
+                  }}>
                     <option value="Present">Present (Full Day)</option>
                     <option value="Half-day">Half-day</option>
                     <option value="Absent">Absent</option>

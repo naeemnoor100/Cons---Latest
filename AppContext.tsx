@@ -55,6 +55,7 @@ interface AppContextType extends AppState {
   canUndo: boolean;
   canRedo: boolean;
   lastActionName: string;
+  isProjectLocked: (projectId: string) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -585,6 +586,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const isProjectLocked = useCallback((projectId: string) => {
+    const project = state.projects.find(p => p.id === projectId);
+    return project?.status === 'Completed';
+  }, [state.projects]);
+
   const value = useMemo(() => ({
     ...state,
     updateUser, setTheme, setAllowDecimalStock,
@@ -603,9 +609,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addStockingUnit, removeStockingUnit,
     addSiteStatus, removeSiteStatus,
     importState,
+    isProjectLocked,
     isLoading, isSyncing, syncError, lastSynced,
     undo, redo, canUndo: past.length > 0, canRedo: future.length > 0, lastActionName: ''
-  }), [state, isLoading, isSyncing, syncError, lastSynced, past, future, undo, redo]);
+  }), [state, isLoading, isSyncing, syncError, lastSynced, past, future, undo, redo, isProjectLocked]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

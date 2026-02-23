@@ -138,21 +138,21 @@ export const Inventory: React.FC = () => {
   }, []);
 
   const [procureData, setProcureData] = useState({
-    materialId: '', newName: '', vendorId: vendors[0]?.id || '', projectId: projects.find(p => p.isGodown)?.id || projects[0]?.id || '', quantity: '', unit: stockingUnits[0] || 'Bag', costPerUnit: '', date: new Date().toISOString().split('T')[0], note: ''
+    materialId: '', newName: '', vendorId: '', projectId: '', quantity: '', unit: 'Bag', costPerUnit: '', date: new Date().toISOString().split('T')[0], note: ''
   });
 
   const [usageData, setUsageData] = useState({
     materialId: '', 
     vendorId: '', 
     batchId: '', 
-    projectId: projects.find(p => !p.isGodown)?.id || projects[0]?.id || '', 
+    projectId: '', 
     quantity: '', 
     date: new Date().toISOString().split('T')[0], 
     notes: ''
   });
 
   const [editFormData, setEditFormData] = useState({
-    name: '', unit: stockingUnits[0] || 'Bag'
+    name: '', unit: 'Bag'
   });
 
   const relevantMaterialsForSite = useMemo(() => {
@@ -231,6 +231,29 @@ export const Inventory: React.FC = () => {
   }, [relevantMaterialsForSite, usageData.materialId, usageData.batchId]);
 
   const currentTotalValue = (selectedBatchForTotal?.unitPrice || 0) * (parseFloat(usageData.quantity) || 0);
+
+  const handleOpenProcureModal = () => {
+    setProcureData({
+      materialId: '',
+      newName: '',
+      vendorId: vendors[0]?.id || '',
+      projectId: projects.find(p => p.isGodown)?.id || projects[0]?.id || '',
+      quantity: '',
+      unit: stockingUnits[0] || 'Bag',
+      costPerUnit: '',
+      date: new Date().toISOString().split('T')[0],
+      note: ''
+    });
+    setShowProcureModal(true);
+  };
+
+  const handleOpenBulkModal = () => {
+    setBulkGlobalVendor(vendors[0]?.id || '');
+    setBulkGlobalProject(projects.find(p => p.isGodown)?.id || projects[0]?.id || '');
+    setBulkDate(new Date().toISOString().split('T')[0]);
+    setBulkRows([{ id: '1', materialId: '', quantity: '', unitPrice: '', vendorId: '', projectId: '' }]);
+    setShowBulkModal(true);
+  };
 
   const handleOpenUsageModal = (materialId?: string, projectId?: string) => {
     setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || projects.find(p => !p.isGodown)?.id || projects[0]?.id || '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '' });
@@ -589,8 +612,8 @@ export const Inventory: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
           <button onClick={handleOpenTransferModal} className="flex-1 sm:flex-none bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><MoveHorizontal size={18} /> Internal Transfer</button>
-          <button onClick={() => setShowBulkModal(true)} className="flex-1 sm:flex-none bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Layers size={18} /> Bulk Hub Inward</button>
-          <button onClick={() => setShowProcureModal(true)} className="flex-1 sm:flex-none bg-slate-900 dark:bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Plus size={18} /> Hub Procure</button>
+          <button onClick={handleOpenBulkModal} className="flex-1 sm:flex-none bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Layers size={18} /> Bulk Hub Inward</button>
+          <button onClick={handleOpenProcureModal} className="flex-1 sm:flex-none bg-slate-900 dark:bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Plus size={18} /> Hub Procure</button>
           <button onClick={() => handleOpenUsageModal()} className="flex-1 sm:flex-none bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><TrendingDown size={18} /> Record Use</button>
         </div>
       </div>
@@ -605,7 +628,7 @@ export const Inventory: React.FC = () => {
              <Warehouse className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
              <select className="pl-10 pr-8 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
                 <option value="All">Hub Filter: All</option>
-                {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
              </select>
           </div>
           <div className="relative">
@@ -632,7 +655,19 @@ export const Inventory: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {filteredMaterials.map((mat) => {
+              {filteredMaterials.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-8 py-20 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full text-slate-300">
+                        <Package size={48} />
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-xs">No materials found in this hub</p>
+                      <button onClick={handleOpenProcureModal} className="mt-2 text-blue-600 font-black uppercase tracking-tighter text-[10px] hover:underline">Procure your first asset</button>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredMaterials.map((mat) => {
                 const remaining = mat.siteBalance;
                 const isProjectFiltered = projectFilter !== 'All';
                 const filterProj = projects.find(p => p.id === projectFilter);
@@ -658,7 +693,12 @@ export const Inventory: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                        <div className="flex justify-end gap-2 items-center">
-                         <button onClick={() => handleOpenUsageModal(mat.id, isProjectFiltered ? projectFilter : undefined)} className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-sm flex items-center gap-2 ${isProjectFiltered && !filterProj?.isGodown ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 hover:bg-blue-600 hover:text-white'}`} title="Dispatch / Use">
+                         <button 
+                           onClick={() => handleOpenUsageModal(mat.id, isProjectFiltered ? projectFilter : undefined)} 
+                           disabled={isProjectFiltered && isProjectLocked(projectFilter)}
+                           className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-sm flex items-center gap-2 ${isProjectFiltered && isProjectLocked(projectFilter) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : (isProjectFiltered && !filterProj?.isGodown ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 hover:bg-blue-600 hover:text-white')}`} 
+                           title={isProjectFiltered && isProjectLocked(projectFilter) ? "Project Locked" : "Dispatch / Use"}
+                         >
                            {isProjectFiltered && filterProj?.isGodown ? <><Truck size={14} /> Dispatch Hub</> : <><TrendingDown size={14} /> Record Use</>}
                          </button>
                          <button onClick={() => { setHistoryMaterial(mat); setHistorySearch(''); setHistorySort('date-desc'); setActiveHistoryTab('all'); }} className="p-3 text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-2xl hover:text-slate-900 dark:hover:text-white transition-all shadow-sm" title="Hub History"><History size={20} /></button>
@@ -760,6 +800,7 @@ export const Inventory: React.FC = () => {
           materials={materials}
           vendors={vendors}
           projects={projects}
+          isProjectLocked={isProjectLocked}
           addBulkRow={addBulkRow}
           removeBulkRow={removeBulkRow}
           updateBulkRow={updateBulkRow}
