@@ -73,7 +73,7 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
               <label className="text-[9px] font-black text-slate-400 uppercase px-1">Primary Vendor (Auto-Fill)</label>
               <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white" value={bulkGlobalVendor} onChange={e => setBulkGlobalVendor(e.target.value)}>
                 <option value="">Manual Selection</option>
-                {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                {vendors.filter(v => v.isActive !== false || v.id === bulkGlobalVendor).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
            </div>
            <div className="space-y-1.5 flex-1 min-w-[200px]">
@@ -112,7 +112,7 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
                         <label className="text-[8px] font-black text-slate-400 uppercase px-1">Vendor</label>
                         <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.vendorId} onChange={e => updateBulkRow(row.id, 'vendorId', e.target.value)}>
                            <option value="">Select Vendor...</option>
-                           {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                           {vendors.filter(v => v.isActive !== false || v.id === row.vendorId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                         </select>
                       </div>
                    )}

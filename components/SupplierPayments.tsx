@@ -246,7 +246,7 @@ export const SupplierPayments: React.FC = () => {
                     onChange={e => setSelectedVendorId(e.target.value)}
                   >
                     <option value="">-- Select Vendor --</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name} (Bal: {formatCurrency(getVendorBalance(v.id))})</option>)}
+                    {vendors.filter(v => v.isActive !== false || v.id === selectedVendorId).map(v => <option key={v.id} value={v.id}>{v.name} (Bal: {formatCurrency(getVendorBalance(v.id))})</option>)}
                   </select>
                </div>
 

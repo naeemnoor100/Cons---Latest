@@ -836,7 +836,7 @@ export const ProjectList: React.FC = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Supplier / Vendor</label>
                     <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={arrivalFormData.vendorId} onChange={e => setArrivalFormData(p => ({ ...p, vendorId: e.target.value }))}>
                        <option value="">Select Vendor...</option>
-                       {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                       {vendors.filter(v => v.isActive !== false || v.id === arrivalFormData.vendorId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                     </select>
                  </div>
                  <div className="grid grid-cols-2 gap-4">

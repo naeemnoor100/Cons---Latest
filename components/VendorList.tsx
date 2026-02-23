@@ -74,7 +74,7 @@ export const VendorList: React.FC = () => {
   };
 
   const [formData, setFormData] = useState({
-    name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: ''
+    name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '', isActive: true
   });
 
   useEffect(() => {
@@ -233,7 +233,7 @@ export const VendorList: React.FC = () => {
 
   const handleOpenAddVendor = () => {
     setEditingVendor(null);
-    setFormData({ name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '' });
+    setFormData({ name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '', isActive: true });
     setShowModal(true);
   };
 
@@ -277,7 +277,8 @@ export const VendorList: React.FC = () => {
       email: formData.email,
       category: formData.category,
       address: formData.address,
-      balance: editingVendor ? editingVendor.balance : (parseFloat(formData.balance) || 0)
+      balance: editingVendor ? editingVendor.balance : (parseFloat(formData.balance) || 0),
+      isActive: formData.isActive
     };
     if (editingVendor) await updateVendor(vendorData);
     else await addVendor(vendorData);
@@ -356,7 +357,10 @@ export const VendorList: React.FC = () => {
                            {vendor.name.charAt(0)}
                          </div>
                          <div>
-                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{vendor.name}</p>
+                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                              {vendor.name}
+                              {vendor.isActive === false && <span className="ml-2 px-2 py-0.5 bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 rounded-full text-[9px] font-bold uppercase tracking-widest">Inactive</span>}
+                            </p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-[8px] font-black uppercase rounded text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600">
                                 {vendor.category}
@@ -434,7 +438,8 @@ export const VendorList: React.FC = () => {
                                     email: vendor.email || '',
                                     category: vendor.category, 
                                     address: vendor.address, 
-                                    balance: vendor.balance.toString() 
+                                    balance: vendor.balance.toString(),
+                                    isActive: vendor.isActive !== false
                                   });
                                   setShowModal(true);
                                 }}
@@ -483,11 +488,20 @@ export const VendorList: React.FC = () => {
                        <input type="email" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="supplier@example.com" />
                     </div>
                  </div>
-                 <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Category</label>
-                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.category} onChange={e => setFormData(p => ({ ...p, category: e.target.value }))}>
-                       {tradeCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black uppercase text-slate-400 px-1">Category</label>
+                       <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.category} onChange={e => setFormData(p => ({ ...p, category: e.target.value }))}>
+                          {tradeCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                       </select>
+                    </div>
+                    <div className="space-y-1">
+                       <label className="text-[10px] font-black uppercase text-slate-400 px-1">Status</label>
+                       <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.isActive ? 'active' : 'inactive'} onChange={e => setFormData(p => ({ ...p, isActive: e.target.value === 'active' }))}>
+                          <option value="active">Active</option>
+                          <option value="inactive">Inactive</option>
+                       </select>
+                    </div>
                  </div>
                  {!editingVendor && (
                    <div className="space-y-1">

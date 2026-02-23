@@ -454,7 +454,7 @@ export const ExpenseTracker: React.FC = () => {
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Billing Vendor</label>
                    <select disabled={!!editingExpense?.materialId} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none disabled:opacity-50" value={formData.vendorId} onChange={(e) => setFormData(p => ({ ...p, vendorId: e.target.value }))}>
                     <option value="">Self / Direct Site Cost</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    {vendors.filter(v => v.isActive !== false || v.id === formData.vendorId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">

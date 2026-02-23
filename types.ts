@@ -35,6 +35,7 @@ export interface Vendor {
   category: VendorCategory;
   email?: string;
   balance: number;
+  isActive?: boolean;
 }
 
 export type MaterialUnit = string;
