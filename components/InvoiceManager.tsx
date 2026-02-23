@@ -18,7 +18,8 @@ import {
   Filter,
   Download,
   Receipt,
-  Hash
+  Hash,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Invoice, Project } from '../types';
@@ -230,6 +231,7 @@ export const InvoiceManager: React.FC = () => {
               {filteredInvoices.map((inv) => {
                 const project = projects.find(p => p.id === inv.projectId);
                 const { isPaid, remaining } = getInvoiceMetrics(inv);
+                const isCompleted = project?.status === 'Completed';
                 return (
                   <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : 'hover:bg-slate-50/50'}`}>
                     <td className="px-8 py-5 font-bold text-slate-400 text-xs">#{inv.id.slice(-6).toUpperCase()}</td>
@@ -262,18 +264,24 @@ export const InvoiceManager: React.FC = () => {
                     <td className="px-8 py-5 text-right font-black text-indigo-600">{formatCurrency(inv.amount)}</td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-1">
-                        <button 
-                          onClick={() => handleOpenEditModal(inv)} 
-                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(inv.id)} 
-                          className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {!isCompleted ? (
+                          <>
+                            <button 
+                              onClick={() => handleOpenEditModal(inv)} 
+                              className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                            >
+                              <Pencil size={18} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(inv.id)} 
+                              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
+                        )}
                       </div>
                     </td>
                   </tr>

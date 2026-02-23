@@ -17,7 +17,8 @@ import {
   ChevronRight,
   ClipboardList,
   UserPlus,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Employee, LaborLog, PaymentMethod } from '../types';
@@ -357,6 +358,7 @@ export const LaborManager: React.FC = () => {
                 {filteredLogs.map(log => {
                   const emp = employees.find(e => e.id === log.employeeId);
                   const proj = projects.find(p => p.id === log.projectId);
+                  const isCompleted = proj?.status === 'Completed';
                   return (
                     <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                       <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(log.date).toLocaleDateString()}</td>
@@ -377,8 +379,14 @@ export const LaborManager: React.FC = () => {
                       <td className="px-8 py-5 text-right text-sm font-black text-blue-600">{formatCurrency(log.wageAmount)}</td>
                       <td className="px-8 py-5 text-right">
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => openEditLog(log)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
-                          <button onClick={() => { if(confirm('Delete this log?')) deleteLaborLog(log.id); }} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                          {!isCompleted ? (
+                            <>
+                              <button onClick={() => openEditLog(log)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
+                              <button onClick={() => { if(confirm('Delete this log?')) deleteLaborLog(log.id); }} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                            </>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
+                          )}
                         </div>
                       </td>
                     </tr>

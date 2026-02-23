@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight
+  Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight, Lock
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Expense, PaymentMethod, Material, Payment } from '../types';
@@ -277,6 +277,7 @@ export const ExpenseTracker: React.FC = () => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
                 const isMaterialPurchase = exp.category === 'Material' && exp.vendorId;
+                const isCompleted = projects.find(p => p.id === exp.projectId)?.status === 'Completed';
                 return (
                   <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                     <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(exp.date).toLocaleDateString()}</td>
@@ -313,8 +314,14 @@ export const ExpenseTracker: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-1 items-center">
-                        <button onClick={() => openEdit(exp)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm" title="Edit Record"><Pencil size={18} /></button>
-                        <button onClick={() => handleDelete(exp.id)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all shadow-sm"><Trash2 size={18} /></button>
+                        {!isCompleted ? (
+                          <>
+                            <button onClick={() => openEdit(exp)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm" title="Edit Record"><Pencil size={18} /></button>
+                            <button onClick={() => handleDelete(exp.id)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all shadow-sm"><Trash2 size={18} /></button>
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
+                        )}
                       </div>
                     </td>
                   </tr>

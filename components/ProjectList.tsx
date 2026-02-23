@@ -62,7 +62,7 @@ export const ProjectList: React.FC = () => {
     addMaterial, updateMaterial, allowDecimalStock
   } = useApp();
   
-  const [filter, setFilter] = useState<string>('All');
+  const [filter, setFilter] = useState<string>('Active');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
