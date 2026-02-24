@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Employee, LaborLog, PaymentMethod, LaborPayment } from '../types';
+import { BulkLaborLogModal } from './BulkLaborLogModal';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -47,6 +48,7 @@ export const LaborManager: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [showBulkLogModal, setShowBulkLogModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [editingLog, setEditingLog] = useState<LaborLog | null>(null);
@@ -246,6 +248,12 @@ export const LaborManager: React.FC = () => {
             className="flex-1 sm:flex-none bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
           >
             <ClipboardList size={18} /> Daily Log
+          </button>
+          <button 
+            onClick={() => setShowBulkLogModal(true)}
+            className="flex-1 sm:flex-none bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+          >
+            <ClipboardList size={18} /> Bulk Log
           </button>
           <button 
             onClick={() => { setEditingPayment(null); setShowPaymentModal(true); }}
@@ -496,6 +504,16 @@ export const LaborManager: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {showBulkLogModal && (
+        <BulkLaborLogModal
+          employees={employees}
+          projects={projects}
+          isProjectLocked={isProjectLocked}
+          addLaborLog={addLaborLog}
+          onClose={() => setShowBulkLogModal(false)}
+        />
       )}
 
       {/* Daily Log Modal */}
