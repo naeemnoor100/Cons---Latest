@@ -134,6 +134,11 @@ export const Settings: React.FC = () => {
     addSheet(laborLogs, 'LaborLogs');
     addSheet(laborPayments, 'LaborPayments');
 
+    if (wb.SheetNames.length === 0) {
+      const ws = XLSX.utils.json_to_sheet([{ Message: "No data available" }]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Empty');
+    }
+
     XLSX.writeFile(wb, `buildtrack_pro_export_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
