@@ -111,10 +111,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
           setSyncError(false);
         }
-      } catch (jsonErr) {
+      } catch {
         setSyncError(true);
       }
-    } catch (e) {
+    } catch {
       setSyncError(true);
     } finally {
       setIsLoading(false);
@@ -139,10 +139,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         merged.laborLogs = merged.laborLogs || [];
         merged.laborPayments = merged.laborPayments || [];
         setState(merged);
-      } catch (e) {}
+      } catch {
+        setSyncError(true);
+      }
     }
     loadFromDB(INITIAL_STATE.syncId);
-  }, []);
+  }, [loadFromDB]);
 
   const saveToDB = useCallback((nextState: AppState) => {
     if (syncDebounceRef.current) window.clearTimeout(syncDebounceRef.current);
@@ -161,7 +163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (!res.ok) throw new Error("Server communication error");
         }
         setSyncError(false);
-      } catch (e) {
+      } catch {
         setSyncError(true);
       } finally {
         setIsSyncing(false);
@@ -170,7 +172,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 500);
   }, []);
 
-  const dispatchUpdate = useCallback((updater: (prev: AppState) => AppState, actionName?: string) => {
+  const dispatchUpdate = useCallback((updater: (prev: AppState) => AppState) => {
     setState(prev => {
       const next = updater(prev);
       setPast(p => [...p, prev].slice(-20)); // Keep last 20 actions
@@ -202,27 +204,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveToDB(next);
   }, [future, state, saveToDB]);
 
-  const updateUser = (u: User) => dispatchUpdate(prev => ({ ...prev, currentUser: u }));
-  const setTheme = (theme: 'light' | 'dark') => {
+  const updateUser = useCallback((u: User) => dispatchUpdate(prev => ({ ...prev, currentUser: u })), [dispatchUpdate]);
+  const setTheme = useCallback((theme: 'light' | 'dark') => {
     dispatchUpdate(prev => ({ ...prev, theme }));
     if (theme === 'dark') document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
-  };
-  const setAllowDecimalStock = (val: boolean) => dispatchUpdate(prev => ({ ...prev, allowDecimalStock: val }));
+  }, [dispatchUpdate]);
+  const setAllowDecimalStock = useCallback((val: boolean) => dispatchUpdate(prev => ({ ...prev, allowDecimalStock: val })), [dispatchUpdate]);
 
-  const addProject = async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: [...prev.projects, p] }));
-  const updateProject = async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.map(proj => proj.id === p.id ? p : proj) }));
-  const deleteProject = async (id: string) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== id) }));
+  const addProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: [...prev.projects, p] })), [dispatchUpdate]);
+  const updateProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.map(proj => proj.id === p.id ? p : proj) })), [dispatchUpdate]);
+  const deleteProject = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== id) })), [dispatchUpdate]);
   
-  const addVendor = async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: [...prev.vendors, v] }));
-  const updateVendor = async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.map(vend => vend.id === v.id ? v : vend) }));
-  const deleteVendor = async (id: string) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.filter(v => v.id !== id) }));
+  const addVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: [...prev.vendors, v] })), [dispatchUpdate]);
+  const updateVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.map(vend => vend.id === v.id ? v : vend) })), [dispatchUpdate]);
+  const deleteVendor = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.filter(v => v.id !== id) })), [dispatchUpdate]);
 
-  const addMaterial = async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: [...prev.materials, m] }));
-  const updateMaterial = async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.map(mat => mat.id === m.id ? m : mat) }));
-  const deleteMaterial = async (id: string) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.filter(m => m.id !== id) }));
+  const addMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: [...prev.materials, m] })), [dispatchUpdate]);
+  const updateMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.map(mat => mat.id === m.id ? m : mat) })), [dispatchUpdate]);
+  const deleteMaterial = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.filter(m => m.id !== id) })), [dispatchUpdate]);
 
-  const addExpense = async (e: Expense) => dispatchUpdate(prev => {
+  const addExpense = useCallback(async (e: Expense) => dispatchUpdate(prev => {
     let nextVendors = [...prev.vendors];
     if (e.vendorId && e.inventoryAction === 'Purchase') {
       nextVendors = nextVendors.map(v => v.id === e.vendorId ? { ...v, balance: v.balance + e.amount } : v);
@@ -245,9 +247,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
     return { ...prev, expenses: [...prev.expenses, e], vendors: nextVendors, materials: nextMaterials };
-  });
+  }), [dispatchUpdate]);
 
-  const updateExpense = async (e: Expense) => dispatchUpdate(prev => {
+  const updateExpense = useCallback(async (e: Expense) => dispatchUpdate(prev => {
     const oldExp = prev.expenses.find(x => x.id === e.id);
     let nextVendors = [...prev.vendors];
 
@@ -258,7 +260,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       nextVendors = nextVendors.map(v => v.id === e.vendorId ? { ...v, balance: v.balance + e.amount } : v);
     }
 
-    let nextMaterials = prev.materials.map(m => {
+    const nextMaterials = prev.materials.map(m => {
       if (m.id === e.materialId || (oldExp && m.id === oldExp.materialId)) {
         const historyId = 'sh-exp-' + e.id;
         const currentHistory = m.history || [];
@@ -308,9 +310,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       materials: nextMaterials,
       vendors: nextVendors
     };
-  });
+  }), [dispatchUpdate]);
 
-  const deleteExpense = async (id: string) => dispatchUpdate(prev => {
+  const deleteExpense = useCallback(async (id: string) => dispatchUpdate(prev => {
     const expToDelete = prev.expenses.find(x => x.id === id);
     if (!expToDelete) return prev;
 
@@ -339,9 +341,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       materials: nextMaterials,
       vendors: nextVendors
     };
-  });
+  }), [dispatchUpdate]);
 
-  const addPayment = async (p: Payment) => dispatchUpdate(prev => {
+  const addPayment = useCallback(async (p: Payment) => dispatchUpdate(prev => {
     const nextVendors = prev.vendors.map(v => v.id === p.vendorId ? { ...v, balance: Math.max(0, v.balance - p.amount) } : v);
     
     if (!p.materialBatchId) {
@@ -399,9 +401,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: [...prev.payments, p],
       vendors: nextVendors
     };
-  });
+  }), [dispatchUpdate]);
 
-  const updatePayment = async (p: Payment) => dispatchUpdate(prev => {
+  const updatePayment = useCallback(async (p: Payment) => dispatchUpdate(prev => {
     if (p.amount <= 0) {
       const actualOldPay = prev.payments.find(x => x.id === p.id);
       let nextVendors = [...prev.vendors];
@@ -430,7 +432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     nextVendors = nextVendors.map(v => v.id === p.vendorId ? { ...v, balance: Math.max(0, v.balance - p.amount) } : v);
 
     // Step 4: Re-calculate allocations based on the new amount (if no specific batch linked)
-    let newAllocations: Payment[] = [];
+    const newAllocations: Payment[] = [];
     if (!p.materialBatchId) {
       let remainingToAlloc = p.amount;
       const masterPaymentId = p.id;
@@ -478,9 +480,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: [...paymentsWithoutOldAllocations, p, ...newAllocations],
       vendors: nextVendors
     };
-  });
+  }), [dispatchUpdate]);
 
-  const deletePayment = async (id: string) => dispatchUpdate(prev => {
+  const deletePayment = useCallback(async (id: string) => dispatchUpdate(prev => {
     const payToDelete = prev.payments.find(x => x.id === id);
     let nextVendors = [...prev.vendors];
     
@@ -497,21 +499,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: nextPayments,
       vendors: nextVendors
     };
-  });
+  }), [dispatchUpdate]);
 
-  const addIncome = async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: [...prev.incomes, i] }));
-  const updateIncome = async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.map(inc => inc.id === i.id ? i : inc) }));
-  const deleteIncome = async (id: string) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.filter(i => i.id !== id) }));
+  const addIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: [...prev.incomes, i] })), [dispatchUpdate]);
+  const updateIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.map(inc => inc.id === i.id ? i : inc) })), [dispatchUpdate]);
+  const deleteIncome = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.filter(i => i.id !== id) })), [dispatchUpdate]);
 
-  const addInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: [...prev.invoices, inv] }));
-  const updateInvoice = async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? i : i) }));
-  const deleteInvoice = async (id: string) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }));
+  const addInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: [...prev.invoices, inv] })), [dispatchUpdate]);
+  const updateInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? inv : i) })), [dispatchUpdate]);
+  const deleteInvoice = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) })), [dispatchUpdate]);
 
-  const addEmployee = async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: [...prev.employees, emp] }));
-  const updateEmployee = async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.map(e => e.id === emp.id ? emp : e) }));
-  const deleteEmployee = async (id: string) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) }));
+  const addEmployee = useCallback(async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: [...prev.employees, emp] })), [dispatchUpdate]);
+  const updateEmployee = useCallback(async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.map(e => e.id === emp.id ? emp : e) })), [dispatchUpdate]);
+  const deleteEmployee = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) })), [dispatchUpdate]);
 
-  const addLaborLog = async (log: LaborLog) => dispatchUpdate(prev => {
+  const addLaborLog = useCallback(async (log: LaborLog) => dispatchUpdate(prev => {
+    const employee = prev.employees.find(e => e.id === log.employeeId);
     const expense: Expense = {
       id: 'exp-labor-' + log.id,
       date: log.date,
@@ -519,13 +522,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amount: log.wageAmount,
       paymentMethod: 'Cash',
       category: 'Labor',
-      notes: `Labor Wage: ${prev.employees.find(e => e.id === log.employeeId)?.name || 'Unknown'} (${log.status})`
+      notes: `Labor Wage: ${employee?.name || 'Unknown'} (${log.status})`
     };
     return { ...prev, laborLogs: [...prev.laborLogs, log], expenses: [...prev.expenses, expense] };
-  });
+  }), [dispatchUpdate]);
 
-  const updateLaborLog = async (log: LaborLog) => dispatchUpdate(prev => {
+  const updateLaborLog = useCallback(async (log: LaborLog) => dispatchUpdate(prev => {
     const expenseId = 'exp-labor-' + log.id;
+    const employee = prev.employees.find(e => e.id === log.employeeId);
     const nextExpenses = prev.expenses.map(exp => {
       if (exp.id === expenseId) {
         return {
@@ -533,33 +537,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           date: log.date,
           projectId: log.projectId,
           amount: log.wageAmount,
-          notes: `Labor Wage: ${prev.employees.find(e => e.id === log.employeeId)?.name || 'Unknown'} (${log.status})`
+          notes: `Labor Wage: ${employee?.name || 'Unknown'} (${log.status})`
         };
       }
       return exp;
     });
     return { ...prev, laborLogs: prev.laborLogs.map(l => l.id === log.id ? log : l), expenses: nextExpenses };
-  });
+  }), [dispatchUpdate]);
 
-  const deleteLaborLog = async (id: string) => dispatchUpdate(prev => {
+  const deleteLaborLog = useCallback(async (id: string) => dispatchUpdate(prev => {
     const expenseId = 'exp-labor-' + id;
     return { ...prev, laborLogs: prev.laborLogs.filter(l => l.id !== id), expenses: prev.expenses.filter(exp => exp.id !== expenseId) };
-  });
+  }), [dispatchUpdate]);
 
-  const addLaborPayment = async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: [...prev.laborPayments, pay] }));
-  const updateLaborPayment = async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.map(p => p.id === pay.id ? pay : p) }));
-  const deleteLaborPayment = async (id: string) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.filter(p => p.id !== id) }));
+  const addLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: [...prev.laborPayments, pay] })), [dispatchUpdate]);
+  const updateLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.map(p => p.id === pay.id ? pay : p) })), [dispatchUpdate]);
+  const deleteLaborPayment = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.filter(p => p.id !== id) })), [dispatchUpdate]);
 
-  const forceSync = async () => loadFromDB();
+  const forceSync = useCallback(async () => loadFromDB(), [loadFromDB]);
 
-  const addTradeCategory = (cat: string) => dispatchUpdate(prev => ({ ...prev, tradeCategories: [...prev.tradeCategories, cat] }));
-  const removeTradeCategory = (cat: string) => dispatchUpdate(prev => ({ ...prev, tradeCategories: prev.tradeCategories.filter(c => c !== cat) }));
-  const addStockingUnit = (unit: string) => dispatchUpdate(prev => ({ ...prev, stockingUnits: [...prev.stockingUnits, unit] }));
-  const removeStockingUnit = (unit: string) => dispatchUpdate(prev => ({ ...prev, stockingUnits: prev.stockingUnits.filter(u => u !== unit) }));
-  const addSiteStatus = (status: string) => dispatchUpdate(prev => ({ ...prev, siteStatuses: [...prev.siteStatuses, status] }));
-  const removeSiteStatus = (status: string) => dispatchUpdate(prev => ({ ...prev, siteStatuses: prev.siteStatuses.filter(s => s !== status) }));
+  const addTradeCategory = useCallback((cat: string) => dispatchUpdate(prev => ({ ...prev, tradeCategories: [...prev.tradeCategories, cat] })), [dispatchUpdate]);
+  const removeTradeCategory = useCallback((cat: string) => dispatchUpdate(prev => ({ ...prev, tradeCategories: prev.tradeCategories.filter(c => c !== cat) })), [dispatchUpdate]);
+  const addStockingUnit = useCallback((unit: string) => dispatchUpdate(prev => ({ ...prev, stockingUnits: [...prev.stockingUnits, unit] })), [dispatchUpdate]);
+  const removeStockingUnit = useCallback((unit: string) => dispatchUpdate(prev => ({ ...prev, stockingUnits: prev.stockingUnits.filter(u => u !== unit) })), [dispatchUpdate]);
+  const addSiteStatus = useCallback((status: string) => dispatchUpdate(prev => ({ ...prev, siteStatuses: [...prev.siteStatuses, status] })), [dispatchUpdate]);
+  const removeSiteStatus = useCallback((status: string) => dispatchUpdate(prev => ({ ...prev, siteStatuses: prev.siteStatuses.filter(s => s !== status) })), [dispatchUpdate]);
 
-  const importState = async (newState: AppState) => {
+  const importState = useCallback(async (newState: AppState) => {
     const normalizedState = { ...INITIAL_STATE, ...newState, syncId: INITIAL_STATE.syncId };
     normalizedState.projects = normalizedState.projects || [];
     normalizedState.vendors = normalizedState.vendors || [];
@@ -581,10 +585,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         body: JSON.stringify(normalizedState)
       });
       setSyncError(false);
-    } catch (e) {
+    } catch {
       setSyncError(true);
     }
-  };
+  }, []);
 
   const isProjectLocked = useCallback((projectId: string) => {
     const project = state.projects.find(p => p.id === projectId);
@@ -612,7 +616,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isProjectLocked,
     isLoading, isSyncing, syncError, lastSynced,
     undo, redo, canUndo: past.length > 0, canRedo: future.length > 0, lastActionName: ''
-  }), [state, isLoading, isSyncing, syncError, lastSynced, past, future, undo, redo, isProjectLocked]);
+  }), [state, isLoading, isSyncing, syncError, lastSynced, past.length, future.length, undo, redo, isProjectLocked, 
+      updateUser, setTheme, setAllowDecimalStock, addProject, updateProject, deleteProject, addVendor, updateVendor, deleteVendor, 
+      addMaterial, updateMaterial, deleteMaterial, addExpense, updateExpense, deleteExpense, addPayment, updatePayment, deletePayment, 
+      addIncome, updateIncome, deleteIncome, addInvoice, updateInvoice, deleteInvoice, addEmployee, updateEmployee, deleteEmployee, 
+      addLaborLog, updateLaborLog, deleteLaborLog, addLaborPayment, updateLaborPayment, deleteLaborPayment, forceSync, 
+      addTradeCategory, removeTradeCategory, addStockingUnit, removeStockingUnit, addSiteStatus, removeSiteStatus, importState]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

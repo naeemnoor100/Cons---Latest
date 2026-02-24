@@ -1,6 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
-  Users, 
   Search, 
   Plus,
   X,
@@ -8,42 +7,13 @@ import {
   DollarSign,
   Pencil,
   Trash2,
-  Package,
-  Briefcase,
-  Calendar,
-  CreditCard,
-  ArrowRightLeft,
-  CheckCircle2,
-  AlertCircle,
-  Save,
-  Wallet,
-  ArrowRight,
-  TrendingUp,
-  Landmark,
   MoreVertical,
-  Phone,
-  MapPin,
-  Lock,
   ArrowDownCircle,
   Clock,
-  ShoppingCart,
-  Link,
-  ChevronRight,
-  FileText,
-  Download,
-  ArrowUpRight,
-  ArrowDownRight,
-  Tag,
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  Map,
-  Split,
-  FileSpreadsheet,
-  Printer
+  Building2
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Vendor, VendorCategory, Payment, PaymentMethod, Project } from '../types';
+import { Vendor, Payment, PaymentMethod } from '../types';
 import { VendorLedgerModal } from './VendorLedgerModal';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
@@ -54,7 +24,7 @@ export const VendorList: React.FC = () => {
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
-  const [quickPaymentBill, setQuickPaymentBill] = useState<any | null>(null);
+  const [quickPaymentBill, setQuickPaymentBill] = useState<{id: string, remainingBalance: number, projectId: string} | null>(null);
   const [quickPaymentFormData, setQuickPaymentFormData] = useState({
     amount: '',
     method: 'Bank' as PaymentMethod,
@@ -65,14 +35,6 @@ export const VendorList: React.FC = () => {
   const [viewingVendorId, setViewingVendorId] = useState<string | null>(null);
   const activeVendor = useMemo(() => vendors.find(v => v.id === viewingVendorId), [vendors, viewingVendorId]);
   
-  const [activeDetailTab, setActiveDetailTab] = useState<'statement' | 'payments' | 'supplies'>('statement');
-  
-  const [expandedSettlements, setExpandedSettlements] = useState<Record<string, boolean>>({});
-
-  const toggleSettlement = (id: string) => {
-    setExpandedSettlements(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '', isActive: true
   });
@@ -87,9 +49,10 @@ export const VendorList: React.FC = () => {
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
 
-  useEffect(() => {
+  const handleViewVendor = (id: string) => {
+    setViewingVendorId(id);
     setLedgerSearchTerm('');
-  }, [viewingVendorId]);
+  };
 
   const totalOutstanding = useMemo(() => vendors.reduce((sum, v) => sum + v.balance, 0), [vendors]);
   const highBalanceCount = useMemo(() => vendors.filter(v => v.balance > 50000).length, [vendors]);
@@ -101,8 +64,21 @@ export const VendorList: React.FC = () => {
     );
   }, [vendors, searchTerm]);
 
-  const getSuppliesForVendor = (vendorId: string) => {
-    const supplyList: any[] = [];
+  const getSuppliesForVendor = useCallback((vendorId: string) => {
+    const supplyList: {
+      id: string;
+      date: string;
+      type: string;
+      quantity: number;
+      unitPrice: number;
+      projectId: string;
+      vendorId: string;
+      note?: string;
+      materialName: string;
+      unit: string;
+      estimatedValue: number;
+      remainingBalance: number;
+    }[] = [];
     materials.forEach(mat => {
       if (mat.history) {
         mat.history.forEach(h => {
@@ -122,12 +98,12 @@ export const VendorList: React.FC = () => {
       }
     });
     return supplyList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  };
+  }, [materials, payments]);
 
   const vendorSupplies = useMemo(() => {
     if (!activeVendor) return [];
     return getSuppliesForVendor(activeVendor.id);
-  }, [activeVendor, materials, payments]);
+  }, [activeVendor, getSuppliesForVendor]);
 
   const activeVendorStats = useMemo(() => {
     if (!activeVendor) return { totalPaid: 0, totalPurchases: 0, totalDues: 0, activeProjectsCount: 0 };
@@ -164,7 +140,8 @@ export const VendorList: React.FC = () => {
         projectId: s.projectId,
         reference: `Batch #${s.id.slice(-6).toUpperCase()}`,
         isFullyPaid,
-        remainingBalance: s.remainingBalance
+        remainingBalance: s.remainingBalance,
+        siteDisplay: projects.find(proj => proj.id === s.projectId)?.name || 'General Office'
       };
     });
 
@@ -212,7 +189,7 @@ export const VendorList: React.FC = () => {
       if (timeB !== timeA) return timeB - timeA;
       return b.id.localeCompare(a.id);
     });
-  }, [activeVendor, vendorSupplies, payments, materials, projects]);
+  }, [activeVendor, vendorSupplies, payments, materials, projects, expenses]);
 
   const filteredCombinedLedger = useMemo(() => {
     if (!ledgerSearchTerm) return combinedLedger;
@@ -220,7 +197,7 @@ export const VendorList: React.FC = () => {
     return combinedLedger.filter(item => 
       item.description.toLowerCase().includes(search) ||
       item.reference.toLowerCase().includes(search) ||
-      (item as any).siteDisplay?.toLowerCase().includes(search) ||
+      item.siteDisplay?.toLowerCase().includes(search) ||
       (projects.find(p => p.id === item.projectId)?.name || '').toLowerCase().includes(search)
     );
   }, [combinedLedger, ledgerSearchTerm, projects]);
@@ -418,7 +395,7 @@ export const VendorList: React.FC = () => {
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2 items-center">
                          <button 
-                          onClick={() => setViewingVendorId(vendor.id)} 
+                          onClick={() => handleViewVendor(vendor.id)} 
                           className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm"
                           title="View Full Ledger"
                          >

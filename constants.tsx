@@ -1,4 +1,4 @@
-import { AppState, User, Project, Vendor, Material, Expense, Income } from './types';
+import { AppState, User } from './types';
 
 export const MOCK_USER: User = {
   id: 'u1',

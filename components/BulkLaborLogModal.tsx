@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, ClipboardList, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, ClipboardList } from 'lucide-react';
 import { Employee, Project, LaborLog } from '../types';
 
 interface BulkLaborLogModalProps {
@@ -29,7 +29,7 @@ export const BulkLaborLogModal: React.FC<BulkLaborLogModalProps> = ({
   const [rows, setRows] = useState<Record<string, BulkRow>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const activeEmployees = employees.filter(e => e.status === 'Active');
+  const activeEmployees = useMemo(() => employees.filter(e => e.status === 'Active'), [employees]);
 
   useEffect(() => {
     const initialRows: Record<string, BulkRow> = {};
@@ -42,7 +42,7 @@ export const BulkLaborLogModal: React.FC<BulkLaborLogModalProps> = ({
       };
     });
     setRows(initialRows);
-  }, [employees]);
+  }, [activeEmployees]);
 
   const updateRow = (empId: string, field: keyof BulkRow, value: string) => {
     setRows(prev => {
@@ -77,7 +77,7 @@ export const BulkLaborLogModal: React.FC<BulkLaborLogModalProps> = ({
           projectId,
           hoursWorked: parseFloat(row.hoursWorked) || 0,
           wageAmount: row.status === 'Absent' ? 0 : wageAmount,
-          status: row.status as any,
+          status: row.status as 'Present' | 'Half-day' | 'Absent',
           notes: row.notes
         };
 

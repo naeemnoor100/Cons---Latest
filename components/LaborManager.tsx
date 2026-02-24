@@ -1,20 +1,12 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Users, 
-  Plus, 
   Search, 
   X, 
   Pencil, 
   Trash2, 
-  Calendar, 
   HardHat, 
-  Clock, 
   DollarSign, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle,
-  ChevronRight,
   ClipboardList,
   UserPlus,
   ArrowRight,
@@ -59,7 +51,7 @@ export const LaborManager: React.FC = () => {
   });
 
   const [logFormData, setLogFormData] = useState({
-    date: new Date().toISOString().split('T')[0], employeeId: '', projectId: '', hoursWorked: '8', status: 'Present' as any, notes: ''
+    date: new Date().toISOString().split('T')[0], employeeId: '', projectId: '', hoursWorked: '8', status: 'Present' as 'Present' | 'Half-day' | 'Absent', notes: ''
   });
 
   const [paymentFormData, setPaymentFormData] = useState({
@@ -491,7 +483,7 @@ export const LaborManager: React.FC = () => {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Status</label>
-                  <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.status} onChange={e => setEmployeeFormData(p => ({ ...p, status: e.target.value as any }))}>
+                  <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.status} onChange={e => setEmployeeFormData(p => ({ ...p, status: e.target.value as 'Active' | 'Inactive' }))}>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                   </select>
@@ -561,7 +553,7 @@ export const LaborManager: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Attendance Status</label>
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.status} onChange={e => {
-                    const status = e.target.value as any;
+                    const status = e.target.value as 'Present' | 'Half-day' | 'Absent';
                     setLogFormData(p => ({ 
                       ...p, 
                       status,
@@ -630,7 +622,7 @@ export const LaborManager: React.FC = () => {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Method</label>
-                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.method} onChange={e => setPaymentFormData(p => ({ ...p, method: e.target.value as any }))}>
+                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.method} onChange={e => setPaymentFormData(p => ({ ...p, method: e.target.value as PaymentMethod }))}>
                     <option value="Cash">Cash</option>
                     <option value="Bank">Bank Transfer</option>
                     <option value="Online">Online / Wallet</option>

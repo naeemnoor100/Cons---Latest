@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Package, 
   ShoppingCart, 
@@ -8,42 +8,20 @@ import {
   TrendingDown, 
   Trash2,
   Briefcase,
-  Users,
   Filter,
   Pencil,
   AlertCircle,
-  Save,
   Plus,
-  Receipt,
-  CheckCircle2,
-  ArrowRight,
   ArrowRightLeft,
-  TrendingUp,
-  Landmark,
-  Calendar,
-  SortAsc,
-  SortDesc,
-  ArrowUpDown,
-  ArrowUpNarrowWide,
-  DollarSign,
-  ChevronRight,
   ClipboardList,
-  BarChart4,
-  ArrowDownLeft,
-  ArrowUpRight,
   Scale,
   Lock,
-  Info,
-  Link,
   Layers,
-  Copy,
-  LayoutGrid,
   Warehouse,
-  Truck,
   MoveHorizontal
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Material, MaterialUnit, StockHistoryEntry, Expense, Project, Vendor } from '../types';
+import { Material, MaterialUnit, StockHistoryEntry } from '../types';
 import { BulkStockInwardModal } from './BulkStockInwardModal';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
@@ -62,14 +40,16 @@ interface BulkRow {
 }
 
 export const Inventory: React.FC = () => {
-  const { materials, projects, vendors, stockingUnits, payments, expenses, updateMaterial, addMaterial, deleteMaterial, addExpense, deleteExpense, updateExpense, updateVendor, allowDecimalStock, isProjectLocked } = useApp();
+  const { materials, projects, vendors, stockingUnits, payments, expenses, updateMaterial, addMaterial, deleteMaterial, addExpense, deleteExpense, updateExpense, allowDecimalStock, isProjectLocked } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [projectFilter, setProjectFilter] = useState('All');
-  const [vendorFilter, setVendorFilter] = useState('All');
   const [inventorySort, setInventorySort] = useState<InventorySortOption>('name');
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   
-  const [historyMaterial, setHistoryMaterial] = useState<Material | null>(null);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
+  const historyMaterial = useMemo(() => 
+    selectedMaterialId ? materials.find(m => m.id === selectedMaterialId) || null : null
+  , [materials, selectedMaterialId]);
   const [historySearch, setHistorySearch] = useState('');
   const [historySort, setHistorySort] = useState<HistorySortOption>('date-desc');
   const [activeHistoryTab, setActiveHistoryTab] = useState<HistoryTab>('all');
@@ -106,17 +86,6 @@ export const Inventory: React.FC = () => {
     notes: ''
   });
 
-  useEffect(() => {
-    if (historyMaterial) {
-      const latest = materials.find(m => m.id === historyMaterial.id);
-      if (latest) {
-        setHistoryMaterial(latest);
-      } else {
-        setHistoryMaterial(null);
-      }
-    }
-  }, [materials, historyMaterial]);
-
   const isHistoryEntryLocked = useMemo(() => {
     if (!editingHistoryEntry) return false;
     return payments.some(p => p.materialBatchId === editingHistoryEntry.entry.id);
@@ -131,7 +100,7 @@ export const Inventory: React.FC = () => {
         setShowTransferModal(false);
         setShowEditModal(false);
         setShowEditHistoryModal(false);
-        setHistoryMaterial(null);
+        setSelectedMaterialId(null);
       }
     };
     window.addEventListener('keydown', handleEsc);
@@ -158,7 +127,18 @@ export const Inventory: React.FC = () => {
 
   const relevantMaterialsForSite = useMemo(() => {
     if (!usageData.projectId) return [];
-    const batches: any[] = [];
+    interface BatchItem {
+      id: string;
+      name: string;
+      unit: string;
+      batchId: string;
+      vendorName: string;
+      vendorId?: string;
+      unitPrice: number;
+      available: number;
+      isLocal: boolean;
+    }
+    const batches: BatchItem[] = [];
     
     materials.forEach(mat => {
       const history = mat.history || [];
@@ -195,7 +175,18 @@ export const Inventory: React.FC = () => {
 
   const transferSourceMaterials = useMemo(() => {
     if (!transferData.sourceProjectId) return [];
-    const batches: any[] = [];
+    interface BatchItem {
+      id: string;
+      name: string;
+      unit: string;
+      batchId: string;
+      vendorName: string;
+      vendorId?: string;
+      unitPrice: number;
+      available: number;
+      isLocal: boolean;
+    }
+    const batches: BatchItem[] = [];
     materials.forEach(mat => {
       const history = mat.history || [];
       const inwardEntries = history.filter(h => (h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0);
@@ -383,9 +374,8 @@ export const Inventory: React.FC = () => {
     result = result.filter(mat => {
       const matchesSearch = mat.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesProject = projectFilter === 'All' || mat.hasProjectLink;
-      const matchesVendor = vendorFilter === 'All' || mat.history?.some(h => h.vendorId === vendorFilter);
       const matchesLowStock = !showLowStockOnly || mat.siteBalance < (mat.lowStockThreshold ?? 10);
-      return matchesSearch && matchesProject && matchesVendor && matchesLowStock;
+      return matchesSearch && matchesProject && matchesLowStock;
     });
 
     return result.sort((a, b) => {
@@ -395,11 +385,11 @@ export const Inventory: React.FC = () => {
       if (inventorySort === 'cost') return b.costPerUnit - a.costPerUnit;
       return 0;
     });
-  }, [materials, searchTerm, projectFilter, vendorFilter, inventorySort, showLowStockOnly]);
+  }, [materials, searchTerm, projectFilter, inventorySort, showLowStockOnly]);
 
   const filteredHistory = useMemo(() => {
     if (!historyMaterial || !historyMaterial.history) return [];
-    let result = historyMaterial.history.filter(entry => {
+    const result = historyMaterial.history.filter(entry => {
       if (activeHistoryTab === 'all' && entry.type === 'Transfer') return false;
       if (activeHistoryTab === 'purchases' && entry.type !== 'Purchase') return false;
       if (activeHistoryTab === 'usage' && entry.type !== 'Usage') return false;
@@ -540,12 +530,6 @@ export const Inventory: React.FC = () => {
       const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0)); 
       await updateMaterial({ ...material, totalPurchased, totalUsed, history: newHistory }); 
     }
-
-    // Force a small delay to allow state to catch up for the ledger view
-    setTimeout(() => {
-      const updated = materials.find(m => m.id === material.id);
-      if (updated) setHistoryMaterial(updated);
-    }, 100);
   };
 
   const handleEditHistorySubmit = async (e: React.FormEvent) => {
@@ -586,12 +570,6 @@ export const Inventory: React.FC = () => {
 
     setShowEditHistoryModal(false);
     setEditingHistoryEntry(null);
-    
-    // Refresh the ledger material view
-    setTimeout(() => {
-      const updated = materials.find(m => m.id === material.id);
-      if (updated) setHistoryMaterial(updated);
-    }, 100);
   };
 
   const triggerHistoryEdit = (entry: StockHistoryEntry) => {
@@ -729,7 +707,7 @@ export const Inventory: React.FC = () => {
                          >
                            {isProjectFiltered && filterProj?.isGodown ? <><Truck size={14} /> Dispatch Hub</> : <><TrendingDown size={14} /> Record Use</>}
                          </button>
-                         <button onClick={() => { setHistoryMaterial(mat); setHistorySearch(''); setHistorySort('date-desc'); setActiveHistoryTab('all'); }} className="p-3 text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-2xl hover:text-slate-900 dark:hover:text-white transition-all shadow-sm" title="Hub History"><History size={20} /></button>
+                         <button onClick={() => { setSelectedMaterialId(mat.id); setHistorySearch(''); setHistorySort('date-desc'); setActiveHistoryTab('all'); }} className="p-3 text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-2xl hover:text-slate-900 dark:hover:text-white transition-all shadow-sm" title="Hub History"><History size={20} /></button>
                          <button onClick={() => handleOpenEditModal(mat)} className="p-3 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
                          <button onClick={() => { if(confirm(`Permanent Action: Are you sure you want to delete ${mat.name}?`)) deleteMaterial(mat.id); }} className="p-3 text-slate-300 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
                        </div>
@@ -942,7 +920,7 @@ export const Inventory: React.FC = () => {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{historyMaterial.name} Ledger • Pool Availability: {(historyMaterial.totalPurchased - historyMaterial.totalUsed).toLocaleString()} {historyMaterial.unit}s</p>
                  </div>
                </div>
-               <button onClick={() => setHistoryMaterial(null)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={36} /></button>
+               <button onClick={() => setSelectedMaterialId(null)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={36} /></button>
             </div>
 
             <div className="flex bg-slate-50/50 dark:bg-slate-900/20 border-b border-slate-100 dark:border-slate-700 px-8 shrink-0">

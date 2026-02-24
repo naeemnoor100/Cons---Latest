@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
   Briefcase, 
@@ -11,15 +11,12 @@ import {
   Menu,
   X,
   ChevronRight,
-  Sparkles,
   ArrowUpCircle,
   Cloud,
   RefreshCw,
   WifiOff,
   Undo2,
   Redo2,
-  Check,
-  Bot,
   FileText,
   AlertCircle,
   MoreHorizontal,

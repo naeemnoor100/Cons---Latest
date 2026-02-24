@@ -7,8 +7,19 @@ import {
 } from 'lucide-react';
 import { Material, Vendor, Project } from '../types';
 
+interface BulkRow {
+  id: string;
+  materialId: string;
+  quantity: string;
+  costPerUnit: string;
+  vendorId: string;
+  projectId: string;
+  newMaterialName: string;
+  unit: string;
+}
+
 interface BulkStockInwardModalProps {
-  bulkRows: any[];
+  bulkRows: BulkRow[];
   bulkDate: string;
   setBulkDate: (val: string) => void;
   bulkGlobalVendor: string;
@@ -21,7 +32,7 @@ interface BulkStockInwardModalProps {
   isProjectLocked: (id: string) => boolean;
   addBulkRow: () => void;
   removeBulkRow: (id: string) => void;
-  updateBulkRow: (id: string, field: any, value: string) => void;
+  updateBulkRow: (id: string, field: keyof BulkRow, value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
   formatCurrency: (val: number) => string;

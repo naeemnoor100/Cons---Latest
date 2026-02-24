@@ -3,36 +3,19 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   ArrowUpCircle, 
   Plus, 
-  DollarSign, 
-  Briefcase, 
-  Calendar, 
-  CreditCard, 
   X, 
   Search, 
-  ChevronRight, 
   Pencil, 
   Trash2,
-  TrendingUp,
-  Receipt,
-  Filter,
-  ArrowRight,
-  Info,
-  Wallet,
-  FileText,
-  ArrowDownCircle,
-  Activity,
-  Target,
-  Clock,
-  LayoutGrid,
-  TrendingDown
+  Receipt
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Income, PaymentMethod, Project, Invoice } from '../types';
+import { Income, PaymentMethod } from '../types';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ProjectIncome: React.FC = () => {
-  const { projects, incomes, expenses, invoices, addIncome, updateIncome, deleteIncome, updateInvoice, isProjectLocked } = useApp();
+  const { projects, incomes, addIncome, updateIncome, deleteIncome, isProjectLocked } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [searchTerm, setSearchTerm] = useState('');

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Plus, Receipt, CreditCard, Calendar, X, Briefcase, Users, DollarSign, Tag, ChevronDown, Pencil, Trash2, Package, AlertCircle, RefreshCw, ShoppingCart, ArrowRightLeft, CheckCircle2, Landmark, Scale, Info, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight, Lock
+  Plus, Receipt, X, Briefcase, Pencil, Trash2, Package, ShoppingCart, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight, Lock
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Expense, PaymentMethod, Material, Payment } from '../types';
+import { Expense, PaymentMethod } from '../types';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -57,16 +57,20 @@ export const ExpenseTracker: React.FC = () => {
   }, [filteredExpenses]);
 
   // Auto-sync amount if material quantity changes during edit for inventory entries
-  useEffect(() => {
-    if (editingExpense?.materialId && formData.materialQuantity && trackStock) {
-      const mat = materials.find(m => m.id === (formData.materialId.split('|')[0]));
-      if (mat) {
-        const qty = parseFloat(formData.materialQuantity) || 0;
-        const newAmount = qty * (editingExpense.unitPrice || mat.costPerUnit);
-        setFormData(prev => ({ ...prev, amount: newAmount.toFixed(2) }));
+  const handleQuantityChange = (qtyStr: string) => {
+    setFormData(prev => {
+      const newState = { ...prev, materialQuantity: qtyStr };
+      if (editingExpense?.materialId && trackStock) {
+        const mat = materials.find(m => m.id === (prev.materialId.split('|')[0]));
+        if (mat) {
+          const qty = parseFloat(qtyStr) || 0;
+          const newAmount = qty * (editingExpense.unitPrice || mat.costPerUnit);
+          newState.amount = newAmount.toFixed(2);
+        }
       }
-    }
-  }, [formData.materialQuantity, editingExpense, materials, formData.materialId, trackStock]);
+      return newState;
+    });
+  };
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -85,9 +89,19 @@ export const ExpenseTracker: React.FC = () => {
 
   const isPurchase = useMemo(() => !!formData.vendorId, [formData.vendorId]);
 
+  interface InventorySelectionItem {
+    id: string;
+    name: string;
+    unit: string;
+    display: string;
+    batchId?: string;
+    vendorId?: string;
+    isLocal?: boolean;
+  }
+
   const siteSpecificInventory = useMemo(() => {
     if (!formData.projectId) return [];
-    const results: any[] = [];
+    const results: InventorySelectionItem[] = [];
 
     materials.forEach(m => {
       const history = m.history || [];
@@ -126,12 +140,27 @@ export const ExpenseTracker: React.FC = () => {
     return results.sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
   }, [materials, formData.projectId, isPurchase, vendors]);
 
-  const handleCreateOrUpdateExpense = async (e: React.FormEvent) => {
+  const resetForm = useCallback(() => {
+    setFormData({ 
+      projectId: projects[0]?.id || '', 
+      vendorId: '', 
+      date: new Date().toISOString().split('T')[0], 
+      amount: '', 
+      notes: '', 
+      category: 'Material', 
+      paymentMethod: 'Bank',
+      materialId: '',
+      materialQuantity: ''
+    });
+    setTrackStock(false);
+  }, [projects]);
+
+  const handleCreateOrUpdateExpense = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
     let parentId = editingExpense?.parentPurchaseId;
     if (trackStock && formData.category === 'Material' && formData.materialId && formData.materialQuantity && !isPurchase) {
-       const selection = (siteSpecificInventory as any[]).find(s => 
+       const selection = siteSpecificInventory.find(s => 
          (s.id + '|' + s.batchId) === formData.materialId || s.id === formData.materialId
        );
        if (selection && selection.batchId) {
@@ -143,7 +172,7 @@ export const ExpenseTracker: React.FC = () => {
     const finalQuantity = trackStock ? (formData.materialId ? parseFloat(formData.materialQuantity) || undefined : undefined) : undefined;
 
     const expData: Expense = {
-      id: editingExpense ? editingExpense.id : 'e' + Date.now(),
+      id: editingExpense ? editingExpense.id : 'e' + Date.now().toString(),
       date: formData.date,
       projectId: formData.projectId,
       vendorId: formData.vendorId || undefined,
@@ -166,22 +195,7 @@ export const ExpenseTracker: React.FC = () => {
     setShowModal(false);
     setEditingExpense(null);
     resetForm();
-  };
-
-  const resetForm = () => {
-    setFormData({ 
-      projectId: projects[0]?.id || '', 
-      vendorId: '', 
-      date: new Date().toISOString().split('T')[0], 
-      amount: '', 
-      notes: '', 
-      category: 'Material', 
-      paymentMethod: 'Bank',
-      materialId: '',
-      materialQuantity: ''
-    });
-    setTrackStock(false);
-  };
+  }, [editingExpense, trackStock, formData, isPurchase, siteSpecificInventory, updateExpense, addExpense, resetForm]);
 
   const openEdit = (e: Expense) => {
     setEditingExpense(e);
@@ -276,7 +290,6 @@ export const ExpenseTracker: React.FC = () => {
               {filteredExpenses.length > 0 ? filteredExpenses.map((exp) => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
-                const isMaterialPurchase = exp.category === 'Material' && exp.vendorId;
                 const isCompleted = isProjectLocked(exp.projectId);
                 return (
                   <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
@@ -413,7 +426,7 @@ export const ExpenseTracker: React.FC = () => {
                           required={trackStock}
                         >
                            <option value="">Choose asset / batch...</option>
-                           {siteSpecificInventory.map((m: any, idx: number) => (
+                           {siteSpecificInventory.map((m, idx: number) => (
                              <option key={idx} value={m.batchId ? `${m.id}|${m.batchId}` : m.id} className={m.isLocal ? 'text-emerald-600 font-bold' : ''}>
                                {m.display}
                              </option>
@@ -429,7 +442,7 @@ export const ExpenseTracker: React.FC = () => {
                                 className="w-full px-5 py-3 bg-white dark:bg-slate-900 border-2 border-blue-500 dark:border-blue-400 rounded-xl font-black outline-none focus:ring-4 focus:ring-blue-500/10" 
                                 placeholder="0.00"
                                 value={formData.materialQuantity}
-                                onChange={e => setFormData(p => ({ ...p, materialQuantity: e.target.value }))}
+                                onChange={e => handleQuantityChange(e.target.value)}
                                 required={trackStock}
                                />
                              </div>

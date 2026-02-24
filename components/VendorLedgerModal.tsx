@@ -1,18 +1,27 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  ShoppingCart, 
   ArrowDownCircle, 
-  Briefcase, 
   Search,
   Building2,
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
-  DollarSign,
   ChevronDown
 } from 'lucide-react';
 import { Vendor, Project } from '../types';
+
+export interface LedgerItem {
+  id: string;
+  type: 'PURCHASE' | 'PAYMENT';
+  date: string;
+  amount: number;
+  remainingBalance: number;
+  projectId?: string;
+  siteDisplay?: string;
+  settledBills?: { billName: string; amount: number }[];
+  [key: string]: unknown;
+}
 
 interface VendorLedgerModalProps {
   activeVendor: Vendor;
@@ -24,10 +33,10 @@ interface VendorLedgerModalProps {
   };
   ledgerSearchTerm: string;
   setLedgerSearchTerm: (val: string) => void;
-  filteredCombinedLedger: any[];
+  filteredCombinedLedger: LedgerItem[];
   projects: Project[];
   onClose: () => void;
-  onPayBill?: (bill: any) => void;
+  onPayBill?: (bill: LedgerItem) => void;
   formatCurrency: (val: number) => string;
 }
 
@@ -201,7 +210,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                              </td>
                              <td className="px-8 py-6">
                                 <span className="text-[10px] font-black uppercase text-slate-500">
-                                   {item.type === 'PAYMENT' ? (item as any).siteDisplay : projects.find(p => p.id === item.projectId)?.name || 'General'}
+                                   {item.type === 'PAYMENT' ? item.siteDisplay : projects.find(p => p.id === item.projectId)?.name || 'General'}
                                 </span>
                              </td>
                              <td className="px-8 py-6">
@@ -238,7 +247,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                             <tr className="bg-slate-50/30 border-l-4 border-emerald-500 animate-in slide-in-from-top-1 duration-200">
                                <td colSpan={6} className="px-8 py-4">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                     {item.settledBills.map((bill: any, bIdx: number) => (
+                                     {item.settledBills.map((bill: { billName: string; amount: number }, bIdx: number) => (
                                         <div key={bIdx} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex justify-between items-center">
                                            <div>
                                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Settled Bill</p>

@@ -7,20 +7,16 @@ import {
   CheckCircle2,
   Plus,
   Search,
-  History,
-  Building2,
-  Calendar,
-  CreditCard,
   Pencil,
   Trash2
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Vendor, Project, PaymentMethod, Payment } from '../types';
+import { PaymentMethod, Payment } from '../types';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const SupplierPayments: React.FC = () => {
-  const { payments, vendors, projects, expenses, materials, addPayment, updatePayment, deletePayment, isProjectLocked } = useApp();
+  const { payments, vendors, projects, materials, addPayment, updatePayment, deletePayment } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -35,8 +31,6 @@ export const SupplierPayments: React.FC = () => {
     reference: '',
     materialBatchId: ''
   });
-  const [showManualAllocations, setShowManualAllocations] = useState(false);
-  const [manualAllocations, setManualAllocations] = useState<Record<string, string>>({});
 
   const filteredPayments = useMemo(() => {
     return payments
@@ -47,8 +41,8 @@ export const SupplierPayments: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [payments, vendors, searchTerm]);
 
-  const getVendorBalance = (vendorId: string) => {
-    const supplyList: any[] = [];
+  const getVendorBalance = useCallback((vendorId: string) => {
+    const supplyList: { remainingBalance: number }[] = [];
     materials.forEach(mat => {
       if (mat.history) {
         mat.history.forEach(h => {
@@ -63,19 +57,28 @@ export const SupplierPayments: React.FC = () => {
       }
     });
     return supplyList.reduce((sum, s) => sum + s.remainingBalance, 0);
-  };
+  }, [materials, payments]);
 
   const selectedVendorBalance = useMemo(() => {
     if (!selectedVendorId) return 0;
     return getVendorBalance(selectedVendorId);
-  }, [selectedVendorId, materials, payments]);
+  }, [selectedVendorId, getVendorBalance]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCloseModal = useCallback(() => {
+    setShowModal(false);
+    setEditingPayment(null);
+    setSelectedVendorId('');
+    setPaymentFormData({
+      projectId: '', amount: '', method: 'Bank', date: new Date().toISOString().split('T')[0], reference: '', materialBatchId: ''
+    });
+  }, []);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendorId) return;
     
     const paymentData: Payment = {
-      id: editingPayment ? editingPayment.id : 'pay' + Date.now(),
+      id: editingPayment ? editingPayment.id : 'pay' + Date.now().toString(),
       date: paymentFormData.date,
       vendorId: selectedVendorId,
       projectId: paymentFormData.projectId || projects[0]?.id || '',
@@ -91,7 +94,7 @@ export const SupplierPayments: React.FC = () => {
     }
     
     handleCloseModal();
-  };
+  }, [selectedVendorId, editingPayment, paymentFormData, projects, updatePayment, addPayment, handleCloseModal]);
 
   const handleEdit = (payment: Payment) => {
     setEditingPayment(payment);
@@ -111,16 +114,6 @@ export const SupplierPayments: React.FC = () => {
     if (confirm('Are you sure you want to delete this payment? This will also revert the vendor balance.')) {
       await deletePayment(id);
     }
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setEditingPayment(null);
-    setSelectedVendorId('');
-    setPaymentFormData({
-      projectId: '', amount: '', method: 'Bank', date: new Date().toISOString().split('T')[0], reference: '', materialBatchId: ''
-    });
-    setManualAllocations({});
   };
 
   return (

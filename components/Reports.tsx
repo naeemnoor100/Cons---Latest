@@ -2,29 +2,19 @@
 import React, { useMemo, useState } from 'react';
 import { 
   BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  AreaChart, Area, Legend, PieChart as RechartsPieChart, Pie, Cell, LineChart, Line, LabelList
+  AreaChart, Area, Legend, PieChart as RechartsPieChart, Pie, Cell
 } from 'recharts';
 import { 
   Download, 
-  FileText, 
-  Calendar, 
-  Filter, 
   BarChart3 as LucideBarChart, 
   PieChart as LucidePieChart,
   TrendingUp,
-  ArrowUpCircle,
   Briefcase,
-  Users,
   Target,
-  Package,
   ChevronDown,
   DollarSign,
-  ArrowRight,
   TrendingDown,
   ClipboardList,
-  Search,
-  Tag,
-  ChevronRight,
   FileSpreadsheet
 } from 'lucide-react';
 import { useApp } from '../AppContext';

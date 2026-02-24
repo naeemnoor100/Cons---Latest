@@ -6,60 +6,30 @@ import {
   ChevronRight,
   X,
   Briefcase,
-  TrendingUp,
-  ArrowUpCircle,
   Pencil,
   Trash2,
-  Calendar,
-  CreditCard,
-  Hash,
-  AlertCircle,
   Receipt,
   ArrowDownCircle,
-  Wallet,
-  Save,
-  PieChart,
-  Tag,
-  Users,
   Package,
-  CheckCircle2,
-  Phone,
-  Activity,
-  ArrowRightLeft,
-  Landmark,
   ShoppingCart,
-  ArrowUpRight,
-  ArrowDownRight,
-  ClipboardCheck,
-  Scale,
-  RefreshCw,
-  ArrowRight,
-  Link,
-  FileText,
-  Clock,
-  Target,
-  Info,
-  TrendingDown,
   Search,
   Warehouse,
-  Truck,
   History,
-  ClipboardList,
-  Download
+  FileText
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { ProjectStatus, Project, Expense, Income, PaymentMethod, Material, Payment, StockHistoryEntry, Invoice } from '../types';
+import { Project, Income, PaymentMethod, Material, StockHistoryEntry, Invoice } from '../types';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ProjectList: React.FC = () => {
   const { 
-    projects, expenses, vendors, materials, incomes, invoices, siteStatuses, tradeCategories, stockingUnits,
+    projects, expenses, vendors, materials, incomes, invoices, siteStatuses, stockingUnits,
     addProject, updateProject, deleteProject, 
-    addExpense, updateExpense, deleteExpense,
+    addExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
-    addMaterial, updateMaterial, allowDecimalStock
+    addMaterial, allowDecimalStock
   } = useApp();
   
   const [filter, setFilter] = useState<string>('Active');
@@ -89,9 +59,12 @@ export const ProjectList: React.FC = () => {
     amount: '', date: new Date().toISOString().split('T')[0], description: '', method: 'Bank' as PaymentMethod, invoiceId: ''
   });
 
-  const [invoiceFormData, setInvoiceFormData] = useState({
-    amount: '', date: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], description: ''
-  });
+  const [invoiceFormData, setInvoiceFormData] = useState(() => ({
+    amount: '', 
+    date: new Date().toISOString().split('T')[0], 
+    dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], 
+    description: ''
+  }));
 
   const [inventoryUsageForm, setInventoryUsageForm] = useState({
     materialId: '', batchId: '', vendorId: '', quantity: '', date: new Date().toISOString().split('T')[0], notes: ''
@@ -231,7 +204,18 @@ export const ProjectList: React.FC = () => {
 
   const siteRelevantMaterials = useMemo(() => {
     if (!viewingProject) return [];
-    const batches: any[] = [];
+    interface BatchItem {
+      id: string;
+      name: string;
+      unit: string;
+      batchId: string;
+      vendorName: string;
+      vendorId?: string;
+      unitPrice: number;
+      available: number;
+      isLocal: boolean;
+    }
+    const batches: BatchItem[] = [];
     materials.forEach(mat => {
       const history = mat.history || [];
       const inwardEntries = history.filter(h => (h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0);

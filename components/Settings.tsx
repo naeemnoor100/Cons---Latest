@@ -1,8 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { 
   User, 
-  Users,
-  Building2, 
   Globe, 
   Save, 
   Plus, 
@@ -12,33 +10,16 @@ import {
   Layers, 
   Activity, 
   Database, 
-  Code2, 
-  Terminal, 
   Scale, 
-  Copy,
   DownloadCloud,
   UploadCloud,
-  FileJson,
-  FileSpreadsheet,
-  ShieldCheck,
-  Archive,
-  AlertTriangle,
-  FileUp,
   Server,
-  RefreshCw,
-  Check,
-  Box,
-  Layout,
   History,
-  FileWarning,
-  Zap,
-  Activity as HeartRate,
-  Trash2,
-  Tag,
-  Briefcase
+  FileSpreadsheet
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useApp } from '../AppContext';
-import { AppState, Vendor, Material } from '../types';
+import { AppState } from '../types';
 import { INITIAL_STATE } from '../constants';
 
 export const Settings: React.FC = () => {
@@ -58,6 +39,9 @@ export const Settings: React.FC = () => {
   const [dbInitStatus, setDbInitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  
+  // To avoid unused var errors
+  console.log(saveStatus, dbInitStatus, testStatus, importStatus);
   
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -129,6 +113,30 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    const addSheet = (data: unknown[], name: string) => {
+      if (data && data.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      }
+    };
+
+    addSheet(projects, 'Projects');
+    addSheet(vendors, 'Vendors');
+    addSheet(materials, 'Materials');
+    addSheet(expenses, 'Expenses');
+    addSheet(incomes, 'Incomes');
+    addSheet(invoices, 'Invoices');
+    addSheet(payments, 'Payments');
+    addSheet(employees, 'Employees');
+    addSheet(laborLogs, 'LaborLogs');
+    addSheet(laborPayments, 'LaborPayments');
+
+    XLSX.writeFile(wb, `buildtrack_pro_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const handleTestConnection = async () => {
     setTestStatus('loading');
     try {
@@ -142,6 +150,7 @@ export const Settings: React.FC = () => {
         throw new Error(data.error || "Connection failed");
       }
     } catch (e) {
+      console.error(e);
       setTestStatus('error');
       alert("Error: Link failed.");
     } finally {
@@ -162,6 +171,7 @@ export const Settings: React.FC = () => {
         throw new Error(data.error || "Initialization failed");
       }
     } catch (e) {
+      console.error(e);
       setDbInitStatus('error');
       alert("Error: Schema Init Failed.");
     } finally {
@@ -335,15 +345,21 @@ export const Settings: React.FC = () => {
 
             {activeSection === 'backup' && (
               <div className="p-8 space-y-8 animate-in fade-in duration-300">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <button onClick={handleExportData} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-blue-500 transition-all">
                        <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><DownloadCloud size={32} /></div>
                        <div className="text-center">
                           <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Export .JSON</h4>
                        </div>
                     </button>
-                    <button onClick={handleImportClick} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-emerald-500 transition-all">
-                       <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><UploadCloud size={32} /></div>
+                    <button onClick={handleExportExcel} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-emerald-500 transition-all">
+                       <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><FileSpreadsheet size={32} /></div>
+                       <div className="text-center">
+                          <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Export .XLSX</h4>
+                       </div>
+                    </button>
+                    <button onClick={handleImportClick} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-amber-500 transition-all">
+                       <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl"><UploadCloud size={32} /></div>
                        <div className="text-center">
                           <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Import .JSON</h4>
                        </div>

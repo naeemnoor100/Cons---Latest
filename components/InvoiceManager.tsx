@@ -1,28 +1,18 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   FileText, 
   Plus, 
   Search, 
   X, 
   Calendar, 
-  DollarSign, 
   Briefcase, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle,
   Pencil,
   Trash2,
-  ChevronRight,
-  ArrowDownCircle,
-  Filter,
-  Download,
-  Receipt,
-  Hash,
   Lock
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Invoice, Project } from '../types';
+import { Invoice } from '../types';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -41,29 +31,32 @@ export const InvoiceManager: React.FC = () => {
     description: ''
   });
 
-  useEffect(() => {
-    if (!showModal) return;
-    
-    if (editingInvoice) {
-      setFormData({
-        projectId: editingInvoice.projectId,
-        amount: editingInvoice.amount.toString(),
-        date: editingInvoice.date,
-        dueDate: editingInvoice.dueDate,
-        description: editingInvoice.description
-      });
-    } else {
-      const today = new Date().toISOString().split('T')[0];
-      const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-      setFormData({
-        projectId: projects.find(p => !p.isGodown)?.id || projects[0]?.id || '',
-        amount: '',
-        date: today,
-        dueDate: nextWeek,
-        description: ''
-      });
-    }
-  }, [showModal, editingInvoice, projects]);
+  const handleOpenAdd = () => {
+    setEditingInvoice(null);
+    const today = new Date().toISOString().split('T')[0];
+    const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    setFormData({
+      projectId: projects.find(p => !p.isGodown)?.id || projects[0]?.id || '',
+      amount: '',
+      date: today,
+      dueDate: nextWeek,
+      description: ''
+    });
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (inv: Invoice) => {
+    setEditingInvoice(inv);
+    setFormData({
+      projectId: inv.projectId,
+      amount: inv.amount.toString(),
+      date: inv.date,
+      dueDate: inv.dueDate,
+      description: inv.description
+    });
+    setShowModal(true);
+  };
+
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -76,14 +69,14 @@ export const InvoiceManager: React.FC = () => {
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
 
-  const getInvoiceMetrics = (inv: Invoice) => {
+  const getInvoiceMetrics = useCallback((inv: Invoice) => {
     const collected = incomes
       .filter(i => i.invoiceId === inv.id)
       .reduce((sum, i) => sum + i.amount, 0);
     const remaining = Math.max(0, inv.amount - collected);
     const isPaid = remaining <= 0.01;
     return { collected, remaining, isPaid };
-  };
+  }, [incomes]);
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
@@ -99,7 +92,7 @@ export const InvoiceManager: React.FC = () => {
       
       return matchesSearch && matchesStatus;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [invoices, projects, searchTerm, filterStatus, incomes]);
+  }, [invoices, projects, searchTerm, filterStatus, getInvoiceMetrics]);
 
   const stats = useMemo(() => {
     const total = invoices.reduce((sum, inv) => sum + inv.amount, 0);
@@ -107,29 +100,6 @@ export const InvoiceManager: React.FC = () => {
     return { total, paid, receivable: Math.max(0, total - paid) };
   }, [invoices, incomes]);
 
-  const handleOpenAddModal = () => {
-    setEditingInvoice(null);
-    setFormData({
-      projectId: projects.find(p => !p.isGodown)?.id || projects[0]?.id || '',
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      description: ''
-    });
-    setShowModal(true);
-  };
-
-  const handleOpenEditModal = (inv: Invoice) => {
-    setEditingInvoice(inv);
-    setFormData({
-      projectId: inv.projectId,
-      amount: inv.amount.toString(),
-      date: inv.date,
-      dueDate: inv.dueDate,
-      description: inv.description
-    });
-    setShowModal(true);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,7 +133,7 @@ export const InvoiceManager: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage project milestones and receivables.</p>
         </div>
         <button 
-          onClick={handleOpenAddModal}
+          onClick={handleOpenAdd}
           className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
         >
           <Plus size={20} /> Create New Invoice
@@ -267,7 +237,7 @@ export const InvoiceManager: React.FC = () => {
                         {!isCompleted ? (
                           <>
                             <button 
-                              onClick={() => handleOpenEditModal(inv)} 
+                              onClick={() => handleOpenEdit(inv)} 
                               className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
                             >
                               <Pencil size={18} />
