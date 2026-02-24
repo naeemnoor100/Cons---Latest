@@ -67,6 +67,7 @@ export const Inventory: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState('All');
   const [vendorFilter, setVendorFilter] = useState('All');
   const [inventorySort, setInventorySort] = useState<InventorySortOption>('name');
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   
   const [historyMaterial, setHistoryMaterial] = useState<Material | null>(null);
   const [historySearch, setHistorySearch] = useState('');
@@ -152,7 +153,7 @@ export const Inventory: React.FC = () => {
   });
 
   const [editFormData, setEditFormData] = useState({
-    name: '', unit: 'Bag'
+    name: '', unit: 'Bag', lowStockThreshold: '10'
   });
 
   const relevantMaterialsForSite = useMemo(() => {
@@ -331,7 +332,11 @@ export const Inventory: React.FC = () => {
 
   const handleOpenEditModal = (mat: Material) => {
     setEditingMaterial(mat);
-    setEditFormData({ name: mat.name, unit: mat.unit });
+    setEditFormData({ 
+      name: mat.name, 
+      unit: mat.unit, 
+      lowStockThreshold: (mat.lowStockThreshold ?? 10).toString() 
+    });
     setShowEditModal(true);
   };
 
@@ -346,7 +351,12 @@ export const Inventory: React.FC = () => {
       return;
     }
 
-    await updateMaterial({ ...editingMaterial, name: editFormData.name, unit: editFormData.unit as MaterialUnit });
+    await updateMaterial({ 
+      ...editingMaterial, 
+      name: editFormData.name, 
+      unit: editFormData.unit as MaterialUnit,
+      lowStockThreshold: parseFloat(editFormData.lowStockThreshold) || 0
+    });
     setShowEditModal(false);
     setEditingMaterial(null);
   };
@@ -374,7 +384,8 @@ export const Inventory: React.FC = () => {
       const matchesSearch = mat.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesProject = projectFilter === 'All' || mat.hasProjectLink;
       const matchesVendor = vendorFilter === 'All' || mat.history?.some(h => h.vendorId === vendorFilter);
-      return matchesSearch && matchesProject && matchesVendor;
+      const matchesLowStock = !showLowStockOnly || mat.siteBalance < (mat.lowStockThreshold ?? 10);
+      return matchesSearch && matchesProject && matchesVendor && matchesLowStock;
     });
 
     return result.sort((a, b) => {
@@ -384,7 +395,7 @@ export const Inventory: React.FC = () => {
       if (inventorySort === 'cost') return b.costPerUnit - a.costPerUnit;
       return 0;
     });
-  }, [materials, searchTerm, projectFilter, vendorFilter, inventorySort]);
+  }, [materials, searchTerm, projectFilter, vendorFilter, inventorySort, showLowStockOnly]);
 
   const filteredHistory = useMemo(() => {
     if (!historyMaterial || !historyMaterial.history) return [];
@@ -640,6 +651,13 @@ export const Inventory: React.FC = () => {
                 <option value="cost">Sort: High Cost</option>
              </select>
           </div>
+          <button 
+            onClick={() => setShowLowStockOnly(!showLowStockOnly)}
+            className={`px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 border-2 ${showLowStockOnly ? 'bg-red-600 text-white border-red-600 shadow-lg' : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-red-400'}`}
+          >
+            <AlertCircle size={14} />
+            {showLowStockOnly ? 'Showing Low Stock' : 'Filter Low Stock'}
+          </button>
         </div>
       </div>
 
@@ -671,6 +689,8 @@ export const Inventory: React.FC = () => {
                 const remaining = mat.siteBalance;
                 const isProjectFiltered = projectFilter !== 'All';
                 const filterProj = projects.find(p => p.id === projectFilter);
+                const threshold = mat.lowStockThreshold ?? 10;
+                const isLowStock = remaining < threshold;
                 
                 return (
                   <tr key={mat.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
@@ -680,14 +700,22 @@ export const Inventory: React.FC = () => {
                            {mat.name.charAt(0)}
                         </div>
                         <div>
-                          <p className="font-black text-sm text-slate-900 dark:text-slate-100 uppercase tracking-tight">{mat.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-black text-sm text-slate-900 dark:text-slate-100 uppercase tracking-tight">{mat.name}</p>
+                            {isLowStock && (
+                              <div className="flex items-center gap-1 text-red-500 animate-pulse" title="Low Stock Alert">
+                                <AlertCircle size={14} />
+                                <span className="text-[8px] font-black uppercase tracking-tighter">Low Stock</span>
+                              </div>
+                            )}
+                          </div>
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Unit: {mat.unit}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-8 py-5 text-xs font-black text-slate-600 dark:text-slate-400">{formatCurrency(mat.stockValue)}</td>
                     <td className="px-8 py-5">
-                       <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 ${remaining < 10 ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/10 dark:border-red-900/20' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800'}`}>
+                       <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 ${isLowStock ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/10 dark:border-red-900/20' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800'}`}>
                           {remaining.toLocaleString()} {mat.unit}s {isProjectFiltered ? (filterProj?.isGodown ? 'in Godown' : 'on Site') : ''}
                        </span>
                     </td>
@@ -1108,11 +1136,17 @@ export const Inventory: React.FC = () => {
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Material Name</label>
                     <input type="text" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={editFormData.name} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} />
                  </div>
-                 <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Stocking Unit</label>
-                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={editFormData.unit} onChange={e => setEditFormData(p => ({ ...p, unit: e.target.value }))}>
-                       {stockingUnits.map(u => <option key={u} value={u}>{u}</option>)}
-                    </select>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Stocking Unit</label>
+                        <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={editFormData.unit} onChange={e => setEditFormData(p => ({ ...p, unit: e.target.value }))}>
+                          {stockingUnits.map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Low Stock Threshold</label>
+                        <input type="number" step={allowDecimalStock ? "0.01" : "1"} required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={editFormData.lowStockThreshold} onChange={e => setEditFormData(p => ({ ...p, lowStockThreshold: e.target.value }))} />
+                    </div>
                  </div>
                  <div className="flex gap-4 pt-6">
                     <button type="button" onClick={() => setShowEditModal(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 py-4 rounded-[1.5rem] font-bold text-sm uppercase tracking-widest text-slate-500">Discard</button>

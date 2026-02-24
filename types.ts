@@ -60,6 +60,7 @@ export interface Material {
   totalPurchased: number;
   totalUsed: number;
   history?: StockHistoryEntry[];
+  lowStockThreshold?: number;
 }
 
 export type PaymentMethod = 'Cash' | 'Bank' | 'Online';

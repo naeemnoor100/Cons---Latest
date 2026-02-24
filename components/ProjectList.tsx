@@ -527,6 +527,7 @@ export const ProjectList: React.FC = () => {
                     </div>
                   </div>
                   <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{project.name}</h3>
+                  <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1">{project.isGodown ? `Supervisor: ${project.client}` : `Client: ${project.client}`}</p>
                   <p className="text-slate-400 text-[10px] sm:text-xs font-bold uppercase flex items-center gap-1.5 mt-0.5 sm:mt-1"><MapPin size={12} /> {project.location}</p>
                   
                   <div className="mt-4 sm:mt-6 flex gap-3 sm:gap-4">
