@@ -15,7 +15,8 @@ import {
   Search,
   Warehouse,
   History,
-  FileText
+  FileText,
+  MoveHorizontal
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Project, Income, PaymentMethod, Material, StockHistoryEntry, Invoice } from '../types';
@@ -29,7 +30,7 @@ export const ProjectList: React.FC = () => {
     addExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
-    addMaterial, allowDecimalStock
+    addMaterial, allowDecimalStock, isProjectLocked
   } = useApp();
   
   const [filter, setFilter] = useState<string>('Active');
@@ -42,6 +43,7 @@ export const ProjectList: React.FC = () => {
   const [showQuickIncome, setShowQuickIncome] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showInventoryUsageModal, setShowInventoryUsageModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [showRecordArrivalModal, setShowRecordArrivalModal] = useState(false);
 
   // Edit states for nested items
@@ -74,6 +76,16 @@ export const ProjectList: React.FC = () => {
     materialId: '', newMaterialName: '', vendorId: '', quantity: '', unit: stockingUnits[0] || 'Bag', costPerUnit: '', date: new Date().toISOString().split('T')[0], note: ''
   });
 
+  const [transferFormData, setTransferFormData] = useState({
+    sourceProjectId: '',
+    destProjectId: '',
+    materialId: '',
+    batchId: '',
+    quantity: '',
+    date: new Date().toISOString().split('T')[0],
+    notes: ''
+  });
+
   const [usageMaterialSearch, setUsageMaterialSearch] = useState('');
 
   const getInvoiceMetrics = useCallback((inv: Invoice) => {
@@ -102,6 +114,104 @@ export const ProjectList: React.FC = () => {
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, []);
+
+  const transferSourceMaterials = useMemo(() => {
+    if (!viewingProject || !viewingProject.isGodown) return [];
+    interface BatchItem {
+      id: string;
+      name: string;
+      unit: string;
+      batchId: string;
+      vendorName: string;
+      vendorId?: string;
+      unitPrice: number;
+      available: number;
+    }
+    const batches: BatchItem[] = [];
+    materials.forEach(mat => {
+      const history = mat.history || [];
+      const inwardEntries = history.filter(h => (h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0 && h.projectId === viewingProject.id);
+      inwardEntries.forEach(inward => {
+        const batchId = inward.id.replace('sh-exp-', '');
+        const deductionsAgainstThisBatch = history.filter(h => h.parentPurchaseId === batchId && h.quantity < 0);
+        const totalDeductedFromBatch = Math.abs(deductionsAgainstThisBatch.reduce((sum, d) => sum + d.quantity, 0));
+        const availableInBatch = inward.quantity - totalDeductedFromBatch;
+
+        if (availableInBatch > 0) {
+          const vendor = vendors.find(v => v.id === inward.vendorId);
+          const vName = vendor?.name || (inward.type === 'Transfer' ? 'Inbound Stock' : 'Standard Supplier');
+          batches.push({
+            id: mat.id,
+            name: mat.name,
+            unit: mat.unit,
+            batchId: batchId,
+            vendorName: vName,
+            vendorId: inward.vendorId,
+            unitPrice: inward.unitPrice || mat.costPerUnit,
+            available: availableInBatch
+          });
+        }
+      });
+    });
+    return batches.sort((a, b) => a.name.localeCompare(b.name));
+  }, [materials, viewingProject, vendors]);
+
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!viewingProject) return;
+    if (transferFormData.sourceProjectId === transferFormData.destProjectId) {
+      alert("Validation Error: Source and Destination cannot be identical.");
+      return;
+    }
+    const qty = parseFloat(transferFormData.quantity) || 0;
+    const selectedBatch = transferSourceMaterials.find(b => b.id === transferFormData.materialId && b.batchId === transferFormData.batchId);
+    
+    if (!selectedBatch) {
+      alert("Error: Please select a valid material batch.");
+      return;
+    }
+    if (selectedBatch.available < qty) {
+      alert(`Insufficient Stock: Only ${selectedBatch.available} ${selectedBatch.unit} available at source.`);
+      return;
+    }
+
+    const transferId = 'trf-' + Date.now();
+    
+    // 1. Deduction from source
+    await addExpense({
+      id: transferId + '-out',
+      date: transferFormData.date,
+      projectId: transferFormData.sourceProjectId,
+      amount: 0,
+      paymentMethod: 'Bank',
+      category: 'Material',
+      materialId: selectedBatch.id,
+      vendorId: selectedBatch.vendorId,
+      materialQuantity: -qty,
+      inventoryAction: 'Transfer',
+      parentPurchaseId: selectedBatch.batchId,
+      notes: transferFormData.notes || `Internal Transfer Out to ${projects.find(p => p.id === transferFormData.destProjectId)?.name}`
+    });
+
+    // 2. Addition to destination
+    await addExpense({
+      id: transferId + '-in',
+      date: transferFormData.date,
+      projectId: transferFormData.destProjectId,
+      amount: 0,
+      paymentMethod: 'Bank',
+      category: 'Material',
+      materialId: selectedBatch.id,
+      vendorId: selectedBatch.vendorId,
+      materialQuantity: qty,
+      inventoryAction: 'Transfer',
+      parentPurchaseId: selectedBatch.batchId,
+      unitPrice: selectedBatch.unitPrice,
+      notes: transferFormData.notes || `Internal Transfer In from ${projects.find(p => p.id === transferFormData.sourceProjectId)?.name}`
+    });
+
+    setShowTransferModal(false);
+  };
 
   const handleOpenAddModal = () => {
     setEditingProject(null);
@@ -699,24 +809,45 @@ export const ProjectList: React.FC = () => {
                                <td className="px-8 py-5 text-center"><span className={`text-xs font-black px-3 py-1 rounded-lg border ${arrival.remaining > 0 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-slate-400 bg-slate-50 border-slate-100'}`}>{arrival.remaining.toLocaleString()}</span></td>
                                <td className="px-8 py-5 text-right">
                                   <div className="flex justify-end gap-2">
-                                    <button 
-                                      disabled={arrival.remaining <= 0} 
-                                      onClick={() => { 
-                                        setUsageMaterialSearch(''); 
-                                        setInventoryUsageForm({ 
-                                          materialId: arrival.material.id, 
-                                          batchId: arrival.entry.id.replace('sh-exp-', ''), 
-                                          vendorId: arrival.entry.vendorId || '', 
-                                          quantity: arrival.remaining.toString(), 
-                                          date: new Date().toISOString().split('T')[0], 
-                                          notes: `Consuming arrival from ${new Date(arrival.entry.date).toLocaleDateString()}` 
-                                        }); 
-                                        setShowInventoryUsageModal(true); 
-                                      }} 
-                                      className={`px-4 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${arrival.remaining > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-                                    >
-                                      Consume
-                                    </button>
+                                    {viewingProject.isGodown ? (
+                                      <button 
+                                        disabled={arrival.remaining <= 0} 
+                                        onClick={() => { 
+                                          setTransferFormData({
+                                            sourceProjectId: viewingProject.id,
+                                            destProjectId: '',
+                                            materialId: arrival.material.id,
+                                            batchId: arrival.entry.id.replace('sh-exp-', ''),
+                                            quantity: arrival.remaining.toString(),
+                                            date: new Date().toISOString().split('T')[0],
+                                            notes: `Transfer from ${viewingProject.name}`
+                                          });
+                                          setShowTransferModal(true);
+                                        }} 
+                                        className={`px-4 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${arrival.remaining > 0 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                      >
+                                        Transfer
+                                      </button>
+                                    ) : (
+                                      <button 
+                                        disabled={arrival.remaining <= 0} 
+                                        onClick={() => { 
+                                          setUsageMaterialSearch(''); 
+                                          setInventoryUsageForm({ 
+                                            materialId: arrival.material.id, 
+                                            batchId: arrival.entry.id.replace('sh-exp-', ''), 
+                                            vendorId: arrival.entry.vendorId || '', 
+                                            quantity: arrival.remaining.toString(), 
+                                            date: new Date().toISOString().split('T')[0], 
+                                            notes: `Consuming arrival from ${new Date(arrival.entry.date).toLocaleDateString()}` 
+                                          }); 
+                                          setShowInventoryUsageModal(true); 
+                                        }} 
+                                        className={`px-4 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${arrival.remaining > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                      >
+                                        Consume
+                                      </button>
+                                    )}
                                   </div>
                                </td>
                              </tr>
@@ -966,6 +1097,77 @@ export const ProjectList: React.FC = () => {
         </div>
       )}
 
+      {/* Internal Transfer Modal */}
+      {showTransferModal && viewingProject && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 duration-300">
+             <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-indigo-50/30 dark:bg-indigo-900/10">
+                <div className="flex gap-4 items-center">
+                  <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg"><MoveHorizontal size={28} /></div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">Internal Stock Transfer</h2>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Move material from {viewingProject.name} to another site</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowTransferModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
+             </div>
+             <form onSubmit={handleTransferSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Hub (From)</label>
+                      <input type="text" readOnly className="w-full px-5 py-4 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={viewingProject.name} />
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Destination Hub (To)</label>
+                      <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferFormData.destProjectId} onChange={e => setTransferFormData(p => ({ ...p, destProjectId: e.target.value }))}>
+                         <option value="">Select Target...</option>
+                         {projects.filter(p => p.id !== viewingProject.id).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                      </select>
+                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Material Batch (Available in Godown)</label>
+                   <select 
+                    required 
+                    className="w-full px-5 py-4 bg-white dark:bg-slate-900 border-2 border-indigo-100 dark:border-indigo-900 rounded-2xl font-bold dark:text-white outline-none text-xs"
+                    value={`${transferFormData.materialId}|${transferFormData.batchId}`}
+                    onChange={e => {
+                      const [mId, bId] = e.target.value.split('|');
+                      setTransferFormData(p => ({ ...p, materialId: mId, batchId: bId }));
+                    }}
+                   >
+                      <option value="|">Choose source material...</option>
+                      {transferSourceMaterials.map((batch, idx) => (
+                        <option key={idx} value={`${batch.id}|${batch.batchId}`}>
+                          {batch.name} / {batch.vendorName} / {formatCurrency(batch.unitPrice)} / {batch.available} {batch.unit} Available
+                        </option>
+                      ))}
+                   </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Transfer Quantity</label>
+                    <input type="number" step={allowDecimalStock ? "0.01" : "1"} required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none" value={transferFormData.quantity} onChange={e => setTransferFormData(p => ({ ...p, quantity: e.target.value }))} placeholder="0.00" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Effective Date</label>
+                    <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={transferFormData.date} onChange={e => setTransferFormData(p => ({ ...p, date: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Memo / Internal Note</label>
+                   <textarea rows={2} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={transferFormData.notes} onChange={e => setTransferFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Vehicle info, driver, reason..." />
+                </div>
+
+                <button type="submit" className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all text-sm">Authorize Internal Move</button>
+             </form>
+          </div>
+        </div>
+      )}
+
       {/* Material Log Sub-Modal */}
       {logMaterial && viewingProject && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
@@ -979,6 +1181,33 @@ export const ProjectList: React.FC = () => {
                   </div>
                 </div>
                 <button onClick={() => setLogMaterial(null)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={28} /></button>
+             </div>
+
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 shrink-0">
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Purchases</p>
+                  <p className="text-lg font-black text-slate-900 dark:text-white">
+                    {logMaterialHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0).toLocaleString()} {logMaterial.unit}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Total Usage</p>
+                  <p className="text-lg font-black text-slate-900 dark:text-white">
+                    {Math.abs(logMaterialHistory.filter(h => h.type === 'Usage').reduce((sum, h) => sum + h.quantity, 0)).toLocaleString()} {logMaterial.unit}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-1">Transfer In</p>
+                  <p className="text-lg font-black text-slate-900 dark:text-white">
+                    {logMaterialHistory.filter(h => h.type === 'Transfer' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0).toLocaleString()} {logMaterial.unit}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Transfer Out</p>
+                  <p className="text-lg font-black text-slate-900 dark:text-white">
+                    {Math.abs(logMaterialHistory.filter(h => h.type === 'Transfer' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0)).toLocaleString()} {logMaterial.unit}
+                  </p>
+                </div>
              </div>
              
              <div className="flex-1 overflow-y-auto p-0 no-scrollbar">
