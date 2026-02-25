@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Plus, Receipt, X, Briefcase, Pencil, Trash2, Package, ShoppingCart, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight, Lock
 } from 'lucide-react';
@@ -186,6 +186,14 @@ export const ExpenseTracker: React.FC = () => {
       parentPurchaseId: trackStock ? parentId : undefined
     };
 
+    if (expData.inventoryAction === 'Usage') {
+      const project = projects.find(p => p.id === expData.projectId);
+      if (project?.isGodown) {
+        alert("Error: Material cannot be consumed from a Godown Hub. Please use the 'Transfer' feature in Inventory to move material to an active site first.");
+        return;
+      }
+    }
+
     if (editingExpense) {
       await updateExpense(expData);
     } else {
@@ -195,7 +203,7 @@ export const ExpenseTracker: React.FC = () => {
     setShowModal(false);
     setEditingExpense(null);
     resetForm();
-  }, [editingExpense, trackStock, formData, isPurchase, siteSpecificInventory, updateExpense, addExpense, resetForm]);
+  }, [editingExpense, trackStock, formData, isPurchase, siteSpecificInventory, updateExpense, addExpense, resetForm, projects]);
 
   const openEdit = (e: Expense) => {
     setEditingExpense(e);

@@ -480,6 +480,12 @@ export const Inventory: React.FC = () => {
     e.preventDefault();
     const qty = parseFloat(usageData.quantity) || 0;
     
+    const selectedProject = projects.find(p => p.id === usageData.projectId);
+    if (selectedProject?.isGodown) {
+      alert("Error: Material cannot be consumed from a Godown Hub. Please use the 'Transfer' feature to move material to an active site first.");
+      return;
+    }
+
     const selectedBatch = relevantMaterialsForSite.find(b => 
       b.id === usageData.materialId && b.batchId === usageData.batchId
     );
@@ -1040,7 +1046,13 @@ export const Inventory: React.FC = () => {
                  <button onClick={() => setShowUsageModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
               </div>
               <form onSubmit={handleRecordUsage} className="p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
-                 <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Operational Allocation (Hub/Site)</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={usageData.projectId} onChange={e => setUsageData(p => ({ ...p, projectId: e.target.value, materialId: '', batchId: '' }))} required><option value="">Select Project Site or Godown Hub...</option>{projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Warehouse)' : '(Active Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}</select></div>
+                 <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Operational Allocation (Hub/Site)</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={usageData.projectId} onChange={e => setUsageData(p => ({ ...p, projectId: e.target.value, materialId: '', batchId: '' }))} required><option value="">Select Project Site or Godown Hub...</option>{projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Warehouse)' : '(Active Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}</select>
+                    {projects.find(p => p.id === usageData.projectId)?.isGodown && (
+                      <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-2">
+                        <AlertCircle size={14} className="text-amber-600" />
+                        <p className="text-[9px] font-black text-amber-700 uppercase tracking-tight">Godown materials can only be transferred, not consumed.</p>
+                      </div>
+                    )}</div>
                  
                  <div className="space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Material Pool (Category / Hub / Price / Remaining)</label>

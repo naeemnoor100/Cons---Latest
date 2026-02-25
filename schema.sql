@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS settings (
     trade_categories TEXT,
     stocking_units TEXT,
     site_statuses TEXT,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS projects (

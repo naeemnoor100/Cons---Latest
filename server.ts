@@ -13,12 +13,28 @@ const db = new sqlite3.Database(DB_CONFIG.database);
 
 // Initialize Relational DB
 const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
-db.exec(schema, (err) => {
-  if (err) console.error("Database initialization error:", err);
-  else console.log("Relational database initialized");
-});
+
+async function initDb() {
+  return new Promise<void>((resolve, reject) => {
+    db.exec(schema, (err) => {
+      if (err) {
+        console.error("Database initialization error:", err);
+        reject(err);
+      } else {
+        console.log("Relational database initialized");
+        resolve();
+      }
+    });
+  });
+}
 
 async function startServer() {
+  try {
+    await initDb();
+  } catch {
+    console.error("Failed to initialize database, but starting server anyway...");
+  }
+  
   const app = express();
   const PORT = 3000;
 

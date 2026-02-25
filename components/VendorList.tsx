@@ -10,7 +10,8 @@ import {
   MoreVertical,
   ArrowDownCircle,
   Clock,
-  Building2
+  Building2,
+  AlertCircle
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Vendor, Payment, PaymentMethod } from '../types';
