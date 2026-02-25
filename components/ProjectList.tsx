@@ -25,7 +25,7 @@ const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ProjectList: React.FC = () => {
   const { 
-    projects, expenses, vendors, materials, incomes, invoices, siteStatuses, stockingUnits,
+    projects, expenses, vendors, materials, incomes, invoices, siteStatuses, stockingUnits, employees, laborLogs,
     addProject, updateProject, deleteProject, 
     addExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
@@ -38,7 +38,7 @@ export const ProjectList: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<'expenses' | 'income' | 'arrivals' | 'invoices' | 'budget'>('expenses');
+  const [activeDetailTab, setActiveDetailTab] = useState<'expenses' | 'income' | 'arrivals' | 'invoices' | 'budget' | 'labor'>('expenses');
   
   const [showQuickIncome, setShowQuickIncome] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -769,6 +769,7 @@ export const ProjectList: React.FC = () => {
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('invoices')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'invoices' ? 'bg-white dark:bg-slate-800 text-indigo-600 border-b-4 border-indigo-600' : 'text-slate-400'}`}>Client Invoices</button>}
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('income')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'income' ? 'bg-white dark:bg-slate-800 text-emerald-600 border-b-4 border-emerald-600' : 'text-slate-400'}`}>Project Income</button>}
                       <button onClick={() => setActiveDetailTab('arrivals')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'arrivals' ? 'bg-white dark:bg-slate-800 text-amber-600 border-b-4 border-amber-600' : 'text-slate-400'}`}>{viewingProject.isGodown ? 'Current Hub Stock' : 'Material Arrivals'}</button>
+                      {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('labor')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'labor' ? 'bg-white dark:bg-slate-800 text-rose-600 border-b-4 border-rose-600' : 'text-slate-400'}`}>Labour Used</button>}
                     </div>
                     <div className="p-4 sm:p-0 flex gap-2 w-full sm:w-auto">
                       {activeDetailTab === 'arrivals' && (
@@ -793,6 +794,8 @@ export const ProjectList: React.FC = () => {
                             <tr><th className="px-8 py-5">Value Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Method</th><th className="px-8 py-5 text-right">Amount</th><th className="px-8 py-5 text-right">Control</th></tr>
                           ) : activeDetailTab === 'invoices' ? (
                             <tr><th className="px-8 py-5">Inv #</th><th className="px-8 py-5">Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Bill Value</th><th className="px-8 py-5 text-right">Control</th></tr>
+                          ) : activeDetailTab === 'labor' ? (
+                            <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Employee</th><th className="px-8 py-5">Role</th><th className="px-8 py-5 text-center">Status</th><th className="px-8 py-5 text-right">Wage</th></tr>
                           ) : null}
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -904,6 +907,21 @@ export const ProjectList: React.FC = () => {
                                        <button onClick={() => deleteInvoice(inv.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
                                     </div>
                                  </td>
+                               </tr>
+                             );
+                           })}
+                           {activeDetailTab === 'labor' && laborLogs.filter(l => l.projectId === viewingProject.id).slice().reverse().map(log => {
+                             const emp = employees.find(e => e.id === log.employeeId);
+                             if (!emp) return null;
+                             return (
+                               <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                 <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(log.date).toLocaleDateString()}</td>
+                                 <td className="px-8 py-5 text-sm font-black text-slate-900 dark:text-white">{emp.name}</td>
+                                 <td className="px-8 py-5 text-xs font-bold text-slate-500">{emp.role}</td>
+                                 <td className="px-8 py-5 text-center">
+                                   <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${log.status === 'Present' ? 'bg-emerald-50 text-emerald-600' : log.status === 'Half-day' ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'}`}>{log.status}</span>
+                                 </td>
+                                 <td className="px-8 py-5 text-right text-sm font-black text-slate-900 dark:text-white">{formatCurrency(log.wageAmount)}</td>
                                </tr>
                              );
                            })}
