@@ -623,7 +623,7 @@ export const Inventory: React.FC = () => {
              <Warehouse className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
              <select className="pl-10 pr-8 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
                 <option value="All">Hub Filter: All</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
              </select>
           </div>
           <div className="relative">
@@ -745,14 +745,14 @@ export const Inventory: React.FC = () => {
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Hub (From)</label>
                       <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.sourceProjectId} onChange={e => setTransferData(p => ({ ...p, sourceProjectId: e.target.value, materialId: '', batchId: '' }))}>
-                         {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}
+                         {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                       </select>
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Destination Hub (To)</label>
                       <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.destProjectId} onChange={e => setTransferData(p => ({ ...p, destProjectId: e.target.value }))}>
                          <option value="">Select Target...</option>
-                         {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}
+                         {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                       </select>
                    </div>
                 </div>
@@ -873,7 +873,7 @@ export const Inventory: React.FC = () => {
                   <div className="space-y-1.5">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Target Hub (Godown or Site)</label>
                      <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={procureData.projectId} onChange={e => setProcureData(p => ({ ...p, projectId: e.target.value }))} required>
-                        {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown Hub)' : ''}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}
+                        {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown Hub)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                      </select>
                   </div>
                   <div className="space-y-1.5">
@@ -1024,7 +1024,7 @@ export const Inventory: React.FC = () => {
                  </div>
                  <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label><input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={historyEditFormData.date} onChange={e => setHistoryEditFormData(p => ({ ...p, date: e.target.value }))} /></div>
                  <div className="grid grid-cols-2 gap-4">
-                   <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Allocation Hub</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={historyEditFormData.projectId} onChange={e => setHistoryEditFormData(p => ({ ...p, projectId: e.target.value }))}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}</select></div>
+                   <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Allocation Hub</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={historyEditFormData.projectId} onChange={e => setHistoryEditFormData(p => ({ ...p, projectId: e.target.value }))}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}</select></div>
                    <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Vendor</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={historyEditFormData.vendorId} onChange={e => setHistoryEditFormData(p => ({ ...p, vendorId: e.target.value }))}><option value="">None</option>{vendors.filter(v => v.isActive !== false || v.id === historyEditFormData.vendorId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
                  </div>
                  <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Note</label><textarea rows={2} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={historyEditFormData.note} onChange={e => setHistoryEditFormData(p => ({ ...p, note: e.target.value }))} /></div>
@@ -1046,7 +1046,7 @@ export const Inventory: React.FC = () => {
                  <button onClick={() => setShowUsageModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
               </div>
               <form onSubmit={handleRecordUsage} className="p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
-                 <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Operational Allocation (Hub/Site)</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={usageData.projectId} onChange={e => setUsageData(p => ({ ...p, projectId: e.target.value, materialId: '', batchId: '' }))} required><option value="">Select Project Site or Godown Hub...</option>                {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}</select>
+                 <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Operational Allocation (Hub/Site)</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={usageData.projectId} onChange={e => setUsageData(p => ({ ...p, projectId: e.target.value, materialId: '', batchId: '' }))} required><option value="">Select Project Site or Godown Hub...</option>{projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Warehouse)' : '(Active Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}</select>
                     {projects.find(p => p.id === usageData.projectId)?.isGodown && (
                       <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-2">
                         <AlertCircle size={14} className="text-amber-600" />

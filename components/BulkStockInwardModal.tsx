@@ -91,7 +91,7 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
               <label className="text-[9px] font-black text-slate-400 uppercase px-1">Primary Godown (Auto-Fill)</label>
               <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white" value={bulkGlobalProject} onChange={e => setBulkGlobalProject(e.target.value)}>
                 <option value="">Manual Selection</option>
-                {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : '(Site)'}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}
+                {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : '(Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
               </select>
            </div>
         </div>
@@ -132,7 +132,7 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
                         <label className="text-[8px] font-black text-slate-400 uppercase px-1">Target Hub</label>
                         <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.projectId} onChange={e => updateBulkRow(row.id, 'projectId', e.target.value)}>
                            <option value="">Select Hub...</option>
-                {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : '(Site)'}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}
+                           {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(G)' : '(S)'}{isProjectLocked(p.id) ? ' (L)' : ''}</option>)}
                         </select>
                       </div>
                    )}
