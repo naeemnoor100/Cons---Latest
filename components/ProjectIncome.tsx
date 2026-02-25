@@ -221,7 +221,7 @@ export const ProjectIncome: React.FC = () => {
                    <label className="text-[10px] font-black uppercase text-slate-400">Project Site</label>
                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.projectId} onChange={e => setFormData(p => ({ ...p, projectId: e.target.value, invoiceId: '' }))} required>
                      <option value="">Select site...</option>
-                     {projects.filter(p => !p.isGodown).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                     {projects.filter(p => !p.isGodown).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>)}
                    </select>
                  </div>
                  <div className="space-y-1">
