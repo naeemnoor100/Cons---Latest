@@ -254,7 +254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let nextVendors = [...prev.vendors];
 
     if (oldExp && oldExp.vendorId && oldExp.inventoryAction === 'Purchase') {
-      nextVendors = nextVendors.map(v => v.id === oldExp.vendorId ? { ...v, balance: Math.max(0, v.balance - oldExp.amount) } : v);
+      nextVendors = nextVendors.map(v => v.id === oldExp.vendorId ? { ...v, balance: v.balance - oldExp.amount } : v);
     }
     if (e.vendorId && e.inventoryAction === 'Purchase') {
       nextVendors = nextVendors.map(v => v.id === e.vendorId ? { ...v, balance: v.balance + e.amount } : v);
@@ -332,7 +332,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let nextVendors = [...prev.vendors];
     if (expToDelete.vendorId && expToDelete.inventoryAction === 'Purchase') {
-      nextVendors = nextVendors.map(v => v.id === expToDelete.vendorId ? { ...v, balance: Math.max(0, v.balance - expToDelete.amount) } : v);
+      nextVendors = nextVendors.map(v => v.id === expToDelete.vendorId ? { ...v, balance: v.balance - expToDelete.amount } : v);
     }
 
     return { 
@@ -344,7 +344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }), [dispatchUpdate]);
 
   const addPayment = useCallback(async (p: Payment) => dispatchUpdate(prev => {
-    const nextVendors = prev.vendors.map(v => v.id === p.vendorId ? { ...v, balance: Math.max(0, v.balance - p.amount) } : v);
+    const nextVendors = prev.vendors.map(v => v.id === p.vendorId ? { ...v, balance: v.balance - p.amount } : v);
     
     if (!p.materialBatchId) {
       let remainingAmountToAllocate = p.amount;
@@ -429,7 +429,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const paymentsWithoutOldAllocations = prev.payments.filter(x => x.id !== p.id && x.masterPaymentId !== p.id);
 
     // Step 3: Apply new payment to vendor balance
-    nextVendors = nextVendors.map(v => v.id === p.vendorId ? { ...v, balance: Math.max(0, v.balance - p.amount) } : v);
+    nextVendors = nextVendors.map(v => v.id === p.vendorId ? { ...v, balance: v.balance - p.amount } : v);
 
     // Step 4: Re-calculate allocations based on the new amount (if no specific batch linked)
     const newAllocations: Payment[] = [];

@@ -94,7 +94,7 @@ export const VendorList: React.FC = () => {
               unit: mat.unit,
               unitPrice: h.unitPrice || mat.costPerUnit,
               estimatedValue: value,
-              remainingBalance: Math.max(0, value - totalPaidForBatch)
+              remainingBalance: value - totalPaidForBatch
             });
           }
         });
@@ -114,7 +114,7 @@ export const VendorList: React.FC = () => {
     const vendorPayments = payments.filter(p => p.vendorId === activeVendor.id && !p.isAllocation);
     const totalPaid = vendorPayments.reduce((sum, p) => sum + p.amount, 0);
     const totalPurchases = vendorSupplies.reduce((sum, s) => sum + s.estimatedValue, 0);
-    const totalDues = vendorSupplies.reduce((sum, s) => sum + s.remainingBalance, 0);
+    const totalDues = activeVendor.balance;
 
     const associatedProjectIds = new Set([
       ...vendorSupplies.map(s => s.projectId),
@@ -222,10 +222,6 @@ export const VendorList: React.FC = () => {
     if (!quickPaymentBill || !activeVendor) return;
 
     const amountToPay = parseFloat(quickPaymentFormData.amount) || 0;
-    if (amountToPay > quickPaymentBill.remainingBalance + 0.01) {
-      alert(`Payment amount cannot exceed the outstanding balance of ${formatCurrency(quickPaymentBill.remainingBalance)}`);
-      return;
-    }
 
     const payment: Payment = {
       id: 'pay' + Date.now(),
@@ -325,7 +321,7 @@ export const VendorList: React.FC = () => {
                 const vendorPayments = payments.filter(p => p.vendorId === vendor.id && !p.isAllocation);
                 const lastPay = vendorPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
                 const vendorSupplies_local = getSuppliesForVendor(vendor.id);
-                const totalOutstanding = vendorSupplies_local.reduce((sum, s) => sum + s.remainingBalance, 0);
+                const totalOutstanding = vendor.balance;
                 const associatedProjectIds = new Set([...vendorSupplies_local.map(s => s.projectId), ...vendorPayments.map(p => p.projectId)]);
                 const activeSitesCount = projects.filter(p => associatedProjectIds.has(p.id) && p.status === 'Active').length;
 
@@ -556,7 +552,6 @@ export const VendorList: React.FC = () => {
                     type="number" 
                     step="0.01" 
                     required 
-                    max={quickPaymentBill.remainingBalance}
                     className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10" 
                     value={quickPaymentFormData.amount} 
                     onChange={e => setQuickPaymentFormData(p => ({ ...p, amount: e.target.value }))} 

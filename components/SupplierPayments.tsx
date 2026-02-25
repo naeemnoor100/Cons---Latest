@@ -16,7 +16,7 @@ import { PaymentMethod, Payment } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const SupplierPayments: React.FC = () => {
-  const { payments, vendors, projects, materials, addPayment, updatePayment, deletePayment } = useApp();
+  const { payments, vendors, projects, addPayment, updatePayment, deletePayment } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -41,28 +41,11 @@ export const SupplierPayments: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [payments, vendors, searchTerm]);
 
-  const getVendorBalance = useCallback((vendorId: string) => {
-    const supplyList: { remainingBalance: number }[] = [];
-    materials.forEach(mat => {
-      if (mat.history) {
-        mat.history.forEach(h => {
-          if (h.type === 'Purchase' && h.vendorId === vendorId) {
-            const totalPaidForBatch = payments.filter(p => p.materialBatchId === h.id).reduce((sum, p) => sum + p.amount, 0);
-            const value = h.quantity * (h.unitPrice || mat.costPerUnit);
-            supplyList.push({ 
-              remainingBalance: Math.max(0, value - totalPaidForBatch)
-            });
-          }
-        });
-      }
-    });
-    return supplyList.reduce((sum, s) => sum + s.remainingBalance, 0);
-  }, [materials, payments]);
-
   const selectedVendorBalance = useMemo(() => {
     if (!selectedVendorId) return 0;
-    return getVendorBalance(selectedVendorId);
-  }, [selectedVendorId, getVendorBalance]);
+    const vendor = vendors.find(v => v.id === selectedVendorId);
+    return vendor ? vendor.balance : 0;
+  }, [selectedVendorId, vendors]);
 
   const handleCloseModal = useCallback(() => {
     setShowModal(false);
@@ -239,7 +222,7 @@ export const SupplierPayments: React.FC = () => {
                     onChange={e => setSelectedVendorId(e.target.value)}
                   >
                     <option value="">-- Select Vendor --</option>
-                    {vendors.filter(v => v.isActive !== false || v.id === selectedVendorId).map(v => <option key={v.id} value={v.id}>{v.name} (Bal: {formatCurrency(getVendorBalance(v.id))})</option>)}
+                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name} (Bal: {formatCurrency(v.balance)})</option>)}
                   </select>
                </div>
 
@@ -257,7 +240,7 @@ export const SupplierPayments: React.FC = () => {
                     <div className="text-right">
                       <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">Projected Balance</p>
                       <p className="text-xl font-black text-emerald-500">
-                        {formatCurrency(Math.max(0, (editingPayment ? selectedVendorBalance + editingPayment.amount : selectedVendorBalance) - (parseFloat(paymentFormData.amount) || 0)))}
+                        {formatCurrency((editingPayment ? selectedVendorBalance + editingPayment.amount : selectedVendorBalance) - (parseFloat(paymentFormData.amount) || 0))}
                       </p>
                     </div>
                  </div>
