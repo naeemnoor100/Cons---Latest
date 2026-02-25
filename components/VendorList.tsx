@@ -409,12 +409,12 @@ export const VendorList: React.FC = () => {
                                 onClick={() => {
                                   setEditingVendor(vendor);
                                   setFormData({ 
-                                    name: vendor.name, 
-                                    phone: vendor.phone, 
+                                    name: vendor.name || '', 
+                                    phone: vendor.phone || '', 
                                     email: vendor.email || '',
-                                    category: vendor.category, 
-                                    address: vendor.address, 
-                                    balance: vendor.balance.toString(),
+                                    category: vendor.category || tradeCategories[0] || 'Material', 
+                                    address: vendor.address || '', 
+                                    balance: (vendor.balance || 0).toString(),
                                     isActive: vendor.isActive !== false
                                   });
                                   setShowModal(true);

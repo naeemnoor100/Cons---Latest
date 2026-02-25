@@ -81,12 +81,12 @@ export const SupplierPayments: React.FC = () => {
 
   const handleEdit = (payment: Payment) => {
     setEditingPayment(payment);
-    setSelectedVendorId(payment.vendorId);
+    setSelectedVendorId(payment.vendorId || '');
     setPaymentFormData({
-      projectId: payment.projectId,
-      amount: payment.amount.toString(),
-      method: payment.method,
-      date: payment.date,
+      projectId: payment.projectId || '',
+      amount: (payment.amount || 0).toString(),
+      method: payment.method || 'Bank',
+      date: payment.date || new Date().toISOString().split('T')[0],
       reference: payment.reference || '',
       materialBatchId: payment.materialBatchId || ''
     });

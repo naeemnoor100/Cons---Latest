@@ -224,7 +224,16 @@ export const ProjectList: React.FC = () => {
   const handleOpenEditProject = (p: Project) => {
     setEditingProject(p);
     setFormData({ 
-      name: p.name, client: p.client, location: p.location, contactNumber: p.contactNumber || '', budget: p.budget.toString(), startDate: p.startDate, endDate: p.endDate || p.startDate, description: p.description || '', status: p.status, isGodown: !!p.isGodown
+      name: p.name || '', 
+      client: p.client || '', 
+      location: p.location || '', 
+      contactNumber: p.contactNumber || '', 
+      budget: (p.budget || 0).toString(), 
+      startDate: p.startDate || new Date().toISOString().split('T')[0], 
+      endDate: p.endDate || p.startDate || '', 
+      description: p.description || '', 
+      status: p.status || 'Active', 
+      isGodown: !!p.isGodown
     });
     setShowModal(true);
   };
@@ -487,10 +496,10 @@ export const ProjectList: React.FC = () => {
   const handleOpenEditIncome = (inc: Income) => {
     setEditingIncome(inc);
     setIncomeFormData({
-      amount: inc.amount.toString(),
-      date: inc.date,
-      description: inc.description,
-      method: inc.method,
+      amount: (inc.amount || 0).toString(),
+      date: inc.date || new Date().toISOString().split('T')[0],
+      description: inc.description || '',
+      method: inc.method || 'Bank',
       invoiceId: inc.invoiceId || ''
     });
     setShowQuickIncome(true);
@@ -499,10 +508,10 @@ export const ProjectList: React.FC = () => {
   const handleOpenEditInvoice = (inv: Invoice) => {
     setEditingInvoice(inv);
     setInvoiceFormData({
-      amount: inv.amount.toString(),
-      date: inv.date,
-      dueDate: inv.dueDate,
-      description: inv.description
+      amount: (inv.amount || 0).toString(),
+      date: inv.date || new Date().toISOString().split('T')[0],
+      dueDate: inv.dueDate || new Date().toISOString().split('T')[0],
+      description: inv.description || ''
     });
     setShowInvoiceModal(true);
   };

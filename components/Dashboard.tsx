@@ -134,13 +134,13 @@ export const Dashboard: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-4">
         <DashboardCard title="Active Sites" value={activeProjectsCount.toString()} icon={<Briefcase size={20} />} colorClass="bg-blue-600" />
         <DashboardCard title="Godown Stock" value={formatCurrency(godownValue)} icon={<Warehouse size={20} />} colorClass="bg-slate-900" />
         <DashboardCard title="Labor Costs" value={formatCurrency(totalLaborCosts)} icon={<HardHat size={20} />} colorClass="bg-orange-600" />
         <DashboardCard title="Revenue" value={formatCurrency(totalIncome)} icon={<ArrowUpCircle size={20} />} colorClass="bg-emerald-600" />
         <DashboardCard title="Total Costs" value={formatCurrency(totalExpenses)} icon={<TrendingDown size={20} />} colorClass="bg-rose-600" />
-        <div className="col-span-2 xl:col-span-1">
+        <div className="sm:col-span-2 xl:col-span-1">
           <DashboardCard title="Receivables" value={formatCurrency(totalReceivables)} icon={<Wallet size={20} />} colorClass="bg-indigo-600" />
         </div>
       </div>
