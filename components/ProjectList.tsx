@@ -771,8 +771,8 @@ export const ProjectList: React.FC = () => {
                   </div>
                 )}
 
-                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col">
-                  <div className="flex flex-col sm:flex-row border-b border-slate-100 dark:border-slate-700 justify-between items-start sm:items-center pr-6 bg-slate-50/30 dark:bg-slate-900/20">
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
+                  <div className="sticky top-0 z-20 rounded-t-[2.5rem] overflow-hidden flex flex-col sm:flex-row border-b border-slate-100 dark:border-slate-700 justify-between items-start sm:items-center pr-6 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-md">
                     <div className="flex w-full sm:w-auto overflow-x-auto no-scrollbar">
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('breakdown')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'breakdown' ? 'bg-white dark:bg-slate-800 text-purple-600 border-b-4 border-purple-600' : 'text-slate-400'}`}>Detailed Breakdown</button>}
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('expenses')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'expenses' ? 'bg-white dark:bg-slate-800 text-blue-600 border-b-4 border-blue-600' : 'text-slate-400'}`}>Site Costs</button>}
@@ -794,7 +794,7 @@ export const ProjectList: React.FC = () => {
                     </div>
                   </div>
                   <>{activeDetailTab === 'breakdown' ? (
-                    <div className="p-6 space-y-8 bg-slate-50 dark:bg-slate-900/50">
+                    <div className="p-6 space-y-8 bg-slate-50 dark:bg-slate-900/50 rounded-b-[2.5rem]">
                       {/* Site Costs */}
                       <section>
                         <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Site Costs (by Category)</h3>
@@ -929,7 +929,7 @@ export const ProjectList: React.FC = () => {
                       </section>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto no-scrollbar">
+                    <div className="overflow-x-auto no-scrollbar rounded-b-[2.5rem]">
                        <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                           {activeDetailTab === 'arrivals' ? (
