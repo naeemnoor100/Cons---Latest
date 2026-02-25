@@ -11,7 +11,9 @@ import {
   ArrowDownCircle,
   Clock,
   Building2,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Vendor, Payment, PaymentMethod } from '../types';
