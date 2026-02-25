@@ -38,7 +38,7 @@ export const ProjectList: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<'expenses' | 'income' | 'arrivals' | 'invoices' | 'budget' | 'labor'>('expenses');
+  const [activeDetailTab, setActiveDetailTab] = useState<'breakdown' | 'expenses' | 'income' | 'arrivals' | 'invoices' | 'budget' | 'labor'>('breakdown');
   
   const [showQuickIncome, setShowQuickIncome] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -643,7 +643,7 @@ export const ProjectList: React.FC = () => {
                      </div>
                   </div>
                 </div>
-                <button onClick={() => { setViewingProject(project); setActiveDetailTab('expenses'); }} className="w-full py-5 bg-slate-50 dark:bg-slate-700/30 border-t border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 flex items-center justify-between px-6 hover:bg-blue-600 hover:text-white transition-all">Project Insights <ChevronRight size={18} /></button>
+                <button onClick={() => { setViewingProject(project); setActiveDetailTab('breakdown'); }} className="w-full py-5 bg-slate-50 dark:bg-slate-700/30 border-t border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 flex items-center justify-between px-6 hover:bg-blue-600 hover:text-white transition-all">Project Insights <ChevronRight size={18} /></button>
               </div>
             );
           })}
@@ -774,6 +774,7 @@ export const ProjectList: React.FC = () => {
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col">
                   <div className="flex flex-col sm:flex-row border-b border-slate-100 dark:border-slate-700 justify-between items-start sm:items-center pr-6 bg-slate-50/30 dark:bg-slate-900/20">
                     <div className="flex w-full sm:w-auto overflow-x-auto no-scrollbar">
+                      {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('breakdown')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'breakdown' ? 'bg-white dark:bg-slate-800 text-purple-600 border-b-4 border-purple-600' : 'text-slate-400'}`}>Detailed Breakdown</button>}
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('expenses')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'expenses' ? 'bg-white dark:bg-slate-800 text-blue-600 border-b-4 border-blue-600' : 'text-slate-400'}`}>Site Costs</button>}
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('invoices')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'invoices' ? 'bg-white dark:bg-slate-800 text-indigo-600 border-b-4 border-indigo-600' : 'text-slate-400'}`}>Client Invoices</button>}
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('income')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'income' ? 'bg-white dark:bg-slate-800 text-emerald-600 border-b-4 border-emerald-600' : 'text-slate-400'}`}>Project Income</button>}
@@ -792,8 +793,144 @@ export const ProjectList: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <div className="overflow-x-auto no-scrollbar">
-                     <table className="w-full text-left min-w-[800px]">
+                  <>{activeDetailTab === 'breakdown' ? (
+                    <div className="p-6 space-y-8 bg-slate-50 dark:bg-slate-900/50">
+                      {/* Site Costs */}
+                      <section>
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Site Costs (by Category)</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {Object.entries(viewingProjectMetrics.categoryBreakdown).map(([category, amount]) => (
+                            <div key={category} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex justify-between items-center shadow-sm">
+                              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">{category}</span>
+                              <span className="text-sm font-black text-slate-900 dark:text-white">{formatCurrency(amount as number)}</span>
+                            </div>
+                          ))}
+                          {Object.keys(viewingProjectMetrics.categoryBreakdown).length === 0 && (
+                            <div className="col-span-full text-center p-4 text-xs font-bold text-slate-400">No site costs recorded yet.</div>
+                          )}
+                        </div>
+                      </section>
+
+                      {/* Client Invoices */}
+                      <section>
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Client Invoices</h3>
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                          <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
+                              <tr><th className="px-6 py-4">Inv #</th><th className="px-6 py-4">Date</th><th className="px-6 py-4 text-right">Amount</th><th className="px-6 py-4 text-center">Status</th><th className="px-6 py-4 text-right">Remaining</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                              {viewingProjectMetrics.invoices.map(inv => {
+                                const { remaining, isPaid } = getInvoiceMetrics(inv);
+                                return (
+                                  <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                    <td className="px-6 py-4 text-[10px] font-bold text-slate-400">#{inv.id.slice(-6).toUpperCase()}</td>
+                                    <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(inv.date).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 text-sm font-black text-slate-900 dark:text-white text-right">{formatCurrency(inv.amount)}</td>
+                                    <td className="px-6 py-4 text-center">
+                                      <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{isPaid ? 'Paid' : 'Unpaid'}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm font-black text-slate-900 dark:text-white text-right">{formatCurrency(remaining)}</td>
+                                  </tr>
+                                );
+                              })}
+                              {viewingProjectMetrics.invoices.length === 0 && (
+                                <tr><td colSpan={5} className="px-6 py-8 text-center text-xs font-bold text-slate-400">No invoices generated yet.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+
+                      {/* Project Income */}
+                      <section>
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Project Income</h3>
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                          <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
+                              <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Description</th><th className="px-6 py-4">Method</th><th className="px-6 py-4 text-right">Amount</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                              {incomes.filter(i => i.projectId === viewingProject.id).map(inc => (
+                                <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                  <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(inc.date).toLocaleDateString()}</td>
+                                  <td className="px-6 py-4 text-sm font-black text-slate-800 dark:text-slate-200 uppercase">{inc.description}</td>
+                                  <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase">{inc.method}</td>
+                                  <td className="px-6 py-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(inc.amount)}</td>
+                                </tr>
+                              ))}
+                              {incomes.filter(i => i.projectId === viewingProject.id).length === 0 && (
+                                <tr><td colSpan={4} className="px-6 py-8 text-center text-xs font-bold text-slate-400">No income recorded yet.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+
+                      {/* Material Arrivals */}
+                      <section>
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Material Arrivals</h3>
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                          <table className="w-full text-left">
+                            <thead className="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
+                              <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Material</th><th className="px-6 py-4 text-center">Arrived</th><th className="px-6 py-4 text-center">Remaining</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                              {projectArrivals.map((arrival, idx) => (
+                                <tr key={`${arrival.material.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                  <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(arrival.entry.date).toLocaleDateString()}</td>
+                                  <td className="px-6 py-4 text-sm font-black text-slate-800 dark:text-slate-200 uppercase">{arrival.material.name}</td>
+                                  <td className="px-6 py-4 text-center"><span className="text-xs font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">{arrival.arrived.toLocaleString()} {arrival.material.unit}</span></td>
+                                  <td className="px-6 py-4 text-center"><span className={`text-xs font-black px-3 py-1 rounded-lg border ${arrival.remaining > 0 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-slate-400 bg-slate-50 border-slate-100'}`}>{arrival.remaining.toLocaleString()} {arrival.material.unit}</span></td>
+                                </tr>
+                              ))}
+                              {projectArrivals.length === 0 && (
+                                <tr><td colSpan={4} className="px-6 py-8 text-center text-xs font-bold text-slate-400">No material arrivals recorded yet.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </section>
+
+                      {/* Labour Used */}
+                      <section>
+                        <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Labour Used (by Employee)</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {(() => {
+                            const laborByEmp: Record<string, { name: string, role: string, totalWage: number, days: number }> = {};
+                            laborLogs.filter(l => l.projectId === viewingProject.id).forEach(log => {
+                              const emp = employees.find(e => e.id === log.employeeId);
+                              if (emp) {
+                                if (!laborByEmp[emp.id]) {
+                                  laborByEmp[emp.id] = { name: emp.name, role: emp.role, totalWage: 0, days: 0 };
+                                }
+                                laborByEmp[emp.id].totalWage += log.wageAmount;
+                                laborByEmp[emp.id].days += log.status === 'Half-day' ? 0.5 : 1;
+                              }
+                            });
+                            const laborArray = Object.values(laborByEmp);
+                            if (laborArray.length === 0) {
+                              return <div className="col-span-full text-center p-4 text-xs font-bold text-slate-400">No labour recorded yet.</div>;
+                            }
+                            return laborArray.map((emp, idx) => (
+                              <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <div className="flex justify-between items-start mb-2">
+                                  <div>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{emp.name}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{emp.role}</p>
+                                  </div>
+                                  <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded-lg uppercase tracking-widest">{emp.days} days</span>
+                                </div>
+                                <p className="text-lg font-black text-slate-900 dark:text-white mt-2">{formatCurrency(emp.totalWage)}</p>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </section>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto no-scrollbar">
+                       <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                           {activeDetailTab === 'arrivals' ? (
                             <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Material Asset</th><th className="px-8 py-5 text-center">Arrived</th><th className="px-8 py-5 text-center">In Hand</th><th className="px-8 py-5 text-right">Operations</th></tr>
@@ -937,6 +1074,7 @@ export const ProjectList: React.FC = () => {
                         </tbody>
                      </table>
                   </div>
+                  )}</>
                 </div>
               </div>
               <div className="p-6 border-t border-slate-100 dark:border-slate-700 flex justify-end shrink-0 bg-white dark:bg-slate-800"><button onClick={() => setViewingProject(null)} className="bg-slate-900 text-white px-10 py-4 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-all text-xs">Close Details</button></div>

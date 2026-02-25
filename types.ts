@@ -146,6 +146,17 @@ export interface LaborPayment {
   notes?: string;
 }
 
+export interface ActivityLog {
+  id: string;
+  timestamp: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  details: string;
+  userId: string;
+  userName: string;
+}
+
 export interface AppState {
   projects: Project[];
   vendors: Vendor[];
@@ -157,6 +168,7 @@ export interface AppState {
   employees: Employee[];
   laborLogs: LaborLog[];
   laborPayments: LaborPayment[];
+  activityLogs: ActivityLog[];
   tradeCategories: string[];
   stockingUnits: string[];
   siteStatuses: string[];

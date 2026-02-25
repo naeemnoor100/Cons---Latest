@@ -30,11 +30,11 @@ export const Settings: React.FC = () => {
     siteStatuses, addSiteStatus, removeSiteStatus,
     allowDecimalStock, setAllowDecimalStock,
     projects, vendors, materials, expenses, incomes, invoices, payments,
-    employees, laborLogs, laborPayments,
+    employees, laborLogs, laborPayments, activityLogs,
     importState, forceSync
   } = useApp();
   
-  const [activeSection, setActiveSection] = useState<'profile' | 'system' | 'master-lists' | 'database' | 'backup'>('profile');
+  const [activeSection, setActiveSection] = useState<'profile' | 'system' | 'master-lists' | 'database' | 'backup' | 'activity-log'>('profile');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [dbInitStatus, setDbInitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -220,6 +220,9 @@ export const Settings: React.FC = () => {
           <button onClick={() => setActiveSection('system')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'system' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
             <Globe size={18} /> <span className="text-xs sm:text-sm font-bold">Theme</span>
           </button>
+          <button onClick={() => setActiveSection('activity-log')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'activity-log' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
+            <Activity size={18} /> <span className="text-xs sm:text-sm font-bold">Activity Log</span>
+          </button>
         </aside>
 
         <div className="flex-1 min-w-0">
@@ -390,6 +393,65 @@ export const Settings: React.FC = () => {
                     </div>
                  </div>
                </div>
+            )}
+
+            {activeSection === 'activity-log' && (
+              <div className="p-8 space-y-6 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">System Activity Log</h3>
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">Last 1000 actions</span>
+                </div>
+                
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <div className="max-h-[600px] overflow-y-auto no-scrollbar">
+                    {(!activityLogs || activityLogs.length === 0) ? (
+                      <div className="p-12 text-center text-slate-500 font-bold text-sm">No activity recorded yet.</div>
+                    ) : (
+                      <table className="w-full text-left">
+                        <thead className="bg-white dark:bg-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
+                          <tr>
+                            <th className="px-6 py-4">Time</th>
+                            <th className="px-6 py-4">User</th>
+                            <th className="px-6 py-4">Action</th>
+                            <th className="px-6 py-4">Entity</th>
+                            <th className="px-6 py-4">Details</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {activityLogs.map(log => (
+                            <tr key={log.id} className="hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                              <td className="px-6 py-4 text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                {new Date(log.timestamp).toLocaleString('en-IN', {
+                                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                })}
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">
+                                {log.userName}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`inline-flex px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                                  log.action === 'Create' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                                  log.action === 'Update' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                  log.action === 'Delete' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
+                                  'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                                }`}>
+                                  {log.action}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                {log.entityType}
+                              </td>
+                              <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-400">
+                                {log.details}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
 
           </div>
