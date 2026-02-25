@@ -18,7 +18,10 @@ import {
   Lock,
   Layers,
   Warehouse,
-  MoveHorizontal
+  MoveHorizontal,
+  Truck,
+  Link,
+  Users
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Material, MaterialUnit, StockHistoryEntry } from '../types';
