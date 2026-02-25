@@ -13,7 +13,6 @@ import { InvoiceManager } from './components/InvoiceManager';
 import { Settings } from './components/Settings';
 import { SupplierPayments } from './components/SupplierPayments';
 import { LaborManager } from './components/LaborManager';
-import { FinancialDashboard } from './components/FinancialDashboard';
 
 const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -22,8 +21,6 @@ const MainApp: React.FC = () => {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
-      case 'financials':
-        return <FinancialDashboard />;
       case 'projects':
         return <ProjectList />;
       case 'labor':
