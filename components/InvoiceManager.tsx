@@ -17,7 +17,7 @@ import { Invoice } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const InvoiceManager: React.FC = () => {
-  const { invoices, projects, addInvoice, updateInvoice, deleteInvoice, incomes } = useApp();
+  const { invoices, projects, addInvoice, updateInvoice, deleteInvoice, incomes, isProjectLocked } = useApp();
   const [showModal, setShowModal] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,7 +36,7 @@ export const InvoiceManager: React.FC = () => {
     const today = new Date().toISOString().split('T')[0];
     const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
     setFormData({
-      projectId: projects.find(p => !p.isGodown)?.id || projects[0]?.id || '',
+      projectId: projects.find(p => !p.isGodown && p.status !== 'Completed')?.id || projects.find(p => !p.isGodown)?.id || projects[0]?.id || '',
       amount: '',
       date: today,
       dueDate: nextWeek,
@@ -287,7 +287,11 @@ export const InvoiceManager: React.FC = () => {
                   required
                 >
                   <option value="" disabled>Choose site...</option>
-                  {projects.filter(p => !p.isGodown).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {projects.filter(p => !p.isGodown).map(p => (
+                    <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>
+                      {p.name} {p.status === 'Completed' ? '(Completed - Locked)' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
 
