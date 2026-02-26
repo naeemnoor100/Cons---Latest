@@ -238,15 +238,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: [...prev.projects, p] }), 'Create', 'Project', p.id, `Created project: ${p.name}`), [dispatchUpdate]);
   const updateProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.map(proj => proj.id === p.id ? p : proj) }), 'Update', 'Project', p.id, `Updated project: ${p.name}`), [dispatchUpdate]);
-  const deleteProject = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== id) }), 'Delete', 'Project', id, `Deleted project`), [dispatchUpdate]);
+  const deleteProject = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== id) }), 'Delete', 'Project', id, `Deleted project`);
+  }, [dispatchUpdate]);
   
   const addVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: [...prev.vendors, v] }), 'Create', 'Vendor', v.id, `Created vendor: ${v.name}`), [dispatchUpdate]);
   const updateVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.map(vend => vend.id === v.id ? v : vend) }), 'Update', 'Vendor', v.id, `Updated vendor: ${v.name}`), [dispatchUpdate]);
-  const deleteVendor = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.filter(v => v.id !== id) }), 'Delete', 'Vendor', id, `Deleted vendor`), [dispatchUpdate]);
+  const deleteVendor = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.filter(v => v.id !== id) }), 'Delete', 'Vendor', id, `Deleted vendor`);
+  }, [dispatchUpdate]);
 
   const addMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: [...prev.materials, m] }), 'Create', 'Material', m.id, `Created material: ${m.name}`), [dispatchUpdate]);
   const updateMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.map(mat => mat.id === m.id ? m : mat) }), 'Update', 'Material', m.id, `Updated material: ${m.name}`), [dispatchUpdate]);
-  const deleteMaterial = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.filter(m => m.id !== id) }), 'Delete', 'Material', id, `Deleted material`), [dispatchUpdate]);
+  const deleteMaterial = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => ({ ...prev, materials: prev.materials.filter(m => m.id !== id) }), 'Delete', 'Material', id, `Deleted material`);
+  }, [dispatchUpdate]);
 
   const addExpense = useCallback(async (e: Expense) => dispatchUpdate(prev => {
     let nextVendors = [...prev.vendors];
@@ -336,7 +345,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, 'Update', 'Expense', e.id, `Updated expense of ${e.amount}`), [dispatchUpdate]);
 
-  const deleteExpense = useCallback(async (id: string) => dispatchUpdate(prev => {
+  const deleteExpense = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => {
     const expToDelete = prev.expenses.find(x => x.id === id);
     if (!expToDelete) return prev;
 
@@ -365,7 +376,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       materials: nextMaterials,
       vendors: nextVendors
     };
-  }, 'Delete', 'Expense', id, `Deleted expense`), [dispatchUpdate]);
+  }, 'Delete', 'Expense', id, `Deleted expense`);
+  }, [dispatchUpdate]);
 
   const addPayment = useCallback(async (p: Payment) => dispatchUpdate(prev => {
     const nextVendors = prev.vendors.map(v => v.id === p.vendorId ? { ...v, balance: v.balance - p.amount } : v);
@@ -506,7 +518,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, 'Update', 'Payment', p.id, `Updated payment of ${p.amount}`), [dispatchUpdate]);
 
-  const deletePayment = useCallback(async (id: string) => dispatchUpdate(prev => {
+  const deletePayment = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => {
     const payToDelete = prev.payments.find(x => x.id === id);
     let nextVendors = [...prev.vendors];
     
@@ -523,19 +537,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: nextPayments,
       vendors: nextVendors
     };
-  }, 'Delete', 'Payment', id, `Deleted payment`), [dispatchUpdate]);
+  }, 'Delete', 'Payment', id, `Deleted payment`);
+  }, [dispatchUpdate]);
 
   const addIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: [...prev.incomes, i] }), 'Create', 'Income', i.id, `Recorded income of ${i.amount}`), [dispatchUpdate]);
   const updateIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.map(inc => inc.id === i.id ? i : inc) }), 'Update', 'Income', i.id, `Updated income of ${i.amount}`), [dispatchUpdate]);
-  const deleteIncome = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.filter(i => i.id !== id) }), 'Delete', 'Income', id, `Deleted income`), [dispatchUpdate]);
+  const deleteIncome = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.filter(i => i.id !== id) }), 'Delete', 'Income', id, `Deleted income`);
+  }, [dispatchUpdate]);
 
   const addInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: [...prev.invoices, inv] }), 'Create', 'Invoice', inv.id, `Generated invoice for ${inv.amount}`), [dispatchUpdate]);
   const updateInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? inv : i) }), 'Update', 'Invoice', inv.id, `Updated invoice for ${inv.amount}`), [dispatchUpdate]);
-  const deleteInvoice = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }), 'Delete', 'Invoice', id, `Deleted invoice`), [dispatchUpdate]);
+  const deleteInvoice = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }), 'Delete', 'Invoice', id, `Deleted invoice`);
+  }, [dispatchUpdate]);
 
   const addEmployee = useCallback(async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: [...prev.employees, emp] }), 'Create', 'Employee', emp.id, `Added employee: ${emp.name}`), [dispatchUpdate]);
   const updateEmployee = useCallback(async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.map(e => e.id === emp.id ? emp : e) }), 'Update', 'Employee', emp.id, `Updated employee: ${emp.name}`), [dispatchUpdate]);
-  const deleteEmployee = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) }), 'Delete', 'Employee', id, `Deleted employee`), [dispatchUpdate]);
+  const deleteEmployee = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) }), 'Delete', 'Employee', id, `Deleted employee`);
+  }, [dispatchUpdate]);
 
   const addLaborLog = useCallback(async (log: LaborLog) => dispatchUpdate(prev => {
     const employee = prev.employees.find(e => e.id === log.employeeId);
@@ -569,14 +593,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ...prev, laborLogs: prev.laborLogs.map(l => l.id === log.id ? log : l), expenses: nextExpenses };
   }, 'Update', 'LaborLog', log.id, `Updated labor log for ${log.hoursWorked} hours`), [dispatchUpdate]);
 
-  const deleteLaborLog = useCallback(async (id: string) => dispatchUpdate(prev => {
-    const expenseId = 'exp-labor-' + id;
-    return { ...prev, laborLogs: prev.laborLogs.filter(l => l.id !== id), expenses: prev.expenses.filter(exp => exp.id !== expenseId) };
-  }, 'Delete', 'LaborLog', id, `Deleted labor log`), [dispatchUpdate]);
+  const deleteLaborLog = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => {
+      const expenseId = 'exp-labor-' + id;
+      return { ...prev, laborLogs: prev.laborLogs.filter(l => l.id !== id), expenses: prev.expenses.filter(exp => exp.id !== expenseId) };
+    }, 'Delete', 'LaborLog', id, `Deleted labor log`);
+  }, [dispatchUpdate]);
 
   const addLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: [...prev.laborPayments, pay] }), 'Create', 'LaborPayment', pay.id, `Recorded labor payment of ${pay.amount}`), [dispatchUpdate]);
   const updateLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.map(p => p.id === pay.id ? pay : p) }), 'Update', 'LaborPayment', pay.id, `Updated labor payment of ${pay.amount}`), [dispatchUpdate]);
-  const deleteLaborPayment = useCallback(async (id: string) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.filter(p => p.id !== id) }), 'Delete', 'LaborPayment', id, `Deleted labor payment`), [dispatchUpdate]);
+  const deleteLaborPayment = useCallback(async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    return dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.filter(p => p.id !== id) }), 'Delete', 'LaborPayment', id, `Deleted labor payment`);
+  }, [dispatchUpdate]);
 
   const forceSync = useCallback(async () => loadFromDB(), [loadFromDB]);
 
