@@ -20,8 +20,7 @@ import {
   Warehouse,
   MoveHorizontal,
   Truck,
-  Link,
-  Users
+  Link
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Material, MaterialUnit, StockHistoryEntry } from '../types';
@@ -121,7 +120,8 @@ export const Inventory: React.FC = () => {
     projectId: '', 
     quantity: '', 
     date: new Date().toISOString().split('T')[0], 
-    notes: ''
+    notes: '',
+    filterMaterialId: ''
   });
 
   const [editFormData, setEditFormData] = useState({
@@ -143,7 +143,9 @@ export const Inventory: React.FC = () => {
     }
     const batches: BatchItem[] = [];
     
-    materials.forEach(mat => {
+    const filteredMaterials = usageData.filterMaterialId ? materials.filter(m => m.id === usageData.filterMaterialId) : materials;
+
+    filteredMaterials.forEach(mat => {
       const history = mat.history || [];
       const inwardEntries = history.filter(h => (h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0);
       
@@ -157,24 +159,29 @@ export const Inventory: React.FC = () => {
 
         if (availableInBatch > 0) {
           const vendor = vendors.find(v => v.id === inward.vendorId);
-          const vName = vendor?.name || (inward.type === 'Transfer' ? 'Inbound Transfer' : 'Standard Supplier');
-          batches.push({
-            id: mat.id,
-            name: mat.name,
-            unit: mat.unit,
-            batchId: batchId,
-            vendorName: vName,
-            vendorId: inward.vendorId,
-            unitPrice: inward.unitPrice || mat.costPerUnit,
-            available: availableInBatch,
-            isLocal: inward.projectId === usageData.projectId
-          });
+          if (!vendor || vendor.isActive !== false) {
+            const vName = vendor?.name || (inward.type === 'Transfer' ? 'Inbound Transfer' : 'Standard Supplier');
+            batches.push({
+              id: mat.id,
+              name: mat.name,
+              unit: mat.unit,
+              batchId: batchId,
+              vendorName: vName,
+              vendorId: inward.vendorId,
+              unitPrice: inward.unitPrice || mat.costPerUnit,
+              available: availableInBatch,
+              isLocal: inward.projectId === usageData.projectId
+            });
+          }
         }
       });
     });
 
-    return batches.sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
-  }, [materials, usageData.projectId, vendors]);
+    return batches.sort((a, b) => {
+      if (a.isLocal !== b.isLocal) return a.isLocal ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [materials, usageData.projectId, usageData.filterMaterialId, vendors]);
 
   const transferSourceMaterials = useMemo(() => {
     if (!transferData.sourceProjectId) return [];
@@ -199,24 +206,26 @@ export const Inventory: React.FC = () => {
         const totalDeductedFromBatch = Math.abs(deductionsAgainstThisBatch.reduce((sum, d) => sum + d.quantity, 0));
         const availableInBatch = inward.quantity - totalDeductedFromBatch;
 
-        if (availableInBatch > 0) {
+        if (availableInBatch > 0 && inward.projectId === transferData.sourceProjectId) {
           const vendor = vendors.find(v => v.id === inward.vendorId);
-          const vName = vendor?.name || (inward.type === 'Transfer' ? 'Inbound Stock' : 'Standard Supplier');
-          batches.push({
-            id: mat.id,
-            name: mat.name,
-            unit: mat.unit,
-            batchId: batchId,
-            vendorName: vName,
-            vendorId: inward.vendorId,
-            unitPrice: inward.unitPrice || mat.costPerUnit,
-            available: availableInBatch,
-            isLocal: inward.projectId === transferData.sourceProjectId
-          });
+          if (!vendor || vendor.isActive !== false) {
+            const vName = vendor?.name || (inward.type === 'Transfer' ? 'Inbound Stock' : 'Standard Supplier');
+            batches.push({
+              id: mat.id,
+              name: mat.name,
+              unit: mat.unit,
+              batchId: batchId,
+              vendorName: vName,
+              vendorId: inward.vendorId,
+              unitPrice: inward.unitPrice || mat.costPerUnit,
+              available: availableInBatch,
+              isLocal: true
+            });
+          }
         }
       });
     });
-    return batches.sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
+    return batches.sort((a, b) => a.name.localeCompare(b.name));
   }, [materials, transferData.sourceProjectId, vendors]);
 
   const selectedBatchForTotal = useMemo(() => {
@@ -251,7 +260,7 @@ export const Inventory: React.FC = () => {
   };
 
   const handleOpenUsageModal = (materialId?: string, projectId?: string) => {
-    setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || projects.find(p => !p.isGodown)?.id || projects[0]?.id || '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '' });
+    setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || projects.find(p => !p.isGodown)?.id || projects[0]?.id || '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '', filterMaterialId: materialId || '' });
     setShowUsageModal(true);
   };
 
@@ -772,7 +781,7 @@ export const Inventory: React.FC = () => {
                    >
                       <option value="|">Choose source material...</option>
                       {transferSourceMaterials.map((batch, idx) => (
-                        <option key={idx} value={`${batch.id}|${batch.batchId}`} className={batch.isLocal ? 'text-emerald-600 font-bold' : ''}>
+                        <option key={idx} value={`${batch.id}|${batch.batchId}`} className="text-emerald-600 font-bold">
                           {batch.name} / {batch.vendorName} / {formatCurrency(batch.unitPrice)} / {batch.available} {batch.unit} Available
                         </option>
                       ))}
@@ -953,10 +962,11 @@ export const Inventory: React.FC = () => {
                         <tr>
                           <th className="px-8 py-5">Log Date</th>
                           <th className="px-8 py-5">Hub Activity Details</th>
+                          <th className="px-8 py-5">Vendor</th>
                           <th className="px-8 py-5">Stock Flux</th>
                           <th className="px-8 py-5 text-right">Hub Value Date</th>
                           <th className="px-8 py-5 text-right">Est. Hub Value</th>
-                          <th className="px-8 py-5">Entity Allocation</th>
+                          <th className="px-8 py-5">Project Allocation</th>
                           <th className="px-8 py-5 text-right">Control</th>
                         </tr>
                       </thead>
@@ -977,6 +987,7 @@ export const Inventory: React.FC = () => {
                                 </div>
                                 <p className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold mt-1">{entry.note}</p>
                               </td>
+                              <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{vendor?.name || 'N/A'}</td>
                               <td className="px-8 py-5"><span className={`text-sm font-black ${entry.quantity > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{entry.quantity > 0 ? '+' : ''}{entry.quantity.toLocaleString()} {historyMaterial!.unit}</span></td>
                               <td className="px-8 py-5 text-right font-bold text-slate-600 dark:text-slate-400">
                                 <div className="flex flex-col items-end">
@@ -986,7 +997,7 @@ export const Inventory: React.FC = () => {
                               <td className="px-8 py-5 text-right font-black text-slate-800 dark:text-slate-200">
                                 {formatCurrency(Math.abs(entry.quantity) * activeUnitPrice)}
                               </td>
-                              <td className="px-8 py-5"><div className="flex flex-col gap-1">{project && <span className={`text-[11px] font-bold uppercase tracking-tight flex items-center gap-1 ${project.isGodown ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>{project.isGodown ? <Warehouse size={12} className="text-emerald-500"/> : <Briefcase size={12} className="text-blue-500"/>} {project.name}</span>}{vendor && <span className="text-[11px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-tighter flex items-center gap-1"><Users size={12} className="text-emerald-500"/> {vendor.name}</span>}</div></td>
+                              <td className="px-8 py-5"><div className="flex flex-col gap-1">{project && <span className={`text-[11px] font-bold uppercase tracking-tight flex items-center gap-1 ${project.isGodown ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>{project.isGodown ? <Warehouse size={12} className="text-emerald-500"/> : <Briefcase size={12} className="text-blue-500"/>} {project.name}</span>}</div></td>
                               <td className="px-8 py-5 text-right"><div className="flex justify-end gap-1"><button onClick={() => triggerHistoryEdit(entry)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors"><Pencil size={16} /></button><button onClick={() => handleDeleteHistoryEntry(historyMaterial!, entry.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button></div></td>
                             </tr>
                           );
