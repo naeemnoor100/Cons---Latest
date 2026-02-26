@@ -40,6 +40,12 @@ export const ProjectList: React.FC = () => {
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<'breakdown' | 'expenses' | 'income' | 'arrivals' | 'invoices' | 'budget' | 'labor'>('breakdown');
   
+  const [arrivalsFilters, setArrivalsFilters] = useState({ date: '', material: '', arrived: '', inHand: '' });
+  const [expensesFilters, setExpensesFilters] = useState({ date: '', details: '', quantity: '', amount: '' });
+  const [incomeFilters, setIncomeFilters] = useState({ date: '', description: '', method: '', amount: '' });
+  const [invoicesFilters, setInvoicesFilters] = useState({ inv: '', date: '', description: '', status: '', value: '' });
+  const [laborFilters, setLaborFilters] = useState({ date: '', employee: '', role: '', status: '', wage: '' });
+
   const [showQuickIncome, setShowQuickIncome] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showInventoryUsageModal, setShowInventoryUsageModal] = useState(false);
@@ -262,14 +268,14 @@ export const ProjectList: React.FC = () => {
   };
 
   const constructionSites = useMemo(() => {
-    const query = searchQuery.toLowerCase();
+    const query = (searchQuery || '').toLowerCase();
     return projects
       .filter(p => {
         const isSite = !p.isGodown;
         const matchesStatus = filter === 'All' || p.status === filter;
-        const matchesSearch = p.name.toLowerCase().includes(query) || 
-                             p.location.toLowerCase().includes(query) ||
-                             p.client.toLowerCase().includes(query);
+        const matchesSearch = (p.name || '').toLowerCase().includes(query) || 
+                             (p.location || '').toLowerCase().includes(query) ||
+                             (p.client || '').toLowerCase().includes(query);
         return isSite && matchesStatus && matchesSearch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -361,8 +367,8 @@ export const ProjectList: React.FC = () => {
       });
     });
     return batches.filter(b => {
-      const term = usageMaterialSearch.toLowerCase();
-      return b.name.toLowerCase().includes(term) || b.vendorName.toLowerCase().includes(term);
+      const term = (usageMaterialSearch || '').toLowerCase();
+      return (b.name || '').toLowerCase().includes(term) || (b.vendorName || '').toLowerCase().includes(term);
     }).sort((a, b) => {
       if (a.isLocal !== b.isLocal) return a.isLocal ? -1 : 1;
       return a.name.localeCompare(b.name);
@@ -378,8 +384,8 @@ export const ProjectList: React.FC = () => {
     
     let targetMaterialId = arrivalFormData.materialId;
     if (targetMaterialId === 'new') {
-      const normalizedNewName = arrivalFormData.newMaterialName.replace(/[\s.]/g, '').toLowerCase();
-      const duplicate = materials.find(m => m.name.replace(/[\s.]/g, '').toLowerCase() === normalizedNewName);
+      const normalizedNewName = (arrivalFormData.newMaterialName || '').replace(/[\s.]/g, '').toLowerCase();
+      const duplicate = materials.find(m => (m.name || '').replace(/[\s.]/g, '').toLowerCase() === normalizedNewName);
       if (duplicate) {
         alert(`This material already exists as "${duplicate.name}". Please select it from the dropdown instead of creating a new one.`);
         return;
@@ -933,19 +939,74 @@ export const ProjectList: React.FC = () => {
                        <table className="w-full text-left min-w-[800px]">
                         <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                           {activeDetailTab === 'arrivals' ? (
-                            <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Material Asset</th><th className="px-8 py-5 text-center">Arrived</th><th className="px-8 py-5 text-center">In Hand</th><th className="px-8 py-5 text-right">Operations</th></tr>
+                            <>
+                              <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Material Asset</th><th className="px-8 py-5 text-center">Arrived</th><th className="px-8 py-5 text-center">In Hand</th><th className="px-8 py-5 text-right">Operations</th></tr>
+                              <tr className="bg-slate-100/50 dark:bg-slate-800/50">
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={arrivalsFilters.date} onChange={e => setArrivalsFilters({...arrivalsFilters, date: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={arrivalsFilters.material} onChange={e => setArrivalsFilters({...arrivalsFilters, material: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-center" value={arrivalsFilters.arrived} onChange={e => setArrivalsFilters({...arrivalsFilters, arrived: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-center" value={arrivalsFilters.inHand} onChange={e => setArrivalsFilters({...arrivalsFilters, inHand: e.target.value})} /></th>
+                                <th className="px-4 py-2"></th>
+                              </tr>
+                            </>
                           ) : activeDetailTab === 'expenses' ? (
-                            <tr><th className="px-8 py-5">Value Date</th><th className="px-8 py-5">Details</th><th className="px-8 py-5 text-center">Quantity</th><th className="px-8 py-5 text-right">Amount</th><th className="px-8 py-5 text-right">Control</th></tr>
+                            <>
+                              <tr><th className="px-8 py-5">Value Date</th><th className="px-8 py-5">Details</th><th className="px-8 py-5 text-center">Quantity</th><th className="px-8 py-5 text-right">Amount</th><th className="px-8 py-5 text-right">Control</th></tr>
+                              <tr className="bg-slate-100/50 dark:bg-slate-800/50">
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={expensesFilters.date} onChange={e => setExpensesFilters({...expensesFilters, date: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={expensesFilters.details} onChange={e => setExpensesFilters({...expensesFilters, details: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-center" value={expensesFilters.quantity} onChange={e => setExpensesFilters({...expensesFilters, quantity: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-right" value={expensesFilters.amount} onChange={e => setExpensesFilters({...expensesFilters, amount: e.target.value})} /></th>
+                                <th className="px-4 py-2"></th>
+                              </tr>
+                            </>
                           ) : activeDetailTab === 'income' ? (
-                            <tr><th className="px-8 py-5">Value Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Method</th><th className="px-8 py-5 text-right">Amount</th><th className="px-8 py-5 text-right">Control</th></tr>
+                            <>
+                              <tr><th className="px-8 py-5">Value Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Method</th><th className="px-8 py-5 text-right">Amount</th><th className="px-8 py-5 text-right">Control</th></tr>
+                              <tr className="bg-slate-100/50 dark:bg-slate-800/50">
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={incomeFilters.date} onChange={e => setIncomeFilters({...incomeFilters, date: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={incomeFilters.description} onChange={e => setIncomeFilters({...incomeFilters, description: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={incomeFilters.method} onChange={e => setIncomeFilters({...incomeFilters, method: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-right" value={incomeFilters.amount} onChange={e => setIncomeFilters({...incomeFilters, amount: e.target.value})} /></th>
+                                <th className="px-4 py-2"></th>
+                              </tr>
+                            </>
                           ) : activeDetailTab === 'invoices' ? (
-                            <tr><th className="px-8 py-5">Inv #</th><th className="px-8 py-5">Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Bill Value</th><th className="px-8 py-5 text-right">Control</th></tr>
+                            <>
+                              <tr><th className="px-8 py-5">Inv #</th><th className="px-8 py-5">Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Bill Value</th><th className="px-8 py-5 text-right">Control</th></tr>
+                              <tr className="bg-slate-100/50 dark:bg-slate-800/50">
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={invoicesFilters.inv} onChange={e => setInvoicesFilters({...invoicesFilters, inv: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={invoicesFilters.date} onChange={e => setInvoicesFilters({...invoicesFilters, date: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={invoicesFilters.description} onChange={e => setInvoicesFilters({...invoicesFilters, description: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={invoicesFilters.status} onChange={e => setInvoicesFilters({...invoicesFilters, status: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-right" value={invoicesFilters.value} onChange={e => setInvoicesFilters({...invoicesFilters, value: e.target.value})} /></th>
+                                <th className="px-4 py-2"></th>
+                              </tr>
+                            </>
                           ) : activeDetailTab === 'labor' ? (
-                            <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Employee</th><th className="px-8 py-5">Role</th><th className="px-8 py-5 text-center">Status</th><th className="px-8 py-5 text-right">Wage</th></tr>
+                            <>
+                              <tr><th className="px-8 py-5">Date</th><th className="px-8 py-5">Employee</th><th className="px-8 py-5">Role</th><th className="px-8 py-5 text-center">Status</th><th className="px-8 py-5 text-right">Wage</th></tr>
+                              <tr className="bg-slate-100/50 dark:bg-slate-800/50">
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={laborFilters.date} onChange={e => setLaborFilters({...laborFilters, date: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={laborFilters.employee} onChange={e => setLaborFilters({...laborFilters, employee: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={laborFilters.role} onChange={e => setLaborFilters({...laborFilters, role: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-center" value={laborFilters.status} onChange={e => setLaborFilters({...laborFilters, status: e.target.value})} /></th>
+                                <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500 text-right" value={laborFilters.wage} onChange={e => setLaborFilters({...laborFilters, wage: e.target.value})} /></th>
+                              </tr>
+                            </>
                           ) : null}
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                           {activeDetailTab === 'arrivals' && projectArrivals.map((arrival, idx) => (
+                           {activeDetailTab === 'arrivals' && projectArrivals.filter(a => {
+                             const d = (new Date(a.entry.date).toLocaleDateString() || '').toLowerCase();
+                             const m = (a.material?.name || '').toLowerCase();
+                             const arr = (a.arrived || '').toString();
+                             const rem = (a.remaining || '').toString();
+                             return d.includes((arrivalsFilters.date || '').toLowerCase()) &&
+                                    m.includes((arrivalsFilters.material || '').toLowerCase()) &&
+                                    arr.includes(arrivalsFilters.arrived || '') &&
+                                    rem.includes(arrivalsFilters.inHand || '');
+                           }).map((arrival, idx) => (
                              <tr key={`${arrival.material.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
                                <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(arrival.entry.date).toLocaleDateString()}</td>
                                <td className="px-8 py-5">
@@ -1001,7 +1062,16 @@ export const ProjectList: React.FC = () => {
                                </td>
                              </tr>
                            ))}
-                           {activeDetailTab === 'expenses' && viewingProjectMetrics.allExpenses.filter(e => e.inventoryAction !== 'Purchase' && e.inventoryAction !== 'Transfer').slice().reverse().map(e => (
+                           {activeDetailTab === 'expenses' && viewingProjectMetrics.allExpenses.filter(e => e.inventoryAction !== 'Purchase' && e.inventoryAction !== 'Transfer').slice().reverse().filter(e => {
+                             const d = (new Date(e.date).toLocaleDateString() || '').toLowerCase();
+                             const det = (e.materialId ? materials.find(m => m.id === e.materialId)?.name : e.category)?.toLowerCase() || '';
+                             const q = e.materialQuantity ? Math.abs(e.materialQuantity).toString() : '';
+                             const a = (e.amount || '').toString();
+                             return d.includes((expensesFilters.date || '').toLowerCase()) &&
+                                    det.includes((expensesFilters.details || '').toLowerCase()) &&
+                                    q.includes(expensesFilters.quantity || '') &&
+                                    a.includes(expensesFilters.amount || '');
+                           }).map(e => (
                              <tr key={e.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group/row">
                                <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(e.date).toLocaleDateString()}</td>
                                <td className="px-8 py-5">
@@ -1013,7 +1083,16 @@ export const ProjectList: React.FC = () => {
                                <td className="px-8 py-5 text-right"><button onClick={() => deleteExpense(e.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button></td>
                              </tr>
                            ))}
-                           {activeDetailTab === 'income' && incomes.filter(i => i.projectId === viewingProject.id).slice().reverse().map(inc => (
+                           {activeDetailTab === 'income' && incomes.filter(i => i.projectId === viewingProject.id).slice().reverse().filter(inc => {
+                             const d = (new Date(inc.date).toLocaleDateString() || '').toLowerCase();
+                             const desc = (inc.description || '').toLowerCase();
+                             const m = (inc.method || '').toLowerCase();
+                             const a = (inc.amount || '').toString();
+                             return d.includes((incomeFilters.date || '').toLowerCase()) &&
+                                    desc.includes((incomeFilters.description || '').toLowerCase()) &&
+                                    m.includes((incomeFilters.method || '').toLowerCase()) &&
+                                    a.includes(incomeFilters.amount || '');
+                           }).map(inc => (
                              <tr key={inc.id} className="hover:bg-slate-50/50 transition-colors group">
                                 <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(inc.date).toLocaleDateString()}</td>
                                 <td className="px-8 py-5">
@@ -1030,7 +1109,18 @@ export const ProjectList: React.FC = () => {
                                 </td>
                              </tr>
                            ))}
-                           {activeDetailTab === 'invoices' && viewingProjectMetrics.invoices.slice().reverse().map(inv => {
+                           {activeDetailTab === 'invoices' && viewingProjectMetrics.invoices.slice().reverse().filter(inv => {
+                             const i = (inv.id?.slice(-6) || '').toLowerCase();
+                             const d = (new Date(inv.date).toLocaleDateString() || '').toLowerCase();
+                             const desc = (inv.description || '').toLowerCase();
+                             const s = getInvoiceMetrics(inv).isPaid ? 'paid' : 'unpaid';
+                             const v = (inv.amount || '').toString();
+                             return i.includes((invoicesFilters.inv || '').toLowerCase()) &&
+                                    d.includes((invoicesFilters.date || '').toLowerCase()) &&
+                                    desc.includes((invoicesFilters.description || '').toLowerCase()) &&
+                                    s.includes((invoicesFilters.status || '').toLowerCase()) &&
+                                    v.includes(invoicesFilters.value || '');
+                           }).map(inv => {
                              const { remaining, isPaid } = getInvoiceMetrics(inv);
                              return (
                                <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : 'hover:bg-slate-50/50'}`}>
@@ -1056,7 +1146,19 @@ export const ProjectList: React.FC = () => {
                                </tr>
                              );
                            })}
-                           {activeDetailTab === 'labor' && laborLogs.filter(l => l.projectId === viewingProject.id).slice().reverse().map(log => {
+                           {activeDetailTab === 'labor' && laborLogs.filter(l => l.projectId === viewingProject.id).slice().reverse().filter(log => {
+                             const d = (new Date(log.date).toLocaleDateString() || '').toLowerCase();
+                             const emp = employees.find(e => e.id === log.employeeId);
+                             const eName = (emp?.name || '').toLowerCase();
+                             const r = (emp?.role || '').toLowerCase();
+                             const s = (log.status || '').toLowerCase();
+                             const w = (log.wageAmount || '').toString();
+                             return d.includes((laborFilters.date || '').toLowerCase()) &&
+                                    eName.includes((laborFilters.employee || '').toLowerCase()) &&
+                                    r.includes((laborFilters.role || '').toLowerCase()) &&
+                                    s.includes((laborFilters.status || '').toLowerCase()) &&
+                                    w.includes(laborFilters.wage || '');
+                           }).map(log => {
                              const emp = employees.find(e => e.id === log.employeeId);
                              if (!emp) return null;
                              return (
