@@ -1250,12 +1250,12 @@ export const ProjectList: React.FC = () => {
                 <form onSubmit={handleQuickIncomeSubmit} className="p-8 space-y-5">
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Link to Receivable Invoice</label>
-                      <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none transition-all focus:ring-2 focus:ring-emerald-500" value={incomeFormData.invoiceId} onChange={e => {
+                      <select required disabled={!!editingIncome} className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none transition-all focus:ring-2 focus:ring-emerald-500 ${editingIncome ? 'opacity-50 cursor-not-allowed' : ''}`} value={incomeFormData.invoiceId} onChange={e => {
                         const invId = e.target.value;
                         const inv = projectInvoicesForIncomeLink.find(i => i.id === invId);
                         if (inv) {
                           const { remaining } = getInvoiceMetrics(inv);
-                          const limit = remaining + (editingIncome?.amount || 0);
+                          const limit = remaining + (editingIncome?.invoiceId === inv.id ? editingIncome.amount : 0);
                           setIncomeFormData(p => ({ ...p, invoiceId: invId, amount: limit.toString(), description: `Collection for Invoice #${inv.id.slice(-6).toUpperCase()}` }));
                         } else {
                           setIncomeFormData(p => ({ ...p, invoiceId: '' }));
@@ -1264,7 +1264,7 @@ export const ProjectList: React.FC = () => {
                         <option value="">Choose target invoice...</option>
                         {projectInvoicesForIncomeLink.map(inv => {
                           const { remaining } = getInvoiceMetrics(inv);
-                          const limit = remaining + (editingIncome?.amount || 0);
+                          const limit = remaining + (editingIncome?.invoiceId === inv.id ? editingIncome.amount : 0);
                           return <option key={inv.id} value={inv.id}>{inv.description} | Balance: {formatCurrency(limit)} | #{inv.id.slice(-6).toUpperCase()}</option>;
                         })}
                       </select>
