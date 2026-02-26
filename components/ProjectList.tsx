@@ -1264,8 +1264,7 @@ export const ProjectList: React.FC = () => {
                         <option value="">Choose target invoice...</option>
                         {projectInvoicesForIncomeLink.map(inv => {
                           const { remaining } = getInvoiceMetrics(inv);
-                          const limit = remaining + (editingIncome?.invoiceId === inv.id ? editingIncome.amount : 0);
-                          return <option key={inv.id} value={inv.id}>{inv.description} | Balance: {formatCurrency(limit)} | #{inv.id.slice(-6).toUpperCase()}</option>;
+                          return <option key={inv.id} value={inv.id}>{inv.description} | Balance: {formatCurrency(remaining)} | #{inv.id.slice(-6).toUpperCase()}</option>;
                         })}
                       </select>
                    </div>
