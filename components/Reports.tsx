@@ -35,6 +35,100 @@ export const Reports: React.FC = () => {
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
   const [summaryProjectId, setSummaryProjectId] = useState<string>(projects[0]?.id || '');
 
+  const [summaryMaterialId, setSummaryMaterialId] = useState<string>('');
+  const [summaryVendorId, setSummaryVendorId] = useState<string>('');
+
+  const activeSummaryMaterialId = summaryMaterialId || materials[0]?.id || '';
+  const activeSummaryVendorId = summaryVendorId || vendors[0]?.id || '';
+
+  const materialLocatorData = useMemo(() => {
+    if (!activeSummaryMaterialId) return null;
+    const mat = materials.find(m => m.id === activeSummaryMaterialId);
+    if (!mat) return null;
+
+    const projectStocks: Record<string, { projectName: string, quantity: number, value: number, unit: string, lastUpdated: string }> = {};
+
+    const hist = mat.history || [];
+    hist.forEach(h => {
+      if ((h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0) {
+        const batchId = h.id.replace('sh-exp-', '');
+        const deductions = hist.filter(d => 
+          d.parentPurchaseId === batchId && d.projectId === h.projectId && d.quantity < 0
+        );
+        const qtyUsed = Math.abs(deductions.filter(d => d.type === 'Usage').reduce((sum, d) => sum + d.quantity, 0));
+        const qtyMoved = Math.abs(deductions.filter(d => d.type === 'Transfer').reduce((sum, d) => sum + d.quantity, 0));
+        
+        const remaining = h.quantity - (qtyUsed + qtyMoved);
+        
+        if (remaining > 0) {
+          if (!projectStocks[h.projectId]) {
+            const proj = projects.find(p => p.id === h.projectId);
+            projectStocks[h.projectId] = { projectName: proj ? proj.name : 'Unknown', quantity: 0, value: 0, unit: mat.unit, lastUpdated: h.date };
+          }
+          projectStocks[h.projectId].quantity += remaining;
+          projectStocks[h.projectId].value += remaining * (h.unitPrice || mat.costPerUnit);
+          if (new Date(h.date) > new Date(projectStocks[h.projectId].lastUpdated)) {
+            projectStocks[h.projectId].lastUpdated = h.date;
+          }
+        }
+      }
+    });
+
+    return {
+      material: mat,
+      stocks: Object.values(projectStocks).sort((a, b) => b.value - a.value)
+    };
+  }, [activeSummaryMaterialId, materials, projects, summaryMaterialId]);
+
+  const vendorDistributionData = useMemo(() => {
+    if (!activeSummaryVendorId) return null;
+    const vendor = vendors.find(v => v.id === activeSummaryVendorId);
+    if (!vendor) return null;
+    
+    const distribution: Record<string, { projectName: string, materials: Record<string, { matName: string, quantity: number, value: number, unit: string, lastSupplied: string }> }> = {};
+
+    materials.forEach(mat => {
+      const hist = mat.history || [];
+      hist.forEach(h => {
+        if (h.type === 'Purchase' && h.vendorId === summaryVendorId && h.quantity > 0) {
+          if (!distribution[h.projectId]) {
+            const proj = projects.find(p => p.id === h.projectId);
+            distribution[h.projectId] = { projectName: proj ? proj.name : 'Unknown', materials: {} };
+          }
+          
+          if (!distribution[h.projectId].materials[mat.id]) {
+            distribution[h.projectId].materials[mat.id] = { matName: mat.name, quantity: 0, value: 0, unit: mat.unit, lastSupplied: h.date };
+          }
+          
+          distribution[h.projectId].materials[mat.id].quantity += h.quantity;
+          distribution[h.projectId].materials[mat.id].value += h.quantity * (h.unitPrice || mat.costPerUnit);
+          if (new Date(h.date) > new Date(distribution[h.projectId].materials[mat.id].lastSupplied)) {
+            distribution[h.projectId].materials[mat.id].lastSupplied = h.date;
+          }
+        }
+      });
+    });
+
+    const rows: { projectName: string, matName: string, quantity: number, value: number, unit: string, lastSupplied: string }[] = [];
+    Object.values(distribution).forEach(proj => {
+      Object.values(proj.materials).forEach(m => {
+        rows.push({
+          projectName: proj.projectName,
+          matName: m.matName,
+          quantity: m.quantity,
+          value: m.value,
+          unit: m.unit,
+          lastSupplied: m.lastSupplied
+        });
+      });
+    });
+
+    return {
+      vendor,
+      distributions: rows.sort((a, b) => a.projectName.localeCompare(b.projectName))
+    };
+  }, [activeSummaryVendorId, materials, projects, vendors, summaryVendorId]);
+
   const projectSummaryData = useMemo(() => {
     if (!summaryProjectId) return null;
     const project = projects.find(p => p.id === summaryProjectId);
@@ -46,21 +140,35 @@ export const Reports: React.FC = () => {
     const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
     const remainingBudget = project.budget - totalSpent;
 
-    const materialSummary = materials.map(mat => {
-      const history = mat.history || [];
-      const siteEntries = history.filter(h => h.projectId === summaryProjectId);
-      const used = Math.abs(siteEntries.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
-      const inward = siteEntries.filter(h => (h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
-      const remaining = inward - used;
-      return {
-        id: mat.id,
-        name: mat.name,
-        unit: mat.unit,
-        used,
-        remaining,
-        inward
-      };
-    }).filter(m => m.inward > 0 || m.used > 0)
+    const materialSummaryMap: Record<string, { id: string, name: string, unit: string, used: number, remaining: number, inward: number }> = {};
+
+    materials.forEach(mat => {
+      const hist = mat.history || [];
+      hist.forEach(h => {
+        if ((h.type === 'Purchase' || h.type === 'Transfer') && h.projectId === summaryProjectId && h.quantity > 0) {
+          const batchId = h.id.replace('sh-exp-', '');
+          const deductions = hist.filter(d => 
+            d.parentPurchaseId === batchId && d.projectId === summaryProjectId && d.quantity < 0
+          );
+          
+          const qtyUsed = Math.abs(deductions.filter(d => d.type === 'Usage').reduce((sum, d) => sum + d.quantity, 0));
+          const qtyMoved = Math.abs(deductions.filter(d => d.type === 'Transfer').reduce((sum, d) => sum + d.quantity, 0));
+          
+          const arrived = h.quantity;
+          const remaining = arrived - (qtyUsed + qtyMoved);
+
+          if (!materialSummaryMap[mat.id]) {
+            materialSummaryMap[mat.id] = { id: mat.id, name: mat.name, unit: mat.unit, used: 0, remaining: 0, inward: 0 };
+          }
+          materialSummaryMap[mat.id].inward += arrived;
+          materialSummaryMap[mat.id].used += qtyUsed;
+          materialSummaryMap[mat.id].remaining += remaining;
+        }
+      });
+    });
+
+    const materialSummary = Object.values(materialSummaryMap)
+      .filter(m => m.inward > 0 || m.used > 0)
       .filter(m => m.name.toLowerCase().includes(search));
 
     const supplierSummaryMap: Record<string, { name: string; amount: number }> = {};
@@ -743,6 +851,103 @@ export const Reports: React.FC = () => {
               <p className="text-[10px] font-bold uppercase tracking-widest">Select a valid project to see summary</p>
             </div>
           )}
+
+          {/* Global Material Locator & Vendor Distribution */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+            {/* Material Locator */}
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+              <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                  <Package size={18} className="text-blue-600" />
+                  Global Material Locator
+                </h3>
+                <div className="relative w-full sm:w-auto">
+                  <select 
+                    value={activeSummaryMaterialId}
+                    onChange={(e) => setSummaryMaterialId(e.target.value)}
+                    className="w-full sm:w-48 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none appearance-none cursor-pointer pr-8"
+                  >
+                    {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                </div>
+              </div>
+              <div className="overflow-x-auto no-scrollbar max-h-96">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
+                    <tr>
+                      <th className="px-8 py-4">Site / Hub</th>
+                      <th className="px-8 py-4">Last Updated</th>
+                      <th className="px-8 py-4 text-right">Available</th>
+                      <th className="px-8 py-4 text-right">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                    {materialLocatorData?.stocks.length ? materialLocatorData.stocks.map((stock, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{stock.projectName}</td>
+                        <td className="px-8 py-4 text-xs font-bold text-slate-500">{new Date(stock.lastUpdated).toLocaleDateString()}</td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-emerald-600">{stock.quantity.toLocaleString()} {stock.unit}</td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(stock.value)}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={4} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No stock found for this material</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Vendor Distribution */}
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+              <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                  <Users size={18} className="text-emerald-600" />
+                  Global Vendor Supply
+                </h3>
+                <div className="relative w-full sm:w-auto">
+                  <select 
+                    value={activeSummaryVendorId}
+                    onChange={(e) => setSummaryVendorId(e.target.value)}
+                    className="w-full sm:w-48 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none appearance-none cursor-pointer pr-8"
+                  >
+                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                </div>
+              </div>
+              <div className="overflow-x-auto no-scrollbar max-h-96">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
+                    <tr>
+                      <th className="px-8 py-4">Site / Hub</th>
+                      <th className="px-8 py-4">Material</th>
+                      <th className="px-8 py-4">Last Supplied</th>
+                      <th className="px-8 py-4 text-right">Quantity</th>
+                      <th className="px-8 py-4 text-right">Total Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                    {vendorDistributionData?.distributions.length ? vendorDistributionData.distributions.map((dist, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{dist.projectName}</td>
+                        <td className="px-8 py-4 text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">{dist.matName}</td>
+                        <td className="px-8 py-4 text-xs font-bold text-slate-500">{new Date(dist.lastSupplied).toLocaleDateString()}</td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">{dist.quantity.toLocaleString()} {dist.unit}</td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(dist.value)}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={5} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No supply records found for this vendor</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
