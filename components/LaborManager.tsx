@@ -172,12 +172,12 @@ export const LaborManager: React.FC = () => {
   const openEditEmployee = (emp: Employee) => {
     setEditingEmployee(emp);
     setEmployeeFormData({
-      name: emp.name,
-      role: emp.role,
-      phone: emp.phone,
-      dailyWage: emp.dailyWage.toString(),
-      status: emp.status,
-      joiningDate: emp.joiningDate
+      name: emp.name || '',
+      role: emp.role || '',
+      phone: emp.phone || '',
+      dailyWage: (emp.dailyWage || 0).toString(),
+      status: emp.status || 'Active',
+      joiningDate: emp.joiningDate || new Date().toISOString().split('T')[0]
     });
     setShowEmployeeModal(true);
   };
@@ -185,11 +185,11 @@ export const LaborManager: React.FC = () => {
   const openEditLog = (log: LaborLog) => {
     setEditingLog(log);
     setLogFormData({
-      date: log.date,
-      employeeId: log.employeeId,
-      projectId: log.projectId,
-      hoursWorked: log.hoursWorked.toString(),
-      status: log.status,
+      date: log.date || new Date().toISOString().split('T')[0],
+      employeeId: log.employeeId || '',
+      projectId: log.projectId || '',
+      hoursWorked: (log.hoursWorked || 0).toString(),
+      status: log.status || 'Present',
       notes: log.notes || ''
     });
     setShowLogModal(true);
@@ -198,10 +198,10 @@ export const LaborManager: React.FC = () => {
   const openEditPayment = (pay: LaborPayment) => {
     setEditingPayment(pay);
     setPaymentFormData({
-      employeeId: pay.employeeId,
-      date: pay.date,
-      amount: pay.amount.toString(),
-      method: pay.method,
+      employeeId: pay.employeeId || '',
+      date: pay.date || new Date().toISOString().split('T')[0],
+      amount: (pay.amount || 0).toString(),
+      method: pay.method || 'Cash',
       reference: pay.reference || '',
       notes: pay.notes || ''
     });

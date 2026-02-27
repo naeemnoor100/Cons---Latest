@@ -29,7 +29,7 @@ const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const Reports: React.FC = () => {
   const { projects, expenses, materials, incomes, vendors, laborLogs, employees, invoices, payments, laborPayments } = useApp();
-  const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary'>('overview');
+  const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary' | 'material-locator' | 'vendor-supply'>('overview');
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
   
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
@@ -37,6 +37,28 @@ export const Reports: React.FC = () => {
 
   const [summaryMaterialId, setSummaryMaterialId] = useState<string>('');
   const [summaryVendorId, setSummaryVendorId] = useState<string>('');
+
+  const [materialLocatorPage, setMaterialLocatorPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
+
+  const [materialFilters, setMaterialFilters] = useState({
+    site: '',
+    lastUpdated: '',
+    available: '',
+    totalValue: '',
+    price: ''
+  });
+
+  const [vendorSupplyPage, setVendorSupplyPage] = useState(1);
+
+  const [vendorFilters, setVendorFilters] = useState({
+    site: '',
+    material: '',
+    lastUpdated: '',
+    quantity: '',
+    totalValue: '',
+    price: ''
+  });
 
   const activeSummaryMaterialId = summaryMaterialId || materials[0]?.id || '';
   const activeSummaryVendorId = summaryVendorId || vendors[0]?.id || '';
@@ -128,6 +150,49 @@ export const Reports: React.FC = () => {
       distributions: rows.sort((a, b) => a.projectName.localeCompare(b.projectName))
     };
   }, [activeSummaryVendorId, materials, projects, vendors, summaryVendorId]);
+
+  const filteredMaterialStocks = useMemo(() => {
+    if (!materialLocatorData?.stocks) return [];
+    const filtered = materialLocatorData.stocks.filter(stock => {
+      const avgPrice = stock.quantity > 0 ? stock.value / stock.quantity : 0;
+      const matchSite = stock.projectName.toLowerCase().includes(materialFilters.site.toLowerCase());
+      const matchDate = new Date(stock.lastUpdated).toLocaleDateString().toLowerCase().includes(materialFilters.lastUpdated.toLowerCase());
+      const matchAvailable = stock.quantity.toString().includes(materialFilters.available);
+      const matchValue = stock.value.toString().includes(materialFilters.totalValue);
+      const matchPrice = avgPrice.toFixed(2).includes(materialFilters.price);
+      return matchSite && matchDate && matchAvailable && matchValue && matchPrice;
+    });
+    // Sort by lastUpdated descending to show "Last" items first
+    filtered.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+    return filtered;
+  }, [materialLocatorData, materialFilters]);
+
+  const paginatedMaterialStocks = useMemo(() => {
+    const startIndex = (materialLocatorPage - 1) * ITEMS_PER_PAGE;
+    return filteredMaterialStocks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredMaterialStocks, materialLocatorPage]);
+
+  const filteredVendorDistributions = useMemo(() => {
+    if (!vendorDistributionData?.distributions) return [];
+    const filtered = vendorDistributionData.distributions.filter(dist => {
+      const avgPrice = dist.quantity > 0 ? dist.value / dist.quantity : 0;
+      const matchSite = dist.projectName.toLowerCase().includes(vendorFilters.site.toLowerCase());
+      const matchMaterial = dist.matName.toLowerCase().includes(vendorFilters.material.toLowerCase());
+      const matchDate = new Date(dist.lastSupplied).toLocaleDateString().toLowerCase().includes(vendorFilters.lastUpdated.toLowerCase());
+      const matchQuantity = dist.quantity.toString().includes(vendorFilters.quantity);
+      const matchValue = dist.value.toString().includes(vendorFilters.totalValue);
+      const matchPrice = avgPrice.toFixed(2).includes(vendorFilters.price);
+      return matchSite && matchMaterial && matchDate && matchQuantity && matchValue && matchPrice;
+    });
+    // Sort by lastSupplied descending
+    filtered.sort((a, b) => new Date(b.lastSupplied).getTime() - new Date(a.lastSupplied).getTime());
+    return filtered;
+  }, [vendorDistributionData, vendorFilters]);
+
+  const paginatedVendorDistributions = useMemo(() => {
+    const startIndex = (vendorSupplyPage - 1) * ITEMS_PER_PAGE;
+    return filteredVendorDistributions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredVendorDistributions, vendorSupplyPage]);
 
   const projectSummaryData = useMemo(() => {
     if (!summaryProjectId) return null;
@@ -340,6 +405,18 @@ export const Reports: React.FC = () => {
             className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'project-summary' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
            >
              Project Summary
+           </button>
+           <button 
+            onClick={() => setReportActiveTab('material-locator')}
+            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'material-locator' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+           >
+             Material Locator
+           </button>
+           <button 
+            onClick={() => setReportActiveTab('vendor-supply')}
+            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'vendor-supply' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+           >
+             Vendor Supply
            </button>
         </div>
       </div>
@@ -852,8 +929,12 @@ export const Reports: React.FC = () => {
             </div>
           )}
 
-          {/* Global Material Locator & Vendor Distribution */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+          {/* Global Material Locator & Vendor Distribution removed from here */}
+        </div>
+      )}
+
+      {reportActiveTab === 'material-locator' && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
             {/* Material Locator */}
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
               <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -861,45 +942,131 @@ export const Reports: React.FC = () => {
                   <Package size={18} className="text-blue-600" />
                   Global Material Locator
                 </h3>
-                <div className="relative w-full sm:w-auto">
-                  <select 
-                    value={activeSummaryMaterialId}
-                    onChange={(e) => setSummaryMaterialId(e.target.value)}
-                    className="w-full sm:w-48 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none appearance-none cursor-pointer pr-8"
-                  >
-                    {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
+                    <select 
+                      value={activeSummaryMaterialId}
+                      onChange={(e) => { setSummaryMaterialId(e.target.value); setMaterialLocatorPage(1); }}
+                      className="w-full sm:w-48 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none appearance-none cursor-pointer pr-8"
+                    >
+                      {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  </div>
                 </div>
               </div>
               <div className="overflow-x-auto no-scrollbar max-h-96">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
                     <tr>
-                      <th className="px-8 py-4">Site / Hub</th>
-                      <th className="px-8 py-4">Last Updated</th>
-                      <th className="px-8 py-4 text-right">Available</th>
-                      <th className="px-8 py-4 text-right">Total Value</th>
+                      <th className="px-8 py-4 min-w-[200px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Site / Hub</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={materialFilters.site}
+                            onChange={(e) => setMaterialFilters(prev => ({ ...prev, site: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 min-w-[150px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Last Updated</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={materialFilters.lastUpdated}
+                            onChange={(e) => setMaterialFilters(prev => ({ ...prev, lastUpdated: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Available</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={materialFilters.available}
+                            onChange={(e) => setMaterialFilters(prev => ({ ...prev, available: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Avg. Price</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={materialFilters.price}
+                            onChange={(e) => setMaterialFilters(prev => ({ ...prev, price: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Total Value</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={materialFilters.totalValue}
+                            onChange={(e) => setMaterialFilters(prev => ({ ...prev, totalValue: e.target.value }))}
+                          />
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                    {materialLocatorData?.stocks.length ? materialLocatorData.stocks.map((stock, idx) => (
+                    {paginatedMaterialStocks.length ? paginatedMaterialStocks.map((stock, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{stock.projectName}</td>
                         <td className="px-8 py-4 text-xs font-bold text-slate-500">{new Date(stock.lastUpdated).toLocaleDateString()}</td>
                         <td className="px-8 py-4 text-right text-xs font-black text-emerald-600">{stock.quantity.toLocaleString()} {stock.unit}</td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">
+                          {formatCurrency(stock.quantity > 0 ? stock.value / stock.quantity : 0)}
+                        </td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(stock.value)}</td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No stock found for this material</td>
+                        <td colSpan={5} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No stock found for this material</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+              {filteredMaterialStocks.length > ITEMS_PER_PAGE && (
+                <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                  <button 
+                    onClick={() => setMaterialLocatorPage(p => Math.max(1, p - 1))}
+                    disabled={materialLocatorPage === 1}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Page {materialLocatorPage} of {Math.ceil(filteredMaterialStocks.length / ITEMS_PER_PAGE)}
+                  </span>
+                  <button 
+                    onClick={() => setMaterialLocatorPage(p => Math.min(Math.ceil(filteredMaterialStocks.length / ITEMS_PER_PAGE), p + 1))}
+                    disabled={materialLocatorPage === Math.ceil(filteredMaterialStocks.length / ITEMS_PER_PAGE)}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
+        </div>
+      )}
 
+      {reportActiveTab === 'vendor-supply' && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
             {/* Vendor Distribution */}
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
               <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -907,47 +1074,139 @@ export const Reports: React.FC = () => {
                   <Users size={18} className="text-emerald-600" />
                   Global Vendor Supply
                 </h3>
-                <div className="relative w-full sm:w-auto">
-                  <select 
-                    value={activeSummaryVendorId}
-                    onChange={(e) => setSummaryVendorId(e.target.value)}
-                    className="w-full sm:w-48 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none appearance-none cursor-pointer pr-8"
-                  >
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto">
+                    <select 
+                      value={activeSummaryVendorId}
+                      onChange={(e) => { setSummaryVendorId(e.target.value); setVendorSupplyPage(1); }}
+                      className="w-full sm:w-48 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none appearance-none cursor-pointer pr-8"
+                    >
+                      {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  </div>
                 </div>
               </div>
               <div className="overflow-x-auto no-scrollbar max-h-96">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
                     <tr>
-                      <th className="px-8 py-4">Site / Hub</th>
-                      <th className="px-8 py-4">Material</th>
-                      <th className="px-8 py-4">Last Supplied</th>
-                      <th className="px-8 py-4 text-right">Quantity</th>
-                      <th className="px-8 py-4 text-right">Total Value</th>
+                      <th className="px-8 py-4 min-w-[200px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Site / Hub</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={vendorFilters.site}
+                            onChange={(e) => setVendorFilters(prev => ({ ...prev, site: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 min-w-[150px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Material</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={vendorFilters.material}
+                            onChange={(e) => setVendorFilters(prev => ({ ...prev, material: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 min-w-[150px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Last Supplied</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={vendorFilters.lastUpdated}
+                            onChange={(e) => setVendorFilters(prev => ({ ...prev, lastUpdated: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Quantity</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={vendorFilters.quantity}
+                            onChange={(e) => setVendorFilters(prev => ({ ...prev, quantity: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Avg. Price</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={vendorFilters.price}
+                            onChange={(e) => setVendorFilters(prev => ({ ...prev, price: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Total Value</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={vendorFilters.totalValue}
+                            onChange={(e) => setVendorFilters(prev => ({ ...prev, totalValue: e.target.value }))}
+                          />
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                    {vendorDistributionData?.distributions.length ? vendorDistributionData.distributions.map((dist, idx) => (
+                    {paginatedVendorDistributions.length ? paginatedVendorDistributions.map((dist, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{dist.projectName}</td>
                         <td className="px-8 py-4 text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">{dist.matName}</td>
                         <td className="px-8 py-4 text-xs font-bold text-slate-500">{new Date(dist.lastSupplied).toLocaleDateString()}</td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">{dist.quantity.toLocaleString()} {dist.unit}</td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">
+                          {formatCurrency(dist.quantity > 0 ? dist.value / dist.quantity : 0)}
+                        </td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(dist.value)}</td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={5} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No supply records found for this vendor</td>
+                        <td colSpan={6} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No supply records found for this vendor</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+              {filteredVendorDistributions.length > ITEMS_PER_PAGE && (
+                <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                  <button 
+                    onClick={() => setVendorSupplyPage(p => Math.max(1, p - 1))}
+                    disabled={vendorSupplyPage === 1}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    Page {vendorSupplyPage} of {Math.ceil(filteredVendorDistributions.length / ITEMS_PER_PAGE)}
+                  </span>
+                  <button 
+                    onClick={() => setVendorSupplyPage(p => Math.min(Math.ceil(filteredVendorDistributions.length / ITEMS_PER_PAGE), p + 1))}
+                    disabled={vendorSupplyPage === Math.ceil(filteredVendorDistributions.length / ITEMS_PER_PAGE)}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
         </div>
       )}
     </div>
