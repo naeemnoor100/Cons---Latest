@@ -29,7 +29,9 @@ export const BulkLaborLogModal: React.FC<BulkLaborLogModalProps> = ({
   const [rows, setRows] = useState<Record<string, BulkRow>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const activeEmployees = useMemo(() => employees.filter(e => e.status === 'Active'), [employees]);
+  const activeEmployees = useMemo(() => {
+    return employees.filter(e => e.status === 'Active' && (!projectId || e.currentSiteId === projectId));
+  }, [employees, projectId]);
 
   useEffect(() => {
     const initialRows: Record<string, BulkRow> = {};

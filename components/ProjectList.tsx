@@ -295,15 +295,27 @@ export const ProjectList: React.FC = () => {
     const projectIncomes = incomes.filter(i => i.projectId === projectId);
     const projectInvoices = invoices.filter(inv => inv.projectId === projectId);
     const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && e.inventoryAction !== 'Transfer');
-    const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0);
+    
+    const projectLaborLogs = laborLogs.filter(l => l.projectId === projectId);
+    const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+
+    const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
     const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
     const totalInvoiced = projectInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const totalLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
+    
+    const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
+    const totalLabor = expenseLabor + laborFromLogs;
+    
     const progress = Math.min(100, Math.round((totalSpent / (budget || 1)) * 100)) || 0;
+    
     const categories: Record<string, number> = {};
     actualSiteExpenses.forEach(e => { categories[e.category] = (categories[e.category] || 0) + e.amount; });
+    if (laborFromLogs > 0) {
+      categories['Labor'] = (categories['Labor'] || 0) + laborFromLogs;
+    }
+
     return { totalSpent, totalCollected, totalInvoiced, totalLabor, receivable: totalInvoiced - totalCollected, progress, categoryBreakdown: categories, allExpenses: projectExpenses, invoices: projectInvoices };
-  }, [expenses, incomes, invoices]);
+  }, [expenses, incomes, invoices, laborLogs]);
 
   const projectArrivals = useMemo(() => {
     if (!viewingProject) return [];

@@ -10,7 +10,8 @@ import {
   ClipboardList,
   UserPlus,
   ArrowRight,
-  Lock
+  Lock,
+  MapPin
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Employee, LaborLog, PaymentMethod, LaborPayment } from '../types';
@@ -47,16 +48,25 @@ export const LaborManager: React.FC = () => {
   const [editingPayment, setEditingPayment] = useState<LaborPayment | null>(null);
 
   const [employeeFormData, setEmployeeFormData] = useState({
-    name: '', role: '', phone: '', dailyWage: '', status: 'Active' as 'Active' | 'Inactive', joiningDate: new Date().toISOString().split('T')[0]
+    name: '', role: '', phone: '', dailyWage: '', status: 'Active' as 'Active' | 'Inactive', joiningDate: new Date().toISOString().split('T')[0], currentSiteId: ''
   });
 
   const [logFormData, setLogFormData] = useState({
-    date: new Date().toISOString().split('T')[0], employeeId: '', projectId: '', hoursWorked: '8', status: 'Present' as 'Present' | 'Half-day' | 'Absent', notes: ''
+    date: new Date().toISOString().split('T')[0], employeeId: '', projectId: '', hoursWorked: '8', status: 'Present' as 'Present' | 'Half-day' | 'Absent', notes: '', wageAmount: ''
   });
 
   const [paymentFormData, setPaymentFormData] = useState({
     employeeId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash' as PaymentMethod, reference: '', notes: ''
   });
+
+  const calculateWage = (empId: string, hours: string, status: string) => {
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return '';
+    if (status === 'Absent') return '0';
+    const h = parseFloat(hours) || 0;
+    const wage = (emp.dailyWage / 8) * h;
+    return Math.round(wage).toString();
+  };
 
   const employeeSummaries = useMemo(() => {
     return employees.map(emp => {
@@ -72,11 +82,15 @@ export const LaborManager: React.FC = () => {
   }, [employees, laborLogs, laborPayments]);
 
   const filteredEmployees = useMemo(() => {
-    return employeeSummaries.filter(e => 
-      e.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      e.role.toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a, b) => a.name.localeCompare(b.name));
-  }, [employeeSummaries, searchTerm]);
+    return employeeSummaries.filter(e => {
+      const siteName = projects.find(p => p.id === e.currentSiteId)?.name || '';
+      return (
+        e.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        e.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        siteName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [employeeSummaries, searchTerm, projects]);
 
   const filteredLogs = useMemo(() => {
     return laborLogs.filter(l => {
@@ -112,7 +126,8 @@ export const LaborManager: React.FC = () => {
       phone: employeeFormData.phone,
       dailyWage: parseFloat(employeeFormData.dailyWage) || 0,
       status: employeeFormData.status,
-      joiningDate: employeeFormData.joiningDate
+      joiningDate: employeeFormData.joiningDate,
+      currentSiteId: employeeFormData.currentSiteId
     };
 
     if (editingEmployee) await updateEmployee(data);
@@ -120,7 +135,7 @@ export const LaborManager: React.FC = () => {
 
     setShowEmployeeModal(false);
     setEditingEmployee(null);
-    setEmployeeFormData({ name: '', role: '', phone: '', dailyWage: '', status: 'Active', joiningDate: new Date().toISOString().split('T')[0] });
+    setEmployeeFormData({ name: '', role: '', phone: '', dailyWage: '', status: 'Active', joiningDate: new Date().toISOString().split('T')[0], currentSiteId: '' });
   };
 
   const handleLogSubmit = async (e: React.FormEvent) => {
@@ -128,7 +143,10 @@ export const LaborManager: React.FC = () => {
     const emp = employees.find(emp => emp.id === logFormData.employeeId);
     if (!emp) return;
 
-    const wageAmount = (emp.dailyWage / 8) * parseFloat(logFormData.hoursWorked);
+    let wageAmount = parseFloat(logFormData.wageAmount);
+    if (isNaN(wageAmount)) {
+       wageAmount = (emp.dailyWage / 8) * parseFloat(logFormData.hoursWorked);
+    }
     
     const data: LaborLog = {
       id: editingLog ? editingLog.id : 'log-' + Date.now(),
@@ -146,7 +164,7 @@ export const LaborManager: React.FC = () => {
 
     setShowLogModal(false);
     setEditingLog(null);
-    setLogFormData({ date: new Date().toISOString().split('T')[0], employeeId: '', projectId: '', hoursWorked: '8', status: 'Present', notes: '' });
+    setLogFormData({ date: new Date().toISOString().split('T')[0], employeeId: '', projectId: '', hoursWorked: '8', status: 'Present', notes: '', wageAmount: '' });
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -177,7 +195,8 @@ export const LaborManager: React.FC = () => {
       phone: emp.phone || '',
       dailyWage: (emp.dailyWage || 0).toString(),
       status: emp.status || 'Active',
-      joiningDate: emp.joiningDate || new Date().toISOString().split('T')[0]
+      joiningDate: emp.joiningDate || new Date().toISOString().split('T')[0],
+      currentSiteId: emp.currentSiteId || ''
     });
     setShowEmployeeModal(true);
   };
@@ -190,7 +209,8 @@ export const LaborManager: React.FC = () => {
       projectId: log.projectId || '',
       hoursWorked: (log.hoursWorked || 0).toString(),
       status: log.status || 'Present',
-      notes: log.notes || ''
+      notes: log.notes || '',
+      wageAmount: (log.wageAmount || 0).toString()
     });
     setShowLogModal(true);
   };
@@ -310,6 +330,11 @@ export const LaborManager: React.FC = () => {
                 </div>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{emp.name}</h3>
                 <p className="text-slate-400 text-xs font-bold uppercase flex items-center gap-1.5 mt-1"><HardHat size={12} /> {emp.role}</p>
+                {emp.currentSiteId && (
+                  <p className="text-blue-500 text-[10px] font-black uppercase flex items-center gap-1.5 mt-1">
+                    <MapPin size={12} /> {projects.find(p => p.id === emp.currentSiteId)?.name || 'Unknown Site'}
+                  </p>
+                )}
                 
                 <div className="mt-4 sm:mt-6 grid grid-cols-3 gap-1.5 sm:gap-2">
                   <div className="bg-slate-50 dark:bg-slate-900/50 p-2 sm:p-2.5 rounded-xl">
@@ -489,6 +514,15 @@ export const LaborManager: React.FC = () => {
                   </select>
                 </div>
               </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Assigned Site (Optional)</label>
+                <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.currentSiteId} onChange={e => setEmployeeFormData(p => ({ ...p, currentSiteId: e.target.value }))}>
+                  <option value="">No specific site assigned</option>
+                  {projects.filter(p => !p.isGodown).map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setShowEmployeeModal(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 py-4 rounded-[1.5rem] font-bold text-sm uppercase tracking-widest text-slate-500">Cancel</button>
                 <button type="submit" className="flex-1 bg-slate-900 text-white py-4 rounded-[1.5rem] font-black shadow-2xl active:scale-95 transition-all text-sm uppercase tracking-widest">Save Employee</button>
@@ -531,22 +565,26 @@ export const LaborManager: React.FC = () => {
                   <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={logFormData.date} onChange={e => setLogFormData(p => ({ ...p, date: e.target.value }))} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Employee</label>
-                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.employeeId} onChange={e => setLogFormData(p => ({ ...p, employeeId: e.target.value }))}>
-                    <option value="">Select Employee...</option>
-                    {employees.filter(e => e.status === 'Active').map(e => (
-                      <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Site</label>
+                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.projectId} onChange={e => setLogFormData(p => ({ ...p, projectId: e.target.value, employeeId: '', wageAmount: '' }))}>
+                    <option value="">Select Site...</option>
+                    {projects.filter(p => !p.isGodown).map(p => (
+                      <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>
                     ))}
                   </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Site</label>
-                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.projectId} onChange={e => setLogFormData(p => ({ ...p, projectId: e.target.value }))}>
-                    <option value="">Select Site...</option>
-                    {projects.filter(p => !p.isGodown).map(p => (
-                      <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Employee</label>
+                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.employeeId} onChange={e => {
+                    const empId = e.target.value;
+                    const wage = calculateWage(empId, logFormData.hoursWorked, logFormData.status);
+                    setLogFormData(p => ({ ...p, employeeId: empId, wageAmount: wage }));
+                  }}>
+                    <option value="">Select Employee...</option>
+                    {employees.filter(e => e.status === 'Active' && (!logFormData.projectId || e.currentSiteId === logFormData.projectId)).map(e => (
+                      <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
                     ))}
                   </select>
                 </div>
@@ -554,10 +592,13 @@ export const LaborManager: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Attendance Status</label>
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.status} onChange={e => {
                     const status = e.target.value as 'Present' | 'Half-day' | 'Absent';
+                    const hours = status === 'Present' ? '8' : (status === 'Half-day' ? '4' : '0');
+                    const wage = calculateWage(logFormData.employeeId, hours, status);
                     setLogFormData(p => ({ 
                       ...p, 
                       status,
-                      hoursWorked: status === 'Present' ? '8' : (status === 'Half-day' ? '4' : '0')
+                      hoursWorked: hours,
+                      wageAmount: wage
                     }));
                   }}>
                     <option value="Present">Present (Full Day)</option>
@@ -566,9 +607,19 @@ export const LaborManager: React.FC = () => {
                   </select>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Hours Worked</label>
-                <input type="number" step="0.5" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={logFormData.hoursWorked} onChange={e => setLogFormData(p => ({ ...p, hoursWorked: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Hours Worked</label>
+                  <input type="number" step="0.5" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={logFormData.hoursWorked} onChange={e => {
+                    const hours = e.target.value;
+                    const wage = calculateWage(logFormData.employeeId, hours, logFormData.status);
+                    setLogFormData(p => ({ ...p, hoursWorked: hours, wageAmount: wage }));
+                  }} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Calculated Wage (Rs.)</label>
+                  <input type="number" step="1" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none" value={logFormData.wageAmount} onChange={e => setLogFormData(p => ({ ...p, wageAmount: e.target.value }))} />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Notes / Remarks</label>

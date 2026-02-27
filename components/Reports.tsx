@@ -270,7 +270,10 @@ export const Reports: React.FC = () => {
     const search = summarySearchTerm.toLowerCase();
 
     const projectExpenses = expenses.filter(e => e.projectId === summaryProjectId);
-    const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const projectLaborLogs = laborLogs.filter(l => l.projectId === summaryProjectId);
+    const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+    
+    const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
     const remainingBudget = project.budget - totalSpent;
 
     const materialSummaryMap: Record<string, { id: string, name: string, unit: string, used: number, remaining: number, inward: number, usedValue: number, remainingValue: number }> = {};
@@ -322,7 +325,7 @@ export const Reports: React.FC = () => {
       .sort((a, b) => b.amount - a.amount);
 
     const laborSummaryMap: Record<string, { name: string; hours: number; amount: number }> = {};
-    const projectLaborLogs = laborLogs.filter(l => l.projectId === summaryProjectId);
+    // projectLaborLogs is already defined above
     projectLaborLogs.forEach(log => {
       const emp = employees.find(e => e.id === log.employeeId);
       if (emp) {
@@ -369,7 +372,10 @@ export const Reports: React.FC = () => {
     const projectExpenses = expenses.filter(e => e.projectId === selectedProjectId);
     const projectIncomes = incomes.filter(i => i.projectId === selectedProjectId);
     
-    const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const projectLaborLogs = laborLogs.filter(l => l.projectId === selectedProjectId);
+    const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+
+    const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
     const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
     const remainingBudget = project.budget - totalSpent;
 
@@ -378,6 +384,9 @@ export const Reports: React.FC = () => {
     projectExpenses.forEach(e => {
       categorySummaryMap[e.category] = (categorySummaryMap[e.category] || 0) + e.amount;
     });
+    if (laborFromLogs > 0) {
+      categorySummaryMap['Labor'] = (categorySummaryMap['Labor'] || 0) + laborFromLogs;
+    }
     
     const categorySummary = Object.entries(categorySummaryMap)
       .map(([name, amount]) => ({ name, amount, percentage: totalSpent > 0 ? (amount / totalSpent) * 100 : 0 }))
@@ -395,11 +404,14 @@ export const Reports: React.FC = () => {
       categorySummary,
       topExpenses
     };
-  }, [selectedProjectId, projects, expenses, incomes]);
+  }, [selectedProjectId, projects, expenses, incomes, laborLogs]);
 
   // Global Logic for Overview
   const financialData = useMemo(() => projects.map(p => {
-    const spent = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
+    const spentExpenses = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
+    const spentLabor = laborLogs.filter(l => l.projectId === p.id).reduce((sum, l) => sum + l.wageAmount, 0);
+    const spent = spentExpenses + spentLabor;
+
     const collected = incomes.filter(i => i.projectId === p.id).reduce((sum, i) => sum + i.amount, 0);
     const paid = payments.filter(pay => pay.projectId === p.id).reduce((sum, pay) => sum + pay.amount, 0);
     return {
@@ -410,7 +422,7 @@ export const Reports: React.FC = () => {
       paid: paid,
       profit: collected - spent
     };
-  }), [projects, expenses, incomes, payments]);
+  }), [projects, expenses, incomes, payments, laborLogs]);
 
   const materialData = useMemo(() => materials.map(m => ({
     name: m.name,
@@ -435,6 +447,13 @@ export const Reports: React.FC = () => {
       combined[key].Expense += exp.amount;
     });
 
+    laborLogs.forEach(log => {
+      const d = new Date(log.date);
+      const key = `${months[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
+      if (!combined[key]) combined[key] = { month: key, Income: 0, Expense: 0, Paid: 0 };
+      combined[key].Expense += log.wageAmount;
+    });
+
     payments.forEach(pay => {
       const d = new Date(pay.date);
       const key = `${months[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
@@ -454,7 +473,7 @@ export const Reports: React.FC = () => {
       const [m2, y2] = b.month.split(' ');
       return new Date(`${m1} 20${y1}`).getTime() - new Date(`${m2} 20${y2}`).getTime();
     });
-  }, [incomes, expenses, payments, laborPayments]);
+  }, [incomes, expenses, payments, laborPayments, laborLogs]);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 

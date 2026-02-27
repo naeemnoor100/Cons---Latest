@@ -123,6 +123,7 @@ export interface Employee {
   dailyWage: number;
   status: 'Active' | 'Inactive';
   joiningDate: string;
+  currentSiteId?: string;
 }
 
 export interface LaborLog {
