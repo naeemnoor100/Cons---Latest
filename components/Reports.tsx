@@ -273,7 +273,7 @@ export const Reports: React.FC = () => {
     const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0);
     const remainingBudget = project.budget - totalSpent;
 
-    const materialSummaryMap: Record<string, { id: string, name: string, unit: string, used: number, remaining: number, inward: number }> = {};
+    const materialSummaryMap: Record<string, { id: string, name: string, unit: string, used: number, remaining: number, inward: number, usedValue: number, remainingValue: number }> = {};
 
     materials.forEach(mat => {
       const hist = mat.history || [];
@@ -289,13 +289,16 @@ export const Reports: React.FC = () => {
           
           const arrived = h.quantity;
           const remaining = arrived - (qtyUsed + qtyMoved);
+          const unitPrice = h.unitPrice || mat.costPerUnit;
 
           if (!materialSummaryMap[mat.id]) {
-            materialSummaryMap[mat.id] = { id: mat.id, name: mat.name, unit: mat.unit, used: 0, remaining: 0, inward: 0 };
+            materialSummaryMap[mat.id] = { id: mat.id, name: mat.name, unit: mat.unit, used: 0, remaining: 0, inward: 0, usedValue: 0, remainingValue: 0 };
           }
           materialSummaryMap[mat.id].inward += arrived;
           materialSummaryMap[mat.id].used += qtyUsed;
           materialSummaryMap[mat.id].remaining += remaining;
+          materialSummaryMap[mat.id].usedValue += qtyUsed * unitPrice;
+          materialSummaryMap[mat.id].remainingValue += remaining * unitPrice;
         }
       });
     });
@@ -337,6 +340,13 @@ export const Reports: React.FC = () => {
     const invoiceSummary = invoices
       .filter(i => i.projectId === summaryProjectId)
       .filter(i => i.description.toLowerCase().includes(search) || i.status.toLowerCase().includes(search))
+      .map(inv => {
+        const paidAmount = incomes.filter(inc => inc.invoiceId === inv.id).reduce((sum, inc) => sum + inc.amount, 0);
+        return {
+          ...inv,
+          remainingPayment: inv.amount - paidAmount
+        };
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return {
@@ -348,7 +358,7 @@ export const Reports: React.FC = () => {
       laborSummary,
       invoiceSummary
     };
-  }, [summaryProjectId, projects, expenses, materials, vendors, laborLogs, employees, invoices, summarySearchTerm]);
+  }, [summaryProjectId, projects, expenses, materials, vendors, laborLogs, employees, invoices, incomes, summarySearchTerm]);
 
   // Project Drilldown Calculations
   const selectedProjectReport = useMemo(() => {
@@ -856,9 +866,11 @@ export const Reports: React.FC = () => {
                             </td>
                             <td className="px-8 py-4 text-right text-xs font-black text-red-600">
                               {mat.used.toLocaleString()}
+                              <div className="text-[9px] text-slate-400 font-bold">{formatCurrency(mat.usedValue)}</div>
                             </td>
                             <td className="px-8 py-4 text-right text-xs font-black text-emerald-600">
                               {mat.remaining.toLocaleString()}
+                              <div className="text-[9px] text-slate-400 font-bold">{formatCurrency(mat.remainingValue)}</div>
                             </td>
                           </tr>
                         )) : (
@@ -962,6 +974,7 @@ export const Reports: React.FC = () => {
                           <th className="px-8 py-4">Description</th>
                           <th className="px-8 py-4">Status</th>
                           <th className="px-8 py-4 text-right">Amount</th>
+                          <th className="px-8 py-4 text-right">Remaining</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -984,10 +997,13 @@ export const Reports: React.FC = () => {
                             <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">
                               {formatCurrency(inv.amount)}
                             </td>
+                            <td className="px-8 py-4 text-right text-xs font-black text-red-600 dark:text-red-400">
+                              {formatCurrency(inv.remainingPayment)}
+                            </td>
                           </tr>
                         )) : (
                           <tr>
-                            <td colSpan={3} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No invoices found</td>
+                            <td colSpan={4} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No invoices found</td>
                           </tr>
                         )}
                       </tbody>
