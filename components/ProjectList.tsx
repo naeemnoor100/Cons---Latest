@@ -16,10 +16,11 @@ import {
   Warehouse,
   History,
   FileText,
-  MoveHorizontal
+  MoveHorizontal,
+  Check
 } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Project, Income, PaymentMethod, Material, StockHistoryEntry, Invoice } from '../types';
+import { Project, Income, PaymentMethod, Material, StockHistoryEntry, Invoice, Expense } from '../types';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -27,7 +28,7 @@ export const ProjectList: React.FC = () => {
   const { 
     projects, expenses, vendors, materials, incomes, invoices, siteStatuses, stockingUnits, employees, laborLogs,
     addProject, updateProject, deleteProject, 
-    addExpense, deleteExpense,
+    addExpense, updateExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
     addMaterial, allowDecimalStock, isProjectLocked
@@ -58,6 +59,8 @@ export const ProjectList: React.FC = () => {
 
   // Material Log State within Project Insights
   const [logMaterial, setLogMaterial] = useState<Material | null>(null);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [editingQuantity, setEditingQuantity] = useState<string>('');
 
   const [formData, setFormData] = useState({
     name: '', client: '', location: '', contactNumber: '', budget: '', startDate: new Date().toISOString().split('T')[0], endDate: '', description: '', status: 'Active', isGodown: false
@@ -542,6 +545,38 @@ export const ProjectList: React.FC = () => {
   };
 
   // Helper variables for Project Insights Rendering to avoid IIFE syntax error
+  const handleSaveExpenseQuantity = async (ev: React.MouseEvent, expense: Expense) => {
+    ev.stopPropagation();
+    const newQty = parseFloat(editingQuantity);
+    if (isNaN(newQty)) return;
+
+    const oldQty = Math.abs(expense.materialQuantity || 0);
+    let unitPrice = expense.unitPrice;
+    
+    // Try to derive unit price if not explicitly stored
+    if (!unitPrice && oldQty > 0) {
+      unitPrice = expense.amount / oldQty;
+    }
+    if (!unitPrice && expense.materialId) {
+      const mat = materials.find(m => m.id === expense.materialId);
+      if (mat) unitPrice = mat.costPerUnit;
+    }
+
+    const newAmount = unitPrice ? newQty * unitPrice : expense.amount;
+    
+    // Preserve the sign (negative for usage/transfer out)
+    const isNegative = (expense.materialQuantity || 0) < 0 || expense.inventoryAction === 'Usage';
+    const finalQty = isNegative ? -Math.abs(newQty) : Math.abs(newQty);
+
+    await updateExpense({
+      ...expense,
+      materialQuantity: finalQty,
+      amount: newAmount
+    });
+
+    setEditingExpenseId(null);
+  };
+
   const viewingProjectMetrics = viewingProject ? calculateProjectMetrics(viewingProject.id, viewingProject.budget) : null;
   const projectInvoicesForIncomeLink = viewingProject ? invoices.filter(inv => inv.projectId === viewingProject.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
 
@@ -1012,6 +1047,7 @@ export const ProjectList: React.FC = () => {
                                <td className="px-8 py-5">
                                   <button onClick={() => setLogMaterial(arrival.material)} className="text-left group/mat">
                                     <p className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase group-hover/mat:text-blue-600 transition-colors">{arrival.material.name} <span className="text-[10px] font-bold text-slate-400">({arrival.material.unit})</span></p>
+                                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">{arrival.entry.unitPrice ? formatCurrency(arrival.entry.unitPrice) : '-'}</p>
                                     <span className="text-[9px] font-bold text-slate-400 uppercase">{arrival.entry.type === 'Transfer' ? 'Transfer' : 'Purchase'}</span>
                                   </button>
                                </td>
@@ -1078,9 +1114,35 @@ export const ProjectList: React.FC = () => {
                                  <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{e.materialId ? materials.find(m => m.id === e.materialId)?.name : e.category}</p>
                                  <p className="text-[10px] font-bold text-slate-400 uppercase">Vendor: {vendors.find(v => v.id === e.vendorId)?.name || 'Direct'}</p>
                                </td>
-                               <td className="px-8 py-5 text-center">{e.materialQuantity ? <span className="text-xs font-black bg-slate-100 px-3 py-1 rounded-lg">{Math.abs(e.materialQuantity).toLocaleString()}</span> : '--'}</td>
+                               <td className="px-8 py-5 text-center">
+                                 {editingExpenseId === e.id ? (
+                                   <input 
+                                     type="number" 
+                                     step={allowDecimalStock ? "0.01" : "1"} 
+                                     className="w-20 px-2 py-1 text-xs font-bold border border-slate-200 rounded-lg outline-none focus:border-blue-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+                                     value={editingQuantity}
+                                     onChange={(ev) => setEditingQuantity(ev.target.value)}
+                                     onClick={(ev) => ev.stopPropagation()}
+                                     autoFocus
+                                   />
+                                 ) : (
+                                   e.materialQuantity ? <span className="text-xs font-black bg-slate-100 dark:bg-slate-800 dark:text-white px-3 py-1 rounded-lg">{Math.abs(e.materialQuantity).toLocaleString()}</span> : '--'
+                                 )}
+                               </td>
                                <td className="px-8 py-5 text-sm font-black text-red-600 text-right">{formatCurrency(e.amount)}</td>
-                               <td className="px-8 py-5 text-right"><button onClick={() => deleteExpense(e.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button></td>
+                               <td className="px-8 py-5 text-right">
+                                 {editingExpenseId === e.id ? (
+                                   <div className="flex justify-end gap-1">
+                                      <button onClick={(ev) => handleSaveExpenseQuantity(ev, e)} className="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-all"><Check size={18} /></button>
+                                      <button onClick={(ev) => { ev.stopPropagation(); setEditingExpenseId(null); }} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"><X size={18} /></button>
+                                   </div>
+                                 ) : (
+                                   <div className="flex justify-end gap-1">
+                                      <button onClick={(ev) => { ev.stopPropagation(); setEditingExpenseId(e.id); setEditingQuantity(Math.abs(e.materialQuantity || 0).toString()); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
+                                      <button onClick={() => deleteExpense(e.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                                   </div>
+                                 )}
+                               </td>
                              </tr>
                            ))}
                            {activeDetailTab === 'income' && incomes.filter(i => i.projectId === viewingProject.id).slice().reverse().filter(inc => {

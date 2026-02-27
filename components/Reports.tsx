@@ -185,6 +185,10 @@ export const Reports: React.FC = () => {
     return filtered;
   }, [vendorDistributionData, vendorFilters]);
 
+  const totalVendorValue = useMemo(() => {
+    return filteredVendorDistributions.reduce((sum, dist) => sum + dist.value, 0);
+  }, [filteredVendorDistributions]);
+
   const paginatedVendorDistributions = useMemo(() => {
     const startIndex = (vendorSupplyPage - 1) * ITEMS_PER_PAGE;
     return filteredVendorDistributions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -1099,6 +1103,9 @@ export const Reports: React.FC = () => {
                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                   <Users size={18} className="text-emerald-600" />
                   Global Vendor Supply
+                  <span className="ml-2 text-emerald-600">
+                    ({formatCurrency(totalVendorValue)})
+                  </span>
                 </h3>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                   <div className="relative w-full sm:w-auto">

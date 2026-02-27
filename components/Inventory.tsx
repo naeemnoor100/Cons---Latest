@@ -69,6 +69,8 @@ export const Inventory: React.FC = () => {
     quantity: '', unitPrice: '', projectId: '', vendorId: '', date: '', note: ''
   });
 
+  const [breakdownMaterial, setBreakdownMaterial] = useState<Material | null>(null);
+
   // Bulk Inward State
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([
     { id: '1', materialId: '', quantity: '', unitPrice: '', vendorId: '', projectId: '' }
@@ -422,6 +424,47 @@ export const Inventory: React.FC = () => {
     });
   }, [historyMaterial, historySearch, historySort, projects, vendors, activeHistoryTab]);
 
+  const projectBreakdown = useMemo(() => {
+    if (!breakdownMaterial) return [];
+    const breakdown: { projectId: string; quantity: number }[] = [];
+    
+    projects.forEach(project => {
+        const history = breakdownMaterial.history || [];
+        
+        // Logic from ProjectList.tsx to calculate total remaining for the project
+        // This ensures consistency with "Material Arrivals > In Hand"
+        let totalRemaining = 0;
+        
+        // Find all "Arrivals" (Purchase or Transfer In) for this project
+        const arrivals = history.filter(h => 
+            (h.type === 'Purchase' || h.type === 'Transfer') && 
+            h.projectId === project.id && 
+            h.quantity > 0
+        );
+
+        arrivals.forEach(arrival => {
+            const batchId = arrival.id.replace('sh-exp-', '');
+            
+            // Find deductions linked to this batch
+            const deductions = history.filter(d => 
+                d.parentPurchaseId === batchId && 
+                d.projectId === project.id && 
+                d.quantity < 0
+            );
+            
+            const qtyUsed = Math.abs(deductions.reduce((sum, d) => sum + d.quantity, 0));
+            const remaining = arrival.quantity - qtyUsed;
+            totalRemaining += remaining;
+        });
+        
+        if (totalRemaining > 0) {
+            breakdown.push({ projectId: project.id, quantity: totalRemaining });
+        }
+    });
+    
+    return breakdown.sort((a, b) => b.quantity - a.quantity);
+  }, [breakdownMaterial, projects]);
+
   const handleProcureStock = async (e: React.FormEvent) => {
     e.preventDefault();
     const qty = parseFloat(procureData.quantity) || 0;
@@ -710,9 +753,9 @@ export const Inventory: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-xs font-black text-slate-600 dark:text-slate-400">{formatCurrency(mat.stockValue)}</td>
                     <td className="px-8 py-5">
-                       <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 ${isLowStock ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/10 dark:border-red-900/20' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800'}`}>
+                       <button onClick={() => setBreakdownMaterial(mat)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 hover:scale-105 active:scale-95 transition-all ${isLowStock ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/10 dark:border-red-900/20' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800'}`}>
                           {remaining.toLocaleString()} {mat.unit}s {isProjectFiltered ? (filterProj?.isGodown ? 'in Godown' : 'on Site') : ''}
-                       </span>
+                       </button>
                     </td>
                     <td className="px-8 py-5 text-right">
                        <div className="flex justify-end gap-2 items-center">
@@ -1157,6 +1200,50 @@ export const Inventory: React.FC = () => {
                  </div>
               </form>
            </div>
+        </div>
+      )}
+      {/* Stock Breakdown Modal */}
+      {breakdownMaterial && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md" onClick={() => setBreakdownMaterial(null)}>
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{breakdownMaterial.name}</h3>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Stock Distribution</p>
+                    </div>
+                    <button onClick={() => setBreakdownMaterial(null)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={24} /></button>
+                </div>
+                <div className="p-6 max-h-[60vh] overflow-y-auto no-scrollbar">
+                    {projectBreakdown.length === 0 ? (
+                        <p className="text-center text-slate-500 text-sm font-bold py-8">No stock available across any site.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {projectBreakdown.map((item) => {
+                                const proj = projects.find(p => p.id === item.projectId);
+                                return (
+                                    <div key={item.projectId} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-xl ${proj?.isGodown ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                                                {proj?.isGodown ? <Warehouse size={16} /> : <Briefcase size={16} />}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-sm text-slate-900 dark:text-white">{proj?.name}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{proj?.isGodown ? 'Godown / Hub' : 'Project Site'}</p>
+                                            </div>
+                                        </div>
+                                        <span className="font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm">
+                                            {item.quantity.toLocaleString()} {breakdownMaterial.unit}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 text-center">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total System Stock: {projectBreakdown.reduce((sum, i) => sum + i.quantity, 0).toLocaleString()} {breakdownMaterial.unit}</p>
+                </div>
+            </div>
         </div>
       )}
     </div>
