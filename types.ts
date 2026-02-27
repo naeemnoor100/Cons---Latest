@@ -23,6 +23,7 @@ export interface Project {
   description?: string;
   contactNumber?: string;
   isGodown?: boolean;
+  isDeleted?: boolean;
 }
 
 export type VendorCategory = string;

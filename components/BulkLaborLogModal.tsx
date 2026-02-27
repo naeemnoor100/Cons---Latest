@@ -120,7 +120,7 @@ export const BulkLaborLogModal: React.FC<BulkLaborLogModalProps> = ({
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Site</label>
               <select required className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={projectId} onChange={e => setProjectId(e.target.value)}>
                 <option value="">Select Site...</option>
-                {projects.filter(p => !p.isGodown).map(p => (
+                {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
                   <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>
                 ))}
               </select>

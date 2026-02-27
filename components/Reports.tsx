@@ -72,7 +72,7 @@ export const Reports: React.FC = () => {
   const stockReportData = useMemo(() => {
     const report: { projectId: string; projectName: string; materialName: string; unit: string; quantity: number; value: number }[] = [];
 
-    projects.forEach(project => {
+    projects.filter(p => !p.isDeleted).forEach(project => {
       materials.forEach(mat => {
         const history = mat.history || [];
         
@@ -407,7 +407,7 @@ export const Reports: React.FC = () => {
   }, [selectedProjectId, projects, expenses, incomes, laborLogs]);
 
   // Global Logic for Overview
-  const financialData = useMemo(() => projects.map(p => {
+  const financialData = useMemo(() => projects.filter(p => !p.isDeleted).map(p => {
     const spentExpenses = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
     const spentLabor = laborLogs.filter(l => l.projectId === p.id).reduce((sum, l) => sum + l.wageAmount, 0);
     const spent = spentExpenses + spentLabor;
@@ -637,7 +637,7 @@ export const Reports: React.FC = () => {
                       onChange={(e) => setSelectedProjectId(e.target.value)}
                       className="w-full md:w-72 px-0 bg-transparent text-lg font-black text-slate-900 dark:text-white outline-none appearance-none cursor-pointer pr-10"
                     >
-                      {projects.map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
+                      {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                  </div>
@@ -802,7 +802,7 @@ export const Reports: React.FC = () => {
                       onChange={(e) => setSummaryProjectId(e.target.value)}
                       className="w-full md:w-72 px-0 bg-transparent text-lg font-black text-slate-900 dark:text-white outline-none appearance-none cursor-pointer pr-10"
                     >
-                      {projects.map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
+                      {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                  </div>

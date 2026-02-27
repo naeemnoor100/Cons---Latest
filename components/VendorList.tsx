@@ -27,12 +27,20 @@ export const VendorList: React.FC = () => {
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [payingVendor, setPayingVendor] = useState<Vendor | null>(null);
   const [quickPaymentBill, setQuickPaymentBill] = useState<{id: string, remainingBalance: number, projectId: string} | null>(null);
   const [quickPaymentFormData, setQuickPaymentFormData] = useState({
     amount: '',
     method: 'Bank' as PaymentMethod,
     date: new Date().toISOString().split('T')[0],
     reference: ''
+  });
+  const [paymentFormData, setPaymentFormData] = useState({
+    amount: '',
+    method: 'Bank' as PaymentMethod,
+    date: new Date().toISOString().split('T')[0],
+    reference: '',
+    projectId: ''
   });
   
   const [viewingVendorId, setViewingVendorId] = useState<string | null>(null);
@@ -261,6 +269,34 @@ export const VendorList: React.FC = () => {
     setShowModal(false);
   };
 
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!payingVendor) return;
+
+    const amountToPay = parseFloat(paymentFormData.amount) || 0;
+    if (amountToPay <= 0) return;
+
+    const payment: Payment = {
+      id: 'pay' + Date.now(),
+      date: paymentFormData.date,
+      vendorId: payingVendor.id,
+      projectId: paymentFormData.projectId || projects[0]?.id || '',
+      amount: amountToPay,
+      method: paymentFormData.method,
+      reference: paymentFormData.reference
+    };
+
+    await addPayment(payment);
+    setPayingVendor(null);
+    setPaymentFormData({
+      amount: '',
+      method: 'Bank',
+      date: new Date().toISOString().split('T')[0],
+      reference: '',
+      projectId: ''
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -312,7 +348,7 @@ export const VendorList: React.FC = () => {
                 <th className="px-8 py-5">Supplier Profile</th>
                 <th className="px-8 py-5">Active Sites</th>
                 <th className="px-8 py-5">Outstanding Bal.</th>
-                <th className="px-8 py-5">Last Settlement</th>
+                <th className="px-8 py-5">Last Payment</th>
                 <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
@@ -374,25 +410,46 @@ export const VendorList: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5">
-                       {lastPay ? (
-                         <div className="flex items-center gap-3">
-                           <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl">
-                              <ArrowDownCircle size={16} />
+                     <td className="px-8 py-5">
+                       <div className="flex items-center justify-between gap-2">
+                         {lastPay ? (
+                           <div className="flex items-center gap-3">
+                             <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl">
+                                <ArrowDownCircle size={16} />
+                             </div>
+                             <div>
+                                <p className="text-[11px] font-black text-slate-800 dark:text-slate-100">{formatCurrency(lastPay.amount)}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                  <Clock size={10} /> {new Date(lastPay.date).toLocaleDateString('en-IN')}
+                                </p>
+                             </div>
                            </div>
-                           <div>
-                              <p className="text-[11px] font-black text-slate-800 dark:text-slate-100">{formatCurrency(lastPay.amount)}</p>
-                              <p className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                                <Clock size={10} /> {new Date(lastPay.date).toLocaleDateString('en-IN')}
-                              </p>
-                           </div>
-                         </div>
-                       ) : (
-                         <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest italic">No Payments</span>
-                       )}
+                         ) : (
+                           <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest italic">No Payments</span>
+                         )}
+                         <button 
+                          onClick={() => {
+                            setPayingVendor(vendor);
+                            setPaymentFormData(prev => ({ ...prev, projectId: projects[0]?.id || '' }));
+                          }}
+                          className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-600 dark:hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
+                         >
+                           <DollarSign size={12} /> Pay
+                         </button>
+                       </div>
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2 items-center">
+                         <button 
+                          onClick={() => {
+                            setPayingVendor(vendor);
+                            setPaymentFormData(prev => ({ ...prev, projectId: projects[0]?.id || '' }));
+                          }}
+                          className="p-3 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-2xl transition-all shadow-sm"
+                          title="Record Payment"
+                         >
+                           <DollarSign size={20} />
+                         </button>
                          <button 
                           onClick={() => handleViewVendor(vendor.id)} 
                           className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm"
@@ -511,6 +568,87 @@ export const VendorList: React.FC = () => {
           }}
           formatCurrency={formatCurrency}
         />
+      )}
+
+      {/* Generic Payment Modal */}
+      {payingVendor && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
+               <div className="flex items-center gap-4">
+                  <div className="p-3 bg-emerald-600 text-white rounded-2xl">
+                     <DollarSign size={24} />
+                  </div>
+                  <div>
+                     <h2 className="text-lg font-black uppercase tracking-tight">Record Payment</h2>
+                     <p className="text-[10px] font-bold text-slate-400 uppercase">To: {payingVendor.name}</p>
+                  </div>
+               </div>
+               <button onClick={() => setPayingVendor(null)} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+            </div>
+            
+            <form onSubmit={handlePaymentSubmit} className="p-8 space-y-5">
+               <div className="bg-slate-900 p-5 rounded-2xl text-white flex justify-between items-center">
+                  <div>
+                    <p className="text-[8px] font-black text-white/50 uppercase tracking-widest mb-1">Current Balance</p>
+                    <p className="text-lg font-black">{formatCurrency(payingVendor.balance)}</p>
+                  </div>
+                  <ArrowRight className="text-white/20" size={20} />
+                  <div className="text-right">
+                    <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Balance After</p>
+                    <p className="text-lg font-black text-emerald-500">{formatCurrency(payingVendor.balance - (parseFloat(paymentFormData.amount) || 0))}</p>
+                  </div>
+               </div>
+
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 px-1">Amount</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    required 
+                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10" 
+                    value={paymentFormData.amount} 
+                    onChange={e => setPaymentFormData(p => ({ ...p, amount: e.target.value }))} 
+                    placeholder="0.00"
+                  />
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Date</label>
+                    <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.date} onChange={e => setPaymentFormData(p => ({ ...p, date: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Method</label>
+                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.method} onChange={e => setPaymentFormData(p => ({ ...p, method: e.target.value as PaymentMethod }))}>
+                      <option value="Bank">Bank</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Online">Online</option>
+                    </select>
+                  </div>
+               </div>
+
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 px-1">Project (Optional)</label>
+                  <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.projectId} onChange={e => setPaymentFormData(p => ({ ...p, projectId: e.target.value }))}>
+                    <option value="">General / No Specific Project</option>
+                    {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+               </div>
+
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400 px-1">Reference / UTR</label>
+                  <input type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" placeholder="Optional..." value={paymentFormData.reference} onChange={e => setPaymentFormData(p => ({ ...p, reference: e.target.value }))} />
+               </div>
+
+               <button type="submit" className="w-full bg-emerald-600 text-white py-4 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-all mt-2 shadow-lg shadow-emerald-200 dark:shadow-none">
+                  Record Payment
+               </button>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Quick Payment Modal */}

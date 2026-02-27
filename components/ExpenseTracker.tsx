@@ -19,7 +19,7 @@ export const ExpenseTracker: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState('All');
 
   const [formData, setFormData] = useState({
-    projectId: projects[0]?.id || '', 
+    projectId: projects.find(p => !p.isDeleted)?.id || '', 
     vendorId: '', 
     date: new Date().toISOString().split('T')[0], 
     amount: '', 
@@ -142,7 +142,7 @@ export const ExpenseTracker: React.FC = () => {
 
   const resetForm = useCallback(() => {
     setFormData({ 
-      projectId: projects[0]?.id || '', 
+      projectId: projects.find(p => !p.isDeleted)?.id || '', 
       vendorId: '', 
       date: new Date().toISOString().split('T')[0], 
       amount: '', 
@@ -268,7 +268,7 @@ export const ExpenseTracker: React.FC = () => {
                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                <select className="w-full pl-9 pr-4 py-3.5 sm:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl sm:rounded-[1.2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
                   <option value="All">All Sites</option>
-                  {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                  {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{p.isDeleted ? ' (Deleted)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                </select>
             </div>
          </div>
@@ -388,7 +388,7 @@ export const ExpenseTracker: React.FC = () => {
                     required
                   >
                     <option value="" disabled>Select site...</option>
-                    {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                    {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1.5">

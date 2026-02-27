@@ -35,6 +35,7 @@ export const ProjectList: React.FC = () => {
   } = useApp();
   
   const [filter, setFilter] = useState<string>('Active');
+  const [showDeleted, setShowDeleted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -275,18 +276,19 @@ export const ProjectList: React.FC = () => {
     return projects
       .filter(p => {
         const isSite = !p.isGodown;
+        const isNotDeleted = showDeleted ? true : !p.isDeleted;
         const matchesStatus = filter === 'All' || p.status === filter;
         const matchesSearch = (p.name || '').toLowerCase().includes(query) || 
                              (p.location || '').toLowerCase().includes(query) ||
                              (p.client || '').toLowerCase().includes(query);
-        return isSite && matchesStatus && matchesSearch;
+        return isSite && isNotDeleted && matchesStatus && matchesSearch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [projects, filter, searchQuery]);
+  }, [projects, filter, searchQuery, showDeleted]);
 
   const godownProjects = useMemo(() => {
-    return projects.filter(p => p.isGodown).sort((a, b) => a.name.localeCompare(b.name));
-  }, [projects]);
+    return projects.filter(p => p.isGodown && (showDeleted ? true : !p.isDeleted)).sort((a, b) => a.name.localeCompare(b.name));
+  }, [projects, showDeleted]);
 
   const sortedStatuses = useMemo(() => [...siteStatuses].sort(), [siteStatuses]);
 
@@ -614,8 +616,9 @@ export const ProjectList: React.FC = () => {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {godownProjects.map(godown => (
-              <div key={godown.id} className="bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] border border-slate-800 overflow-hidden hover:border-emerald-500 transition-all group flex flex-col shadow-xl">
-                <div className="p-6 flex-1">
+              <div key={godown.id} className={`bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] border border-slate-800 overflow-hidden hover:border-emerald-500 transition-all group flex flex-col shadow-xl ${godown.isDeleted ? 'opacity-75 grayscale' : ''}`}>
+                <div className="p-6 flex-1 relative">
+                  {godown.isDeleted && <div className="absolute top-6 right-6 px-3 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full z-10">Deleted</div>}
                   <div className="flex justify-between mb-4">
                     <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">Active Hub</span>
                     <div className="flex gap-2">
@@ -642,6 +645,12 @@ export const ProjectList: React.FC = () => {
             <Briefcase size={16} /> Construction Project Sites
           </h3>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+            <button 
+              onClick={() => setShowDeleted(!showDeleted)}
+              className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all flex items-center gap-2 ${showDeleted ? 'bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400' : 'bg-white border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700'}`}
+            >
+              <Trash2 size={14} /> {showDeleted ? 'Hide Deleted' : 'Show Deleted'}
+            </button>
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16} />
               <input 
@@ -673,8 +682,9 @@ export const ProjectList: React.FC = () => {
           {constructionSites.map((project) => {
             const metrics = calculateProjectMetrics(project.id, project.budget);
             return (
-              <div key={project.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-all group flex flex-col shadow-sm">
-                <div className="p-6 flex-1">
+              <div key={project.id} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-all group flex flex-col shadow-sm ${project.isDeleted ? 'opacity-75 grayscale' : ''}`}>
+                <div className="p-6 flex-1 relative">
+                  {project.isDeleted && <div className="absolute top-6 right-6 px-3 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full z-10">Deleted</div>}
                   <div className="flex justify-between mb-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${project.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-slate-100 text-slate-700 dark:bg-slate-900/30'}`}>{project.status}</span>
                     <div className="flex gap-2">

@@ -240,7 +240,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.map(proj => proj.id === p.id ? p : proj) }), 'Update', 'Project', p.id, `Updated project: ${p.name}`), [dispatchUpdate]);
   const deleteProject = useCallback(async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
-    return dispatchUpdate(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== id) }), 'Delete', 'Project', id, `Deleted project`);
+    return dispatchUpdate(prev => ({ 
+      ...prev, 
+      projects: prev.projects.map(p => p.id === id ? { ...p, isDeleted: true } : p) 
+    }), 'Delete', 'Project', id, `Deleted project`);
   }, [dispatchUpdate]);
   
   const addVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: [...prev.vendors, v] }), 'Create', 'Vendor', v.id, `Created vendor: ${v.name}`), [dispatchUpdate]);

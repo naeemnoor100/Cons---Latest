@@ -243,7 +243,7 @@ export const Inventory: React.FC = () => {
       materialId: '',
       newName: '',
       vendorId: vendors[0]?.id || '',
-      projectId: projects.find(p => p.isGodown)?.id || projects[0]?.id || '',
+      projectId: projects.find(p => !p.isDeleted && p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '',
       quantity: '',
       unit: stockingUnits[0] || 'Bag',
       costPerUnit: '',
@@ -255,20 +255,20 @@ export const Inventory: React.FC = () => {
 
   const handleOpenBulkModal = () => {
     setBulkGlobalVendor(vendors[0]?.id || '');
-    setBulkGlobalProject(projects.find(p => p.isGodown)?.id || projects[0]?.id || '');
+    setBulkGlobalProject(projects.find(p => !p.isDeleted && p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '',);
     setBulkDate(new Date().toISOString().split('T')[0]);
     setBulkRows([{ id: '1', materialId: '', quantity: '', unitPrice: '', vendorId: '', projectId: '' }]);
     setShowBulkModal(true);
   };
 
   const handleOpenUsageModal = (materialId?: string, projectId?: string) => {
-    setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || projects.find(p => !p.isGodown)?.id || projects[0]?.id || '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '', filterMaterialId: materialId || '' });
+    setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || projects.find(p => !p.isDeleted && !p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '', filterMaterialId: materialId || '' });
     setShowUsageModal(true);
   };
 
   const handleOpenTransferModal = () => {
     setTransferData({
-      sourceProjectId: projects.find(p => p.isGodown)?.id || projects[0]?.id || '',
+      sourceProjectId: projects.find(p => !p.isDeleted && p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '',
       destProjectId: '',
       materialId: '',
       batchId: '',
@@ -684,7 +684,7 @@ export const Inventory: React.FC = () => {
              <Warehouse className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
              <select className="pl-10 pr-8 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
                 <option value="All">Hub Filter: All</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{p.isDeleted ? ' (Deleted)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
              </select>
           </div>
           <div className="relative">
@@ -806,14 +806,14 @@ export const Inventory: React.FC = () => {
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Hub (From)</label>
                       <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.sourceProjectId} onChange={e => setTransferData(p => ({ ...p, sourceProjectId: e.target.value, materialId: '', batchId: '' }))}>
-                         {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                         {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                       </select>
                    </div>
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Destination Hub (To)</label>
                       <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.destProjectId} onChange={e => setTransferData(p => ({ ...p, destProjectId: e.target.value }))}>
                          <option value="">Select Target...</option>
-                         {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                         {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                       </select>
                    </div>
                 </div>
@@ -934,7 +934,7 @@ export const Inventory: React.FC = () => {
                   <div className="space-y-1.5">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Target Hub (Godown or Site)</label>
                      <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={procureData.projectId} onChange={e => setProcureData(p => ({ ...p, projectId: e.target.value }))} required>
-                        {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown Hub)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                        {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown Hub)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                      </select>
                   </div>
                   <div className="space-y-1.5">

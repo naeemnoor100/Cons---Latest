@@ -518,7 +518,7 @@ export const LaborManager: React.FC = () => {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Assigned Site (Optional)</label>
                 <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.currentSiteId} onChange={e => setEmployeeFormData(p => ({ ...p, currentSiteId: e.target.value }))}>
                   <option value="">No specific site assigned</option>
-                  {projects.filter(p => !p.isGodown).map(p => (
+                  {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
@@ -568,7 +568,7 @@ export const LaborManager: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Site</label>
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.projectId} onChange={e => setLogFormData(p => ({ ...p, projectId: e.target.value, employeeId: '', wageAmount: '' }))}>
                     <option value="">Select Site...</option>
-                    {projects.filter(p => !p.isGodown).map(p => (
+                    {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
                       <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>
                     ))}
                   </select>
