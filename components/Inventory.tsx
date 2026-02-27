@@ -426,7 +426,7 @@ export const Inventory: React.FC = () => {
 
   const projectBreakdown = useMemo(() => {
     if (!breakdownMaterial) return [];
-    const breakdown: { projectId: string; quantity: number }[] = [];
+    const breakdown: { projectId: string; quantity: number; value: number }[] = [];
     
     projects.forEach(project => {
         const history = breakdownMaterial.history || [];
@@ -434,6 +434,7 @@ export const Inventory: React.FC = () => {
         // Logic from ProjectList.tsx to calculate total remaining for the project
         // This ensures consistency with "Material Arrivals > In Hand"
         let totalRemaining = 0;
+        let totalValue = 0;
         
         // Find all "Arrivals" (Purchase or Transfer In) for this project
         const arrivals = history.filter(h => 
@@ -454,11 +455,17 @@ export const Inventory: React.FC = () => {
             
             const qtyUsed = Math.abs(deductions.reduce((sum, d) => sum + d.quantity, 0));
             const remaining = arrival.quantity - qtyUsed;
-            totalRemaining += remaining;
+            
+            if (remaining > 0) {
+                totalRemaining += remaining;
+                // Calculate value based on unit price of the arrival batch
+                const unitPrice = arrival.unitPrice || breakdownMaterial.costPerUnit;
+                totalValue += remaining * unitPrice;
+            }
         });
         
         if (totalRemaining > 0) {
-            breakdown.push({ projectId: project.id, quantity: totalRemaining });
+            breakdown.push({ projectId: project.id, quantity: totalRemaining, value: totalValue });
         }
     });
     
@@ -1231,17 +1238,23 @@ export const Inventory: React.FC = () => {
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{proj?.isGodown ? 'Godown / Hub' : 'Project Site'}</p>
                                             </div>
                                         </div>
-                                        <span className="font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm">
-                                            {item.quantity.toLocaleString()} {breakdownMaterial.unit}
-                                        </span>
+                                        <div className="text-right">
+                                            <span className="block font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm mb-1">
+                                                {item.quantity.toLocaleString()} {breakdownMaterial.unit}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                                {formatCurrency(item.value)}
+                                            </span>
+                                        </div>
                                     </div>
                                 );
                             })}
                         </div>
                     )}
                 </div>
-                <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 text-center">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total System Stock: {projectBreakdown.reduce((sum, i) => sum + i.quantity, 0).toLocaleString()} {breakdownMaterial.unit}</p>
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center px-8">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Stock: {projectBreakdown.reduce((sum, i) => sum + i.quantity, 0).toLocaleString()} {breakdownMaterial.unit}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Value: {formatCurrency(projectBreakdown.reduce((sum, i) => sum + i.value, 0))}</p>
                 </div>
             </div>
         </div>

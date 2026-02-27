@@ -29,7 +29,7 @@ const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const Reports: React.FC = () => {
   const { projects, expenses, materials, incomes, vendors, laborLogs, employees, invoices, payments, laborPayments } = useApp();
-  const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary' | 'material-locator' | 'vendor-supply'>('overview');
+  const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary' | 'material-locator' | 'vendor-supply' | 'stock-report'>('overview');
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
   
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
@@ -61,6 +61,74 @@ export const Reports: React.FC = () => {
     totalValue: '',
     price: ''
   });
+
+  const [stockReportFilters, setStockReportFilters] = useState({
+    site: '',
+    material: '',
+    quantity: '',
+    value: ''
+  });
+
+  const stockReportData = useMemo(() => {
+    const report: { projectId: string; projectName: string; materialName: string; unit: string; quantity: number; value: number }[] = [];
+
+    projects.forEach(project => {
+      materials.forEach(mat => {
+        const history = mat.history || [];
+        
+        // Logic from ProjectList.tsx / Inventory.tsx to calculate total remaining for the project
+        let totalRemaining = 0;
+        let totalValue = 0;
+        
+        // Find all "Arrivals" (Purchase or Transfer In) for this project
+        const arrivals = history.filter(h => 
+            (h.type === 'Purchase' || h.type === 'Transfer') && 
+            h.projectId === project.id && 
+            h.quantity > 0
+        );
+
+        arrivals.forEach(arrival => {
+            const batchId = arrival.id.replace('sh-exp-', '');
+            
+            // Find deductions linked to this batch
+            const deductions = history.filter(d => 
+                d.parentPurchaseId === batchId && 
+                d.projectId === project.id && 
+                d.quantity < 0
+            );
+            
+            const qtyUsed = Math.abs(deductions.reduce((sum, d) => sum + d.quantity, 0));
+            const remaining = arrival.quantity - qtyUsed;
+            
+            if (remaining > 0) {
+                totalRemaining += remaining;
+                // Calculate value based on unit price of the arrival batch
+                const unitPrice = arrival.unitPrice || mat.costPerUnit;
+                totalValue += remaining * unitPrice;
+            }
+        });
+        
+        if (totalRemaining > 0) {
+            report.push({ 
+              projectId: project.id, 
+              projectName: project.name, 
+              materialName: mat.name, 
+              unit: mat.unit, 
+              quantity: totalRemaining, 
+              value: totalValue 
+            });
+        }
+      });
+    });
+
+    return report.filter(item => {
+      const matchSite = item.projectName.toLowerCase().includes(stockReportFilters.site.toLowerCase());
+      const matchMaterial = item.materialName.toLowerCase().includes(stockReportFilters.material.toLowerCase());
+      const matchQty = item.quantity.toString().includes(stockReportFilters.quantity);
+      const matchValue = item.value.toString().includes(stockReportFilters.value);
+      return matchSite && matchMaterial && matchQty && matchValue;
+    }).sort((a, b) => a.projectName.localeCompare(b.projectName) || a.materialName.localeCompare(b.materialName));
+  }, [projects, materials, stockReportFilters]);
 
   const activeSummaryMaterialId = summaryMaterialId;
   const activeSummaryVendorId = summaryVendorId || vendors[0]?.id || '';
@@ -417,6 +485,12 @@ export const Reports: React.FC = () => {
             className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'vendor-supply' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
            >
              Vendor Supply
+           </button>
+           <button 
+            onClick={() => setReportActiveTab('stock-report')}
+            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'stock-report' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+           >
+             Stock Report
            </button>
         </div>
       </div>
@@ -1239,6 +1313,95 @@ export const Reports: React.FC = () => {
                   </button>
                 </div>
               )}
+            </div>
+        </div>
+      )}
+      {reportActiveTab === 'stock-report' && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+              <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                  <Package size={18} className="text-blue-600" />
+                  Site-wise Stock Report
+                </h3>
+              </div>
+              <div className="overflow-x-auto no-scrollbar max-h-[600px]">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
+                    <tr>
+                      <th className="px-8 py-4 min-w-[200px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Site / Hub</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={stockReportFilters.site}
+                            onChange={(e) => setStockReportFilters(prev => ({ ...prev, site: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 min-w-[200px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Material</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={stockReportFilters.material}
+                            onChange={(e) => setStockReportFilters(prev => ({ ...prev, material: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Quantity</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={stockReportFilters.quantity}
+                            onChange={(e) => setStockReportFilters(prev => ({ ...prev, quantity: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 text-right min-w-[150px]">
+                        <div className="flex flex-col gap-2 items-end">
+                          <span>Total Value</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500 text-right"
+                            value={stockReportFilters.value}
+                            onChange={(e) => setStockReportFilters(prev => ({ ...prev, value: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                    {stockReportData.length > 0 ? stockReportData.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{item.projectName}</td>
+                        <td className="px-8 py-4 text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">{item.materialName}</td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">
+                          {item.quantity.toLocaleString()} {item.unit}
+                        </td>
+                        <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">
+                          {formatCurrency(item.value)}
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={4} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No stock records found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center px-8">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Stock Value: {formatCurrency(stockReportData.reduce((sum, item) => sum + item.value, 0))}</p>
+              </div>
             </div>
         </div>
       )}
