@@ -43,6 +43,8 @@ export const Reports: React.FC = () => {
 
   const [materialFilters, setMaterialFilters] = useState({
     site: '',
+    material: '',
+    vendor: '',
     lastUpdated: '',
     available: '',
     totalValue: '',
@@ -60,112 +62,106 @@ export const Reports: React.FC = () => {
     price: ''
   });
 
-  const activeSummaryMaterialId = summaryMaterialId || materials[0]?.id || '';
+  const activeSummaryMaterialId = summaryMaterialId;
   const activeSummaryVendorId = summaryVendorId || vendors[0]?.id || '';
 
   const materialLocatorData = useMemo(() => {
-    if (!activeSummaryMaterialId) return null;
-    const mat = materials.find(m => m.id === activeSummaryMaterialId);
-    if (!mat) return null;
+    const targetMaterials = activeSummaryMaterialId 
+      ? materials.filter(m => m.id === activeSummaryMaterialId)
+      : materials;
 
-    const projectStocks: Record<string, { projectName: string, quantity: number, value: number, unit: string, lastUpdated: string }> = {};
+    const stocks: { id: string, materialName: string, projectName: string, vendorName: string, quantity: number, value: number, unitPrice: number, unit: string, lastUpdated: string }[] = [];
 
-    const hist = mat.history || [];
-    hist.forEach(h => {
-      if ((h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0) {
-        const batchId = h.id.replace('sh-exp-', '');
-        const deductions = hist.filter(d => 
-          d.parentPurchaseId === batchId && d.projectId === h.projectId && d.quantity < 0
-        );
-        const qtyUsed = Math.abs(deductions.filter(d => d.type === 'Usage').reduce((sum, d) => sum + d.quantity, 0));
-        const qtyMoved = Math.abs(deductions.filter(d => d.type === 'Transfer').reduce((sum, d) => sum + d.quantity, 0));
-        
-        const remaining = h.quantity - (qtyUsed + qtyMoved);
-        
-        if (remaining > 0) {
-          if (!projectStocks[h.projectId]) {
+    targetMaterials.forEach(mat => {
+      const hist = mat.history || [];
+      hist.forEach(h => {
+        if ((h.type === 'Purchase' || h.type === 'Transfer') && h.quantity > 0) {
+          const batchId = h.id.replace('sh-exp-', '');
+          const deductions = hist.filter(d => 
+            d.parentPurchaseId === batchId && d.projectId === h.projectId && d.quantity < 0
+          );
+          const qtyUsed = Math.abs(deductions.filter(d => d.type === 'Usage').reduce((sum, d) => sum + d.quantity, 0));
+          const qtyMoved = Math.abs(deductions.filter(d => d.type === 'Transfer').reduce((sum, d) => sum + d.quantity, 0));
+          
+          const remaining = h.quantity - (qtyUsed + qtyMoved);
+          
+          if (remaining > 0) {
             const proj = projects.find(p => p.id === h.projectId);
-            projectStocks[h.projectId] = { projectName: proj ? proj.name : 'Unknown', quantity: 0, value: 0, unit: mat.unit, lastUpdated: h.date };
-          }
-          projectStocks[h.projectId].quantity += remaining;
-          projectStocks[h.projectId].value += remaining * (h.unitPrice || mat.costPerUnit);
-          if (new Date(h.date) > new Date(projectStocks[h.projectId].lastUpdated)) {
-            projectStocks[h.projectId].lastUpdated = h.date;
+            const vendor = vendors.find(v => v.id === h.vendorId);
+            stocks.push({
+              id: h.id,
+              materialName: mat.name,
+              projectName: proj ? proj.name : 'Unknown',
+              vendorName: vendor ? vendor.name : 'Direct',
+              quantity: remaining,
+              unitPrice: h.unitPrice || mat.costPerUnit,
+              value: remaining * (h.unitPrice || mat.costPerUnit),
+              unit: mat.unit,
+              lastUpdated: h.date
+            });
           }
         }
-      }
+      });
     });
 
     return {
-      material: mat,
-      stocks: Object.values(projectStocks).sort((a, b) => b.value - a.value)
+      stocks: stocks.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
     };
-  }, [activeSummaryMaterialId, materials, projects, summaryMaterialId]);
+  }, [activeSummaryMaterialId, materials, projects, vendors]);
 
   const vendorDistributionData = useMemo(() => {
     if (!activeSummaryVendorId) return null;
     const vendor = vendors.find(v => v.id === activeSummaryVendorId);
     if (!vendor) return null;
     
-    const distribution: Record<string, { projectName: string, materials: Record<string, { matName: string, quantity: number, value: number, unit: string, lastSupplied: string }> }> = {};
+    const distributions: { id: string, projectName: string, matName: string, quantity: number, value: number, unitPrice: number, unit: string, lastSupplied: string }[] = [];
 
     materials.forEach(mat => {
       const hist = mat.history || [];
       hist.forEach(h => {
-        if (h.type === 'Purchase' && h.vendorId === summaryVendorId && h.quantity > 0) {
-          if (!distribution[h.projectId]) {
-            const proj = projects.find(p => p.id === h.projectId);
-            distribution[h.projectId] = { projectName: proj ? proj.name : 'Unknown', materials: {} };
-          }
-          
-          if (!distribution[h.projectId].materials[mat.id]) {
-            distribution[h.projectId].materials[mat.id] = { matName: mat.name, quantity: 0, value: 0, unit: mat.unit, lastSupplied: h.date };
-          }
-          
-          distribution[h.projectId].materials[mat.id].quantity += h.quantity;
-          distribution[h.projectId].materials[mat.id].value += h.quantity * (h.unitPrice || mat.costPerUnit);
-          if (new Date(h.date) > new Date(distribution[h.projectId].materials[mat.id].lastSupplied)) {
-            distribution[h.projectId].materials[mat.id].lastSupplied = h.date;
-          }
+        if (h.type === 'Purchase' && h.vendorId === activeSummaryVendorId && h.quantity > 0) {
+          const proj = projects.find(p => p.id === h.projectId);
+          distributions.push({
+            id: h.id,
+            projectName: proj ? proj.name : 'Unknown',
+            matName: mat.name,
+            quantity: h.quantity,
+            unitPrice: h.unitPrice || mat.costPerUnit,
+            value: h.quantity * (h.unitPrice || mat.costPerUnit),
+            unit: mat.unit,
+            lastSupplied: h.date
+          });
         }
-      });
-    });
-
-    const rows: { projectName: string, matName: string, quantity: number, value: number, unit: string, lastSupplied: string }[] = [];
-    Object.values(distribution).forEach(proj => {
-      Object.values(proj.materials).forEach(m => {
-        rows.push({
-          projectName: proj.projectName,
-          matName: m.matName,
-          quantity: m.quantity,
-          value: m.value,
-          unit: m.unit,
-          lastSupplied: m.lastSupplied
-        });
       });
     });
 
     return {
       vendor,
-      distributions: rows.sort((a, b) => a.projectName.localeCompare(b.projectName))
+      distributions: distributions.sort((a, b) => new Date(b.lastSupplied).getTime() - new Date(a.lastSupplied).getTime())
     };
   }, [activeSummaryVendorId, materials, projects, vendors, summaryVendorId]);
 
   const filteredMaterialStocks = useMemo(() => {
     if (!materialLocatorData?.stocks) return [];
     const filtered = materialLocatorData.stocks.filter(stock => {
-      const avgPrice = stock.quantity > 0 ? stock.value / stock.quantity : 0;
+      const price = stock.unitPrice;
+      const matchMaterial = stock.materialName.toLowerCase().includes(materialFilters.material.toLowerCase());
       const matchSite = stock.projectName.toLowerCase().includes(materialFilters.site.toLowerCase());
+      const matchVendor = stock.vendorName.toLowerCase().includes(materialFilters.vendor.toLowerCase());
       const matchDate = new Date(stock.lastUpdated).toLocaleDateString().toLowerCase().includes(materialFilters.lastUpdated.toLowerCase());
       const matchAvailable = stock.quantity.toString().includes(materialFilters.available);
       const matchValue = stock.value.toString().includes(materialFilters.totalValue);
-      const matchPrice = avgPrice.toFixed(2).includes(materialFilters.price);
-      return matchSite && matchDate && matchAvailable && matchValue && matchPrice;
+      const matchPrice = price.toFixed(2).includes(materialFilters.price);
+      return matchMaterial && matchSite && matchVendor && matchDate && matchAvailable && matchValue && matchPrice;
     });
     // Sort by lastUpdated descending to show "Last" items first
     filtered.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
     return filtered;
   }, [materialLocatorData, materialFilters]);
+
+  const totalMaterialValue = useMemo(() => {
+    return filteredMaterialStocks.reduce((sum, stock) => sum + stock.value, 0);
+  }, [filteredMaterialStocks]);
 
   const paginatedMaterialStocks = useMemo(() => {
     const startIndex = (materialLocatorPage - 1) * ITEMS_PER_PAGE;
@@ -175,13 +171,13 @@ export const Reports: React.FC = () => {
   const filteredVendorDistributions = useMemo(() => {
     if (!vendorDistributionData?.distributions) return [];
     const filtered = vendorDistributionData.distributions.filter(dist => {
-      const avgPrice = dist.quantity > 0 ? dist.value / dist.quantity : 0;
+      const price = dist.unitPrice;
       const matchSite = dist.projectName.toLowerCase().includes(vendorFilters.site.toLowerCase());
       const matchMaterial = dist.matName.toLowerCase().includes(vendorFilters.material.toLowerCase());
       const matchDate = new Date(dist.lastSupplied).toLocaleDateString().toLowerCase().includes(vendorFilters.lastUpdated.toLowerCase());
       const matchQuantity = dist.quantity.toString().includes(vendorFilters.quantity);
       const matchValue = dist.value.toString().includes(vendorFilters.totalValue);
-      const matchPrice = avgPrice.toFixed(2).includes(vendorFilters.price);
+      const matchPrice = price.toFixed(2).includes(vendorFilters.price);
       return matchSite && matchMaterial && matchDate && matchQuantity && matchValue && matchPrice;
     });
     // Sort by lastSupplied descending
@@ -941,14 +937,18 @@ export const Reports: React.FC = () => {
                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                   <Package size={18} className="text-blue-600" />
                   Global Material Locator
+                  <span className="ml-2 text-emerald-600">
+                    ({formatCurrency(totalMaterialValue)})
+                  </span>
                 </h3>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
                   <div className="relative w-full sm:w-auto">
                     <select 
-                      value={activeSummaryMaterialId}
+                      value={summaryMaterialId}
                       onChange={(e) => { setSummaryMaterialId(e.target.value); setMaterialLocatorPage(1); }}
                       className="w-full sm:w-48 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none appearance-none cursor-pointer pr-8"
                     >
+                      <option value="">All Materials</option>
                       {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
@@ -961,6 +961,18 @@ export const Reports: React.FC = () => {
                     <tr>
                       <th className="px-8 py-4 min-w-[200px]">
                         <div className="flex flex-col gap-2">
+                          <span>Material</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={materialFilters.material}
+                            onChange={(e) => setMaterialFilters(prev => ({ ...prev, material: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 min-w-[200px]">
+                        <div className="flex flex-col gap-2">
                           <span>Site / Hub</span>
                           <input 
                             type="text" 
@@ -968,6 +980,18 @@ export const Reports: React.FC = () => {
                             className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
                             value={materialFilters.site}
                             onChange={(e) => setMaterialFilters(prev => ({ ...prev, site: e.target.value }))}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-8 py-4 min-w-[200px]">
+                        <div className="flex flex-col gap-2">
+                          <span>Vendor</span>
+                          <input 
+                            type="text" 
+                            placeholder="Filter..." 
+                            className="w-full px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none focus:ring-1 focus:ring-blue-500"
+                            value={materialFilters.vendor}
+                            onChange={(e) => setMaterialFilters(prev => ({ ...prev, vendor: e.target.value }))}
                           />
                         </div>
                       </th>
@@ -1024,17 +1048,19 @@ export const Reports: React.FC = () => {
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                     {paginatedMaterialStocks.length ? paginatedMaterialStocks.map((stock, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{stock.materialName}</td>
                         <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{stock.projectName}</td>
+                        <td className="px-8 py-4 text-xs font-bold text-slate-600 dark:text-slate-400 uppercase">{stock.vendorName}</td>
                         <td className="px-8 py-4 text-xs font-bold text-slate-500">{new Date(stock.lastUpdated).toLocaleDateString()}</td>
                         <td className="px-8 py-4 text-right text-xs font-black text-emerald-600">{stock.quantity.toLocaleString()} {stock.unit}</td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">
-                          {formatCurrency(stock.quantity > 0 ? stock.value / stock.quantity : 0)}
+                          {formatCurrency(stock.unitPrice)}
                         </td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(stock.value)}</td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={5} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No stock found for this material</td>
+                        <td colSpan={7} className="px-8 py-10 text-center text-slate-400 text-xs font-bold uppercase">No stock found for this material</td>
                       </tr>
                     )}
                   </tbody>
@@ -1173,7 +1199,7 @@ export const Reports: React.FC = () => {
                         <td className="px-8 py-4 text-xs font-bold text-slate-500">{new Date(dist.lastSupplied).toLocaleDateString()}</td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">{dist.quantity.toLocaleString()} {dist.unit}</td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-600 dark:text-slate-400">
-                          {formatCurrency(dist.quantity > 0 ? dist.value / dist.quantity : 0)}
+                          {formatCurrency(dist.unitPrice)}
                         </td>
                         <td className="px-8 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(dist.value)}</td>
                       </tr>
