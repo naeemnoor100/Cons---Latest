@@ -107,9 +107,19 @@ export const Settings: React.FC = () => {
   };
 
   const handleResetApp = async () => {
-    if (confirm("CRITICAL WARNING: This will delete all data forever. Proceed?")) {
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const yyyy = today.getFullYear();
+    const password = `${dd}-${mm}-${yyyy}`;
+
+    const userInput = prompt(`CRITICAL WARNING: This will delete all data forever.\nTo confirm, please enter today's date as password (${password}):`);
+
+    if (userInput === password) {
       await importState(INITIAL_STATE);
       window.location.reload();
+    } else if (userInput !== null) {
+      alert("Incorrect password. Data wipe cancelled.");
     }
   };
 
