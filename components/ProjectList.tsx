@@ -701,8 +701,19 @@ export const ProjectList: React.FC = () => {
                         <Package size={18} />
                      </button>
                      <div className="flex-1">
-                        <div className="flex justify-between text-[9px] sm:text-[10px] font-black text-slate-400 mb-1 sm:mb-1.5 uppercase tracking-widest"><span>Realized Costs</span><span className="text-blue-600">{metrics.progress}%</span></div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 sm:h-2 rounded-full overflow-hidden"><div className="h-full bg-blue-600" style={{ width: `${metrics.progress}%` }}></div></div>
+                        <div className="flex justify-between text-[9px] sm:text-[10px] font-black text-slate-400 mb-1 sm:mb-1.5 uppercase tracking-widest">
+                          <span>Realized ({metrics.progress}%)</span>
+                          <span className="text-slate-900 dark:text-white">{formatCurrency(metrics.totalSpent)}</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 sm:h-2 rounded-full overflow-hidden mb-2">
+                          <div className={`h-full ${metrics.progress > 100 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${Math.min(metrics.progress, 100)}%` }}></div>
+                        </div>
+                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded-lg">
+                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Remaining</span>
+                           <span className={`text-[10px] font-black ${project.budget - metrics.totalSpent < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                               {formatCurrency(project.budget - metrics.totalSpent)}
+                           </span>
+                        </div>
                      </div>
                   </div>
                 </div>

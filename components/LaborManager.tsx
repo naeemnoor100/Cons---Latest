@@ -16,6 +16,7 @@ import {
 import { useApp } from '../AppContext';
 import { Employee, LaborLog, PaymentMethod, LaborPayment } from '../types';
 import { BulkLaborLogModal } from './BulkLaborLogModal';
+import { EmployeeInsightsModal } from './EmployeeInsightsModal';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -44,6 +45,7 @@ export const LaborManager: React.FC = () => {
   const [showBulkLogModal, setShowBulkLogModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [selectedEmployeeForInsights, setSelectedEmployeeForInsights] = useState<Employee | null>(null);
   const [editingLog, setEditingLog] = useState<LaborLog | null>(null);
   const [editingPayment, setEditingPayment] = useState<LaborPayment | null>(null);
 
@@ -317,15 +319,29 @@ export const LaborManager: React.FC = () => {
       {activeSubTab === 'employees' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEmployees.map(emp => (
-            <div key={emp.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-400 transition-all group flex flex-col shadow-sm">
+            <div 
+              key={emp.id} 
+              onClick={() => setSelectedEmployeeForInsights(emp)}
+              className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-400 transition-all group flex flex-col shadow-sm cursor-pointer hover:shadow-md"
+            >
               <div className="p-6 flex-1">
                 <div className="flex justify-between mb-4">
                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${emp.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
                     {emp.status}
                   </span>
                   <div className="flex gap-2">
-                    <button onClick={() => openEditEmployee(emp)} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
-                    <button onClick={() => { if(confirm(`Delete ${emp.name}?`)) deleteEmployee(emp.id); }} className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); openEditEmployee(emp); }} 
+                      className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); if(confirm(`Delete ${emp.name}?`)) deleteEmployee(emp.id); }} 
+                      className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{emp.name}</h3>
@@ -355,7 +371,7 @@ export const LaborManager: React.FC = () => {
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Joined: {new Date(emp.joiningDate).toLocaleDateString()}</span>
                 {emp.remaining > 0 && (
                   <button 
-                    onClick={() => triggerPayEmployee(emp.id, emp.remaining)}
+                    onClick={(e) => { e.stopPropagation(); triggerPayEmployee(emp.id, emp.remaining); }}
                     className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1 hover:gap-2 transition-all"
                   >
                     Pay Balance <ArrowRight size={14} />
@@ -539,6 +555,16 @@ export const LaborManager: React.FC = () => {
           isProjectLocked={isProjectLocked}
           addLaborLog={addLaborLog}
           onClose={() => setShowBulkLogModal(false)}
+        />
+      )}
+
+      {selectedEmployeeForInsights && (
+        <EmployeeInsightsModal
+          employee={selectedEmployeeForInsights}
+          logs={laborLogs.filter(l => l.employeeId === selectedEmployeeForInsights.id)}
+          payments={laborPayments.filter(p => p.employeeId === selectedEmployeeForInsights.id)}
+          projects={projects}
+          onClose={() => setSelectedEmployeeForInsights(null)}
         />
       )}
 

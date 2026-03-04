@@ -10,7 +10,10 @@ import {
   Pencil,
   Trash2,
   Lock,
-  Check
+  Check,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
@@ -23,6 +26,14 @@ export const InvoiceManager: React.FC = () => {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+
+  const handleSort = (key: string) => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
 
   const [formData, setFormData] = useState({
     projectId: '',
@@ -80,8 +91,9 @@ export const InvoiceManager: React.FC = () => {
   }, [incomes]);
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      const { isPaid } = getInvoiceMetrics(inv);
+    let result = invoices.filter(inv => {
+      const { isPaid, remaining } = getInvoiceMetrics(inv);
+      const isPartial = !isPaid && remaining < inv.amount && remaining > 0;
       const project = projects.find(p => p.id === inv.projectId);
       const matchesSearch = project?.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            inv.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -89,11 +101,44 @@ export const InvoiceManager: React.FC = () => {
       
       let matchesStatus = true;
       if (filterStatus === 'Paid') matchesStatus = isPaid;
-      else if (filterStatus === 'Unpaid') matchesStatus = !isPaid;
+      else if (filterStatus === 'Partially Paid') matchesStatus = isPartial;
+      else if (filterStatus === 'Unpaid') matchesStatus = !isPaid && !isPartial;
       
       return matchesSearch && matchesStatus;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [invoices, projects, searchTerm, filterStatus, getInvoiceMetrics]);
+    });
+
+    return result.sort((a, b) => {
+      const metricsA = getInvoiceMetrics(a);
+      const metricsB = getInvoiceMetrics(b);
+      
+      let valA: any = a[sortConfig.key as keyof Invoice];
+      let valB: any = b[sortConfig.key as keyof Invoice];
+
+      if (sortConfig.key === 'remaining') {
+        valA = metricsA.remaining;
+        valB = metricsB.remaining;
+      } else if (sortConfig.key === 'status') {
+        // 0: Unpaid, 1: Partial, 2: Paid
+        const statusA = metricsA.isPaid ? 2 : (metricsA.remaining < a.amount ? 1 : 0);
+        const statusB = metricsB.isPaid ? 2 : (metricsB.remaining < b.amount ? 1 : 0);
+        valA = statusA;
+        valB = statusB;
+      } else if (sortConfig.key === 'project') {
+         valA = (projects.find(p => p.id === a.projectId)?.name || '').toLowerCase();
+         valB = (projects.find(p => p.id === b.projectId)?.name || '').toLowerCase();
+      } else if (sortConfig.key === 'id') {
+        valA = a.id.toLowerCase();
+        valB = b.id.toLowerCase();
+      } else if (sortConfig.key === 'description') {
+        valA = a.description.toLowerCase();
+        valB = b.description.toLowerCase();
+      }
+
+      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [invoices, projects, searchTerm, filterStatus, getInvoiceMetrics, sortConfig]);
 
   const stats = useMemo(() => {
     const total = invoices.reduce((sum, inv) => sum + inv.amount, 0);
@@ -179,6 +224,7 @@ export const InvoiceManager: React.FC = () => {
           >
             <option value="All">All Status</option>
             <option value="Paid">Paid</option>
+            <option value="Partially Paid">Partially Paid</option>
             <option value="Unpaid">Unpaid</option>
           </select>
         </div>
@@ -189,13 +235,48 @@ export const InvoiceManager: React.FC = () => {
           <table className="w-full text-left min-w-[1000px]">
             <thead className="bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
               <tr>
-                <th className="px-8 py-5">Invoice #</th>
-                <th className="px-8 py-5">Issue Date</th>
-                <th className="px-8 py-5">Project / Description</th>
-                <th className="px-8 py-5">Due Date</th>
-                <th className="px-8 py-5">Status</th>
-                <th className="px-8 py-5 text-right">Bill Value</th>
-                <th className="px-8 py-5 text-right">Remaining</th>
+                <th className="px-8 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('id')}>
+                  <div className="flex items-center gap-1">
+                    Invoice #
+                    {sortConfig.key === 'id' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  </div>
+                </th>
+                <th className="px-8 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('date')}>
+                  <div className="flex items-center gap-1">
+                    Issue Date
+                    {sortConfig.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  </div>
+                </th>
+                <th className="px-8 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('project')}>
+                  <div className="flex items-center gap-1">
+                    Project / Description
+                    {sortConfig.key === 'project' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  </div>
+                </th>
+                <th className="px-8 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('dueDate')}>
+                  <div className="flex items-center gap-1">
+                    Due Date
+                    {sortConfig.key === 'dueDate' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  </div>
+                </th>
+                <th className="px-8 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('status')}>
+                  <div className="flex items-center gap-1">
+                    Status
+                    {sortConfig.key === 'status' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  </div>
+                </th>
+                <th className="px-8 py-5 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('amount')}>
+                  <div className="flex items-center justify-end gap-1">
+                    Bill Value
+                    {sortConfig.key === 'amount' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  </div>
+                </th>
+                <th className="px-8 py-5 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleSort('remaining')}>
+                  <div className="flex items-center justify-end gap-1">
+                    Remaining
+                    {sortConfig.key === 'remaining' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  </div>
+                </th>
                 <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
