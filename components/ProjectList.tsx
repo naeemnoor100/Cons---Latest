@@ -1030,7 +1030,7 @@ export const ProjectList: React.FC = () => {
                             </>
                           ) : activeDetailTab === 'invoices' ? (
                             <>
-                              <tr><th className="px-8 py-5">Inv #</th><th className="px-8 py-5">Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Bill Value</th><th className="px-8 py-5 text-right">Control</th></tr>
+                              <tr><th className="px-8 py-5">Inv #</th><th className="px-8 py-5">Date</th><th className="px-8 py-5">Description</th><th className="px-8 py-5">Status</th><th className="px-8 py-5 text-right">Bill Value</th><th className="px-8 py-5 text-right">Remaining</th><th className="px-8 py-5 text-right">Control</th></tr>
                               <tr className="bg-slate-100/50 dark:bg-slate-800/50">
                                 <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={invoicesFilters.inv} onChange={e => setInvoicesFilters({...invoicesFilters, inv: e.target.value})} /></th>
                                 <th className="px-4 py-2"><input type="text" placeholder="Filter..." className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700 font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-blue-500" value={invoicesFilters.date} onChange={e => setInvoicesFilters({...invoicesFilters, date: e.target.value})} /></th>
@@ -1206,8 +1206,9 @@ export const ProjectList: React.FC = () => {
                                     v.includes(invoicesFilters.value || '');
                            }).map(inv => {
                              const { remaining, isPaid } = getInvoiceMetrics(inv);
+                             const isPartial = !isPaid && remaining < inv.amount && remaining > 0;
                              return (
-                               <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : 'hover:bg-slate-50/50'}`}>
+                               <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : isPartial ? 'bg-amber-50/40 dark:bg-amber-900/5 hover:bg-amber-50/60' : 'hover:bg-slate-50/50'}`}>
                                  <td className="px-8 py-5 text-[10px] font-bold text-slate-400">#{inv.id.slice(-6).toUpperCase()}</td>
                                  <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(inv.date).toLocaleDateString()}</td>
                                  <td className="px-8 py-5">
@@ -1215,11 +1216,18 @@ export const ProjectList: React.FC = () => {
                                    <p className={`text-[9px] font-black uppercase ${!isPaid ? 'text-red-500' : 'text-emerald-500'}`}>Balance: {formatCurrency(remaining)}</p>
                                  </td>
                                  <td className="px-8 py-5">
-                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${isPaid ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                       {isPaid ? 'Paid' : 'Unpaid'}
+                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${isPaid ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : isPartial ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                                       {isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
                                     </span>
                                  </td>
                                  <td className="px-8 py-5 text-sm font-black text-indigo-600 text-right">{formatCurrency(inv.amount)}</td>
+                                 <td className="px-8 py-5 text-right font-black text-slate-500">
+                                   {isPaid ? (
+                                     <span className="text-emerald-600 flex items-center justify-end gap-1"><Check size={12} /> Paid</span>
+                                   ) : (
+                                     <span className={isPartial ? 'text-amber-600' : 'text-red-600'}>{formatCurrency(remaining)}</span>
+                                   )}
+                                 </td>
                                  <td className="px-8 py-5 text-right">
                                     <div className="flex justify-end gap-1">
                                        {!isPaid && <button onClick={() => triggerCollectPayment(inv, remaining)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="Record Receipt"><ArrowDownCircle size={18} /></button>}

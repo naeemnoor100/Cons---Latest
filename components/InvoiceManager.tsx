@@ -9,7 +9,8 @@ import {
   Briefcase, 
   Pencil,
   Trash2,
-  Lock
+  Lock,
+  Check
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
@@ -194,6 +195,7 @@ export const InvoiceManager: React.FC = () => {
                 <th className="px-8 py-5">Due Date</th>
                 <th className="px-8 py-5">Status</th>
                 <th className="px-8 py-5 text-right">Bill Value</th>
+                <th className="px-8 py-5 text-right">Remaining</th>
                 <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
@@ -201,9 +203,10 @@ export const InvoiceManager: React.FC = () => {
               {filteredInvoices.map((inv) => {
                 const project = projects.find(p => p.id === inv.projectId);
                 const { isPaid, remaining } = getInvoiceMetrics(inv);
+                const isPartial = !isPaid && remaining < inv.amount && remaining > 0;
                 const isCompleted = project?.status === 'Completed';
                 return (
-                  <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : 'hover:bg-slate-50/50'}`}>
+                  <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : isPartial ? 'bg-amber-50/40 dark:bg-amber-900/5 hover:bg-amber-50/60' : 'hover:bg-slate-50/50'}`}>
                     <td className="px-8 py-5 font-bold text-slate-400 text-xs">#{inv.id.slice(-6).toUpperCase()}</td>
                     <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(inv.date).toLocaleDateString()}</td>
                     <td className="px-8 py-5">
@@ -223,15 +226,21 @@ export const InvoiceManager: React.FC = () => {
                     </td>
                     <td className="px-8 py-5">
                       <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded-lg border ${
-                        isPaid ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-600 border-red-100'
+                        isPaid ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
+                        isPartial ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                        'bg-red-50 text-red-600 border-red-100'
                       }`}>
-                        {isPaid ? 'Paid' : 'Unpaid'}
+                        {isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
                       </span>
-                      {!isPaid && remaining !== inv.amount && (
-                        <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase">Partially Paid</p>
-                      )}
                     </td>
                     <td className="px-8 py-5 text-right font-black text-indigo-600">{formatCurrency(inv.amount)}</td>
+                    <td className="px-8 py-5 text-right font-black text-slate-500">
+                      {isPaid ? (
+                        <span className="text-emerald-600 flex items-center justify-end gap-1"><Check size={12} /> Paid</span>
+                      ) : (
+                        <span className={isPartial ? 'text-amber-600' : 'text-red-600'}>{formatCurrency(remaining)}</span>
+                      )}
+                    </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-1">
                         {!isCompleted ? (

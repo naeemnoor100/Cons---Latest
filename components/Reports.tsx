@@ -21,7 +21,10 @@ import {
   Package,
   HardHat,
   Wallet,
-  Receipt
+  Receipt,
+  LayoutDashboard,
+  Table,
+  Truck
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 
@@ -29,7 +32,7 @@ const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const Reports: React.FC = () => {
   const { projects, expenses, materials, incomes, vendors, laborLogs, employees, invoices, payments, laborPayments } = useApp();
-  const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary' | 'material-locator' | 'vendor-supply' | 'stock-report'>('overview');
+  const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary' | 'sites-summary' | 'material-locator' | 'vendor-supply' | 'stock-report'>('overview');
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
   
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
@@ -72,7 +75,7 @@ export const Reports: React.FC = () => {
   const stockReportData = useMemo(() => {
     const report: { projectId: string; projectName: string; materialName: string; unit: string; quantity: number; value: number }[] = [];
 
-    projects.filter(p => !p.isDeleted).forEach(project => {
+    projects.forEach(project => {
       materials.forEach(mat => {
         const history = mat.history || [];
         
@@ -407,7 +410,41 @@ export const Reports: React.FC = () => {
   }, [selectedProjectId, projects, expenses, incomes, laborLogs]);
 
   // Global Logic for Overview
-  const financialData = useMemo(() => projects.filter(p => !p.isDeleted).map(p => {
+  const sitesSummaryData = useMemo(() => {
+    return projects.filter(p => !p.isGodown).map(project => {
+      const projectExpenses = expenses.filter(e => e.projectId === project.id);
+      const projectIncomes = incomes.filter(i => i.projectId === project.id);
+      const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
+      
+      const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && e.inventoryAction !== 'Transfer');
+      const projectLaborLogs = laborLogs.filter(l => l.projectId === project.id);
+      const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+
+      const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
+      const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
+      const totalInvoiced = projectInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+      
+      const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
+      const totalLabor = expenseLabor + laborFromLogs;
+      
+      const receivable = totalInvoiced - totalCollected;
+
+      return {
+        id: project.id,
+        name: project.name,
+        status: project.status,
+        budget: project.budget,
+        spent: totalSpent,
+        laborCost: totalLabor,
+        billed: totalInvoiced,
+        received: totalCollected,
+        receivable: receivable,
+        profit: totalCollected - totalSpent
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [projects, expenses, incomes, invoices, laborLogs]);
+
+  const financialData = useMemo(() => projects.map(p => {
     const spentExpenses = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
     const spentLabor = laborLogs.filter(l => l.projectId === p.id).reduce((sum, l) => sum + l.wageAmount, 0);
     const spent = spentExpenses + spentLabor;
@@ -484,42 +521,55 @@ export const Reports: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Executive Reports</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Strategic analytics and financial summaries.</p>
         </div>
-        <div className="flex bg-white dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto overflow-x-auto no-scrollbar">
+        <div className="flex bg-white dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto overflow-x-auto no-scrollbar gap-1">
            <button 
             onClick={() => setReportActiveTab('overview')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'overview' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'overview' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
            >
-             Overview
+             <LayoutDashboard size={14} />
+             Dashboard
+           </button>
+           <button 
+            onClick={() => setReportActiveTab('sites-summary')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'sites-summary' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+           >
+             <Table size={14} />
+             All Sites
            </button>
            <button 
             onClick={() => setReportActiveTab('project-drilldown')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'project-drilldown' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'project-drilldown' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
            >
-             Project Drill-Down
+             <LucidePieChart size={14} />
+             Financials
            </button>
            <button 
             onClick={() => setReportActiveTab('project-summary')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'project-summary' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'project-summary' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
            >
-             Project Summary
-           </button>
-           <button 
-            onClick={() => setReportActiveTab('material-locator')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'material-locator' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-           >
-             Material Locator
-           </button>
-           <button 
-            onClick={() => setReportActiveTab('vendor-supply')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'vendor-supply' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-           >
-             Vendor Supply
+             <Briefcase size={14} />
+             Resources
            </button>
            <button 
             onClick={() => setReportActiveTab('stock-report')}
-            className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'stock-report' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'stock-report' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
            >
-             Stock Report
+             <ClipboardList size={14} />
+             Stock
+           </button>
+           <button 
+            onClick={() => setReportActiveTab('material-locator')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'material-locator' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+           >
+             <Search size={14} />
+             Locator
+           </button>
+           <button 
+            onClick={() => setReportActiveTab('vendor-supply')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${reportActiveTab === 'vendor-supply' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+           >
+             <Truck size={14} />
+             Vendors
            </button>
         </div>
       </div>
@@ -637,7 +687,7 @@ export const Reports: React.FC = () => {
                       onChange={(e) => setSelectedProjectId(e.target.value)}
                       className="w-full md:w-72 px-0 bg-transparent text-lg font-black text-slate-900 dark:text-white outline-none appearance-none cursor-pointer pr-10"
                     >
-                      {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
+                      {projects.map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                  </div>
@@ -802,7 +852,7 @@ export const Reports: React.FC = () => {
                       onChange={(e) => setSummaryProjectId(e.target.value)}
                       className="w-full md:w-72 px-0 bg-transparent text-lg font-black text-slate-900 dark:text-white outline-none appearance-none cursor-pointer pr-10"
                     >
-                      {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
+                      {projects.map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                  </div>
@@ -1039,6 +1089,63 @@ export const Reports: React.FC = () => {
           )}
 
           {/* Global Material Locator & Vendor Distribution removed from here */}
+        </div>
+      )}
+
+      {reportActiveTab === 'sites-summary' && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+            <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex justify-between items-center">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                <Briefcase size={18} className="text-blue-600" />
+                All Sites Summary
+              </h3>
+              <button className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">
+                 <Download size={14} /> Export
+              </button>
+            </div>
+            <div className="overflow-x-auto no-scrollbar">
+              <table className="w-full text-left min-w-[1000px]">
+                <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700">
+                  <tr>
+                    <th className="px-6 py-4">Project Name</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Master Budget</th>
+                    <th className="px-6 py-4 text-right">Spent Budget</th>
+                    <th className="px-6 py-4 text-right">Labor Costs</th>
+                    <th className="px-6 py-4 text-right">Total Billed</th>
+                    <th className="px-6 py-4 text-right">Total Received</th>
+                    <th className="px-6 py-4 text-right">Receivable</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                  {sitesSummaryData.map((site) => (
+                    <tr key={site.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white uppercase">{site.name}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${
+                          site.status === 'Active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20' : 'bg-slate-100 text-slate-600 dark:bg-slate-800'
+                        }`}>
+                          {site.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-blue-600">{formatCurrency(site.budget)}</td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-red-600">{formatCurrency(site.spent)}</td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-amber-600">{formatCurrency(site.laborCost)}</td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(site.billed)}</td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-emerald-600">{formatCurrency(site.received)}</td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-slate-500">{formatCurrency(site.receivable)}</td>
+                    </tr>
+                  ))}
+                  {sitesSummaryData.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-10 text-center text-slate-400 text-xs font-bold uppercase">No active sites found</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
