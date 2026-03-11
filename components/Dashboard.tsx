@@ -22,8 +22,7 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  Cell,
-  LabelList
+  Cell
 } from 'recharts';
 import { useApp } from '../AppContext';
 import { Project } from '../types';
@@ -91,8 +90,9 @@ export const Dashboard: React.FC = () => {
   const projectStats = useMemo(() => {
     return projects.filter(p => !p.isGodown && !p.isDeleted && p.status === 'Active').map(p => {
       const spent = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
+      const remaining = Math.max(0, p.budget - spent);
       const utilization = p.budget > 0 ? Math.round((spent / p.budget) * 100) : 0;
-      return { name: p.name, spent, utilization, budget: p.budget, id: p.id };
+      return { name: p.name, spent, remaining, utilization, budget: p.budget, id: p.id };
     }).sort((a, b) => b.utilization - a.utilization);
   }, [projects, expenses]);
 
@@ -181,13 +181,9 @@ export const Dashboard: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} width={80} />
-                  <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '10px' }} />
-                  <Bar dataKey="utilization" radius={[0, 4, 4, 0]} barSize={16}>
-                    {paginatedProjectStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.utilization > 90 ? '#e11d48' : '#003366'} />
-                    ))}
-                    <LabelList dataKey="spent" position="right" formatter={formatCurrency} fontSize={9} />
-                  </Bar>
+                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '10px' }} formatter={(value: number) => formatCurrency(value)} />
+                  <Bar dataKey="spent" stackId="a" fill="#003366" radius={[0, 0, 0, 0]} barSize={16} />
+                  <Bar dataKey="remaining" stackId="a" fill="#e2e8f0" radius={[0, 4, 4, 0]} barSize={16} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
