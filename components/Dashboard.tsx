@@ -22,7 +22,8 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  Cell 
+  Cell,
+  LabelList
 } from 'recharts';
 import { useApp } from '../AppContext';
 import { Project } from '../types';
@@ -185,6 +186,7 @@ export const Dashboard: React.FC = () => {
                     {paginatedProjectStats.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.utilization > 90 ? '#e11d48' : '#003366'} />
                     ))}
+                    <LabelList dataKey="spent" position="right" formatter={formatCurrency} fontSize={9} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
