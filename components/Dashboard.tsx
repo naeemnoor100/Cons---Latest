@@ -88,7 +88,7 @@ export const Dashboard: React.FC = () => {
   const inventoryValue = materials.reduce((acc, m) => acc + ((m.totalPurchased - m.totalUsed) * m.costPerUnit), 0);
 
   const projectStats = useMemo(() => {
-    return projects.filter(p => !p.isGodown && !p.isDeleted).map(p => {
+    return projects.filter(p => !p.isGodown).map(p => {
       const spent = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
       const utilization = p.budget > 0 ? Math.round((spent / p.budget) * 100) : 0;
       return { name: p.name, spent, utilization, budget: p.budget, id: p.id };
@@ -153,7 +153,7 @@ export const Dashboard: React.FC = () => {
           <div className="p-4 sm:p-6 h-[300px] sm:h-[350px]">
             {projectStats.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={projectStats.slice(0, 6)} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <BarChart data={projectStats} layout="vertical" margin={{ left: 10, right: 30 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} width={80} />
