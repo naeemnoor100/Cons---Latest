@@ -102,6 +102,14 @@ export const Dashboard: React.FC = () => {
       .slice(0, 5);
   }, [materials]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(projectStats.length / itemsPerPage);
+  const paginatedProjectStats = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return projectStats.slice(startIndex, startIndex + itemsPerPage);
+  }, [projectStats, currentPage]);
+
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     const newProject: Project = {
@@ -149,17 +157,32 @@ export const Dashboard: React.FC = () => {
             <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
               <Activity size={16} className="text-[#FF5A00]" /> Budget Utilization
             </h3>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1 text-[10px] font-bold bg-slate-100 rounded disabled:opacity-50"
+                >Prev</button>
+                <span className="text-[10px] font-bold">{currentPage} / {totalPages}</span>
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1 text-[10px] font-bold bg-slate-100 rounded disabled:opacity-50"
+                >Next</button>
+              </div>
+            )}
           </div>
           <div className="p-4 sm:p-6 h-[300px] sm:h-[350px]">
-            {projectStats.length > 0 ? (
+            {paginatedProjectStats.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={projectStats} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <BarChart data={paginatedProjectStats} layout="vertical" margin={{ left: 10, right: 30 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#64748b' }} width={80} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '10px' }} />
                   <Bar dataKey="utilization" radius={[0, 4, 4, 0]} barSize={16}>
-                    {projectStats.map((entry, index) => (
+                    {paginatedProjectStats.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.utilization > 90 ? '#e11d48' : '#003366'} />
                     ))}
                   </Bar>
