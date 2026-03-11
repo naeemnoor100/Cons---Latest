@@ -11,6 +11,7 @@ interface AppContextType extends AppState {
   addProject: (p: Project) => Promise<void>;
   updateProject: (p: Project) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  restoreProject: (id: string) => Promise<void>;
   addVendor: (v: Vendor) => Promise<void>;
   updateVendor: (v: Vendor) => Promise<void>;
   deleteVendor: (id: string) => Promise<void>;
@@ -244,6 +245,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev, 
       projects: prev.projects.map(p => p.id === id ? { ...p, isDeleted: true } : p) 
     }), 'Delete', 'Project', id, `Deleted project`);
+  }, [dispatchUpdate]);
+
+  const restoreProject = useCallback(async (id: string) => {
+    return dispatchUpdate(prev => ({ 
+      ...prev, 
+      projects: prev.projects.map(p => p.id === id ? { ...p, isDeleted: false } : p) 
+    }), 'Restore', 'Project', id, `Restored project`);
   }, [dispatchUpdate]);
   
   const addVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: [...prev.vendors, v] }), 'Create', 'Vendor', v.id, `Created vendor: ${v.name}`), [dispatchUpdate]);
@@ -655,7 +663,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const value = useMemo(() => ({
     ...state,
     updateUser, setTheme, setAllowDecimalStock,
-    addProject, updateProject, deleteProject,
+    addProject, updateProject, deleteProject, restoreProject,
     addVendor, updateVendor, deleteVendor,
     addMaterial, updateMaterial, deleteMaterial,
     addExpense, updateExpense, deleteExpense,
@@ -674,7 +682,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isLoading, isSyncing, syncError, lastSynced,
     undo, redo, canUndo: past.length > 0, canRedo: future.length > 0, lastActionName: ''
   }), [state, isLoading, isSyncing, syncError, lastSynced, past.length, future.length, undo, redo, isProjectLocked, 
-      updateUser, setTheme, setAllowDecimalStock, addProject, updateProject, deleteProject, addVendor, updateVendor, deleteVendor, 
+      updateUser, setTheme, setAllowDecimalStock, addProject, updateProject, deleteProject, restoreProject, addVendor, updateVendor, deleteVendor, 
       addMaterial, updateMaterial, deleteMaterial, addExpense, updateExpense, deleteExpense, addPayment, updatePayment, deletePayment, 
       addIncome, updateIncome, deleteIncome, addInvoice, updateInvoice, deleteInvoice, addEmployee, updateEmployee, deleteEmployee, 
       addLaborLog, updateLaborLog, deleteLaborLog, addLaborPayment, updateLaborPayment, deleteLaborPayment, forceSync, 

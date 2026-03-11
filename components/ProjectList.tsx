@@ -27,7 +27,7 @@ const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 export const ProjectList: React.FC = () => {
   const { 
     projects, expenses, vendors, materials, incomes, invoices, siteStatuses, stockingUnits, employees, laborLogs,
-    addProject, updateProject, deleteProject, 
+    addProject, updateProject, deleteProject, restoreProject,
     addExpense, updateExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
@@ -623,7 +623,11 @@ export const ProjectList: React.FC = () => {
                     <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">Active Hub</span>
                     <div className="flex gap-2">
                       <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(godown); }} className="p-1.5 text-slate-500 hover:text-white transition-colors"><Pencil size={16} /></button>
-                      <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete Godown ${godown.name}?`)) deleteProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      {godown.isDeleted ? (
+                        <button onClick={(e) => { e.stopPropagation(); restoreProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-emerald-500 transition-colors"><Check size={16} /></button>
+                      ) : (
+                        <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete Godown ${godown.name}?`)) deleteProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      )}
                     </div>
                   </div>
                   <h3 className="text-xl font-black text-white uppercase tracking-tight">{godown.name}</h3>
@@ -689,7 +693,11 @@ export const ProjectList: React.FC = () => {
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${project.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-slate-100 text-slate-700 dark:bg-slate-900/30'}`}>{project.status}</span>
                     <div className="flex gap-2">
                       <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(project); }} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
-                      <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete ${project.name}?`)) deleteProject(project.id); }} className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                      {project.isDeleted ? (
+                        <button onClick={(e) => { e.stopPropagation(); restoreProject(project.id); }} className="p-1.5 text-slate-400 hover:text-emerald-600 transition-colors"><Check size={16} /></button>
+                      ) : (
+                        <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete ${project.name}?`)) deleteProject(project.id); }} className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                      )}
                     </div>
                   </div>
                   <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{project.name}</h3>
