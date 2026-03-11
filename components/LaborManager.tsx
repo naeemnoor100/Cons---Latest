@@ -35,8 +35,13 @@ export const LaborManager: React.FC = () => {
     addLaborPayment,
     updateLaborPayment,
     deleteLaborPayment,
-    isProjectLocked
+    isProjectLocked,
+    currentUser
   } = useApp();
+
+  const canCreateLabor = currentUser.permissions?.['labor']?.includes('create');
+  const canEditLabor = currentUser.permissions?.['labor']?.includes('edit');
+  const canDeleteLabor = currentUser.permissions?.['labor']?.includes('delete');
 
   const [activeSubTab, setActiveSubTab] = useState<'employees' | 'logs' | 'payments'>('logs');
   const [searchTerm, setSearchTerm] = useState('');
@@ -251,30 +256,7 @@ export const LaborManager: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage employees, attendance, and payments.</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-          <button 
-            onClick={() => { setEditingEmployee(null); setShowEmployeeModal(true); }}
-            className="flex-1 sm:flex-none bg-slate-900 dark:bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-          >
-            <UserPlus size={18} /> Add Employee
-          </button>
-          <button 
-            onClick={() => { setEditingLog(null); setShowLogModal(true); }}
-            className="flex-1 sm:flex-none bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-          >
-            <ClipboardList size={18} /> Daily Log
-          </button>
-          <button 
-            onClick={() => setShowBulkLogModal(true)}
-            className="flex-1 sm:flex-none bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-          >
-            <ClipboardList size={18} /> Bulk Log
-          </button>
-          <button 
-            onClick={() => { setEditingPayment(null); setShowPaymentModal(true); }}
-            className="flex-1 sm:flex-none bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-          >
-            <DollarSign size={18} /> Pay Labor
-          </button>
+
         </div>
       </div>
 
@@ -330,18 +312,7 @@ export const LaborManager: React.FC = () => {
                     {emp.status}
                   </span>
                   <div className="flex gap-2">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); openEditEmployee(emp); }} 
-                      className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); if(confirm(`Delete ${emp.name}?`)) deleteEmployee(emp.id); }} 
-                      className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+
                   </div>
                 </div>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{emp.name}</h3>
@@ -369,14 +340,7 @@ export const LaborManager: React.FC = () => {
               </div>
               <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700/30 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Joined: {new Date(emp.joiningDate).toLocaleDateString()}</span>
-                {emp.remaining > 0 && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); triggerPayEmployee(emp.id, emp.remaining); }}
-                    className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1 hover:gap-2 transition-all"
-                  >
-                    Pay Balance <ArrowRight size={14} />
-                  </button>
-                )}
+
               </div>
             </div>
           ))}
@@ -393,7 +357,6 @@ export const LaborManager: React.FC = () => {
                   <th className="px-8 py-5">Status</th>
                   <th className="px-8 py-5">Hours</th>
                   <th className="px-8 py-5 text-right">Wage</th>
-                  <th className="px-8 py-5 text-right">Control</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -419,18 +382,6 @@ export const LaborManager: React.FC = () => {
                       </td>
                       <td className="px-8 py-5 text-sm font-black text-slate-700 dark:text-slate-200">{log.hoursWorked}h</td>
                       <td className="px-8 py-5 text-right text-sm font-black text-blue-600">{formatCurrency(log.wageAmount)}</td>
-                      <td className="px-8 py-5 text-right">
-                        <div className="flex justify-end gap-2">
-                          {!isCompleted ? (
-                            <>
-                              <button onClick={() => openEditLog(log)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
-                              <button onClick={() => { if(confirm('Delete this log?')) deleteLaborLog(log.id); }} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
-                            </>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
-                          )}
-                        </div>
-                      </td>
                     </tr>
                   );
                 })}
@@ -449,7 +400,6 @@ export const LaborManager: React.FC = () => {
                   <th className="px-8 py-5">Method</th>
                   <th className="px-8 py-5">Reference</th>
                   <th className="px-8 py-5 text-right">Amount</th>
-                  <th className="px-8 py-5 text-right">Control</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -465,12 +415,6 @@ export const LaborManager: React.FC = () => {
                       <td className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase">{pay.method}</td>
                       <td className="px-8 py-5 text-xs font-bold text-slate-400 uppercase">{pay.reference || '--'}</td>
                       <td className="px-8 py-5 text-right text-sm font-black text-emerald-600">{formatCurrency(pay.amount)}</td>
-                      <td className="px-8 py-5 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => openEditPayment(pay)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
-                          <button onClick={() => { if(confirm('Delete this payment?')) deleteLaborPayment(pay.id); }} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
-                        </div>
-                      </td>
                     </tr>
                   );
                 })}

@@ -38,6 +38,7 @@ interface VendorLedgerModalProps {
   onClose: () => void;
   onPayBill?: (bill: LedgerItem) => void;
   formatCurrency: (val: number) => string;
+  canCreateVendors?: boolean;
 }
 
 export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
@@ -49,7 +50,8 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   projects,
   onClose,
   onPayBill,
-  formatCurrency
+  formatCurrency,
+  canCreateVendors = true
 }) => {
   const [activeTab, setActiveTab] = useState<'statement' | 'settlements' | 'stock'>('statement');
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -232,9 +234,10 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                                    <button 
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (item.remainingBalance > 0 && onPayBill) onPayBill(item);
+                                      if (item.remainingBalance > 0 && onPayBill && canCreateVendors) onPayBill(item);
                                     }}
-                                    className={`text-xs font-black transition-all ${item.remainingBalance > 0 ? 'text-amber-600 hover:scale-110 active:scale-95 cursor-pointer' : 'text-emerald-600'}`}
+                                    disabled={!canCreateVendors && item.remainingBalance > 0}
+                                    className={`text-xs font-black transition-all ${item.remainingBalance > 0 ? (canCreateVendors ? 'text-amber-600 hover:scale-110 active:scale-95 cursor-pointer' : 'text-slate-400 cursor-not-allowed') : 'text-emerald-600'}`}
                                    >
                                       {item.remainingBalance > 0 ? `Due: ${formatCurrency(item.remainingBalance)}` : 'Settle'}
                                    </button>

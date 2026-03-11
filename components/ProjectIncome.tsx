@@ -15,7 +15,11 @@ import { Income, PaymentMethod, Invoice } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ProjectIncome: React.FC = () => {
-  const { projects, incomes, invoices, addIncome, updateIncome, deleteIncome, isProjectLocked } = useApp();
+  const { projects, incomes, invoices, addIncome, updateIncome, deleteIncome, isProjectLocked, currentUser } = useApp();
+  
+  const canCreateIncome = currentUser.permissions?.['income']?.includes('create');
+  const canEditIncome = currentUser.permissions?.['income']?.includes('edit');
+  const canDeleteIncome = currentUser.permissions?.['income']?.includes('delete');
   const [showModal, setShowModal] = useState(false);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -154,7 +158,7 @@ export const ProjectIncome: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div><h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Revenue Ledger</h2><p className="text-slate-500 dark:text-slate-400 text-sm">Track milestones and project receipts.</p></div>
-        <button onClick={() => { setEditingIncome(null); setFormData({ projectId: projects.find(p => !p.isGodown)?.id || '', amount: '', description: '', date: new Date().toISOString().split('T')[0], method: 'Bank', invoiceId: '' }); setShowModal(true); }} className="bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg"><Plus size={20} /> Record Collection</button>
+
       </div>
 
       <div className="relative">
@@ -177,7 +181,7 @@ export const ProjectIncome: React.FC = () => {
             </div>
             <table className="w-full text-left">
               <thead className="bg-white dark:bg-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-700">
-                <tr><th className="px-8 py-4">Date</th><th className="px-8 py-4">Milestone</th><th className="px-8 py-4">Method</th><th className="px-8 py-4 text-right">Amount</th><th className="px-8 py-4 text-right">Actions</th></tr>
+                <tr><th className="px-8 py-4">Date</th><th className="px-8 py-4">Milestone</th><th className="px-8 py-4">Method</th><th className="px-8 py-4 text-right">Amount</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                 {group.items.map((inc) => (
@@ -189,14 +193,6 @@ export const ProjectIncome: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-xs font-bold text-slate-400">{inc.method}</td>
                     <td className="px-8 py-5 text-right font-black text-emerald-600">{formatCurrency(inc.amount)}</td>
-                    <td className="px-8 py-5 text-right">
-                       {!isProjectLocked(inc.projectId) && (
-                         <div className="flex justify-end gap-1">
-                            <button onClick={() => openEdit(inc)} className="p-2 text-slate-400 hover:text-blue-600"><Pencil size={18} /></button>
-                            <button onClick={() => handleDelete(inc.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={18} /></button>
-                         </div>
-                       )}
-                    </td>
                   </tr>
                 ))}
               </tbody>

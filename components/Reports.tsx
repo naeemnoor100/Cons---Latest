@@ -210,7 +210,7 @@ export const Reports: React.FC = () => {
       vendor,
       distributions: distributions.sort((a, b) => new Date(b.lastSupplied).getTime() - new Date(a.lastSupplied).getTime())
     };
-  }, [activeSummaryVendorId, materials, projects, vendors, summaryVendorId]);
+  }, [activeSummaryVendorId, materials, projects, vendors]);
 
   const filteredMaterialStocks = useMemo(() => {
     if (!materialLocatorData?.stocks) return [];
@@ -694,11 +694,7 @@ export const Reports: React.FC = () => {
                </div>
              </div>
 
-             <div className="flex gap-2 w-full md:w-auto">
-                <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">
-                   <Download size={14} /> Export Report
-                </button>
-             </div>
+
           </div>
 
           {selectedProjectReport ? (

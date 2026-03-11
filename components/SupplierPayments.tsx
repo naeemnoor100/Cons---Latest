@@ -16,7 +16,11 @@ import { PaymentMethod, Payment } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const SupplierPayments: React.FC = () => {
-  const { payments, vendors, projects, addPayment, updatePayment, deletePayment } = useApp();
+  const { payments, vendors, projects, addPayment, updatePayment, deletePayment, currentUser } = useApp();
+  
+  const canCreateVendors = currentUser.permissions?.['vendors']?.includes('create');
+  const canEditVendors = currentUser.permissions?.['vendors']?.includes('edit');
+  const canDeleteVendors = currentUser.permissions?.['vendors']?.includes('delete');
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -106,12 +110,7 @@ export const SupplierPayments: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Supplier Payments</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Manage and record settlements with vendors.</p>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-        >
-          <Plus size={20} /> New Settlement
-        </button>
+
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
@@ -137,7 +136,6 @@ export const SupplierPayments: React.FC = () => {
                 <th className="px-8 py-5">Amount</th>
                 <th className="px-8 py-5">Method</th>
                 <th className="px-8 py-5">Reference</th>
-                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -160,28 +158,12 @@ export const SupplierPayments: React.FC = () => {
                     <td className="px-8 py-5 text-xs font-bold text-slate-500">
                       {payment.reference || '-'}
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => handleEdit(payment)}
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(payment.id)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 );
               })}
               {filteredPayments.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-8 py-10 text-center text-slate-400 text-sm font-bold uppercase">
+                  <td colSpan={5} className="px-8 py-10 text-center text-slate-400 text-sm font-bold uppercase">
                     No payments found.
                   </td>
                 </tr>

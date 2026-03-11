@@ -13,9 +13,15 @@ import { InvoiceManager } from './components/InvoiceManager';
 import { Settings } from './components/Settings';
 import { SupplierPayments } from './components/SupplierPayments';
 import { LaborManager } from './components/LaborManager';
+import { Login } from './components/Login';
 
 const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isAuthenticated] = useState(localStorage.getItem('isAuthenticated') === 'true');
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
 
   const renderContent = () => {
     switch (activeTab) {

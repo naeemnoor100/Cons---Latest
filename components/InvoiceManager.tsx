@@ -12,8 +12,7 @@ import {
   Lock,
   Check,
   ArrowUp,
-  ArrowDown,
-  ArrowUpDown
+  ArrowDown
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
@@ -21,7 +20,11 @@ import { Invoice } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const InvoiceManager: React.FC = () => {
-  const { invoices, projects, addInvoice, updateInvoice, deleteInvoice, incomes, isProjectLocked } = useApp();
+  const { invoices, projects, addInvoice, updateInvoice, deleteInvoice, incomes, isProjectLocked, currentUser } = useApp();
+  
+  const canCreateInvoices = currentUser.permissions?.['invoices']?.includes('create');
+  const canEditInvoices = currentUser.permissions?.['invoices']?.includes('edit');
+  const canDeleteInvoices = currentUser.permissions?.['invoices']?.includes('delete');
   const [showModal, setShowModal] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,7 +94,7 @@ export const InvoiceManager: React.FC = () => {
   }, [incomes]);
 
   const filteredInvoices = useMemo(() => {
-    let result = invoices.filter(inv => {
+    const result = invoices.filter(inv => {
       const { isPaid, remaining } = getInvoiceMetrics(inv);
       const isPartial = !isPaid && remaining < inv.amount && remaining > 0;
       const project = projects.find(p => p.id === inv.projectId);
@@ -111,8 +114,8 @@ export const InvoiceManager: React.FC = () => {
       const metricsA = getInvoiceMetrics(a);
       const metricsB = getInvoiceMetrics(b);
       
-      let valA: any = a[sortConfig.key as keyof Invoice];
-      let valB: any = b[sortConfig.key as keyof Invoice];
+      let valA: string | number = a[sortConfig.key as keyof Invoice] as string | number;
+      let valB: string | number = b[sortConfig.key as keyof Invoice] as string | number;
 
       if (sortConfig.key === 'remaining') {
         valA = metricsA.remaining;
@@ -178,12 +181,7 @@ export const InvoiceManager: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Client Billing Center</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage project milestones and receivables.</p>
         </div>
-        <button 
-          onClick={handleOpenAdd}
-          className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-        >
-          <Plus size={20} /> Create New Invoice
-        </button>
+
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -277,7 +275,6 @@ export const InvoiceManager: React.FC = () => {
                     {sortConfig.key === 'remaining' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
                   </div>
                 </th>
-                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -321,28 +318,6 @@ export const InvoiceManager: React.FC = () => {
                       ) : (
                         <span className={isPartial ? 'text-amber-600' : 'text-red-600'}>{formatCurrency(remaining)}</span>
                       )}
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex justify-end gap-1">
-                        {!isCompleted ? (
-                          <>
-                            <button 
-                              onClick={() => handleOpenEdit(inv)} 
-                              className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                            >
-                              <Pencil size={18} />
-                            </button>
-                            <button 
-                              onClick={() => handleDelete(inv.id)} 
-                              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 );

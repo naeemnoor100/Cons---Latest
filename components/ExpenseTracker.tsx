@@ -8,7 +8,11 @@ import { Expense, PaymentMethod } from '../types';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ExpenseTracker: React.FC = () => {
-  const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked } = useApp();
+  const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked, currentUser } = useApp();
+  
+  const canCreateExpenses = currentUser.permissions?.['expenses']?.includes('create');
+  const canEditExpenses = currentUser.permissions?.['expenses']?.includes('edit');
+  const canDeleteExpenses = currentUser.permissions?.['expenses']?.includes('delete');
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [trackStock, setTrackStock] = useState(false);
@@ -235,13 +239,7 @@ export const ExpenseTracker: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Financial Ledger</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Record expenditures and trigger stock arrivals.</p>
         </div>
-        <button 
-          onClick={() => { setEditingExpense(null); resetForm(); setShowModal(true); }} 
-          className="w-full sm:w-auto bg-[#003366] text-white px-6 py-4 rounded-[1.5rem] font-black flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all text-xs uppercase tracking-widest"
-        >
-          <Plus size={20} />
-          Record Expense
-        </button>
+
       </div>
 
       {/* Deep Search & Filters Hub */}
@@ -291,7 +289,6 @@ export const ExpenseTracker: React.FC = () => {
                 <th className="px-8 py-5 text-center">Quantity</th>
                 <th className="px-8 py-5">Category</th>
                 <th className="px-8 py-5 text-right">Amount</th>
-                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -333,23 +330,11 @@ export const ExpenseTracker: React.FC = () => {
                     <td className="px-8 py-5 text-right">
                       <p className="text-sm font-black text-red-600">{formatCurrency(exp.amount)}</p>
                     </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex justify-end gap-1 items-center">
-                        {!isCompleted ? (
-                          <>
-                            <button onClick={() => openEdit(exp)} className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm" title="Edit Record"><Pencil size={18} /></button>
-                            <button onClick={() => handleDelete(exp.id)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all shadow-sm"><Trash2 size={18} /></button>
-                          </>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg" title="Project Completed - Locked"><Lock size={12} /> Locked</span>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                   <td colSpan={6} className="px-8 py-20 text-center">
+                   <td colSpan={5} className="px-8 py-20 text-center">
                       <LayoutGrid size={48} className="mx-auto text-slate-200 mb-4" />
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No entries match your deep search</p>
                    </td>

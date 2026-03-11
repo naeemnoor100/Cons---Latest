@@ -1579,21 +1579,21 @@ export const ProjectList: React.FC = () => {
                 </div>
              </div>
              
-             <div className="flex-1 overflow-y-auto p-0 no-scrollbar">
-                <table className="w-full text-left">
+             <div className="flex-1 overflow-y-auto p-0 no-scrollbar overflow-x-auto">
+                <table className="w-full text-left min-w-[600px]">
                    <thead className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                       <tr>
-                        <th className="px-8 py-4">Date</th>
-                        <th className="px-8 py-4">Activity</th>
-                        <th className="px-8 py-4">Reference / Note</th>
-                        <th className="px-8 py-4 text-right">Qty ({logMaterial.unit})</th>
+                        <th className="px-6 py-4">Date</th>
+                        <th className="px-6 py-4">Activity</th>
+                        <th className="px-6 py-4">Reference / Note</th>
+                        <th className="px-6 py-4 text-right">Qty ({logMaterial.unit})</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                       {logMaterialHistory.length > 0 ? logMaterialHistory.map((h, i) => (
-                        <tr key={`${h.id}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                           <td className="px-8 py-4 text-xs font-bold text-slate-500">{new Date(h.date).toLocaleDateString()}</td>
-                           <td className="px-8 py-4">
+                        <tr key={`${h.id}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                           <td className="px-6 py-4 text-xs font-bold text-slate-500 whitespace-nowrap">{new Date(h.date).toLocaleDateString()}</td>
+                           <td className="px-6 py-4">
                               <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
                                 h.type === 'Purchase' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                                 h.type === 'Usage' ? 'bg-blue-50 text-blue-600 border-blue-100' :
@@ -1602,14 +1602,14 @@ export const ProjectList: React.FC = () => {
                                 {h.type}
                               </span>
                            </td>
-                           <td className="px-8 py-4 text-xs font-medium text-slate-600 dark:text-slate-400 italic truncate max-w-[200px]">{h.note || 'No note provided'}</td>
-                           <td className={`px-8 py-4 text-right text-sm font-black ${h.quantity > 0 ? 'text-emerald-600' : 'text-blue-600'}`}>
+                           <td className="px-6 py-4 text-xs font-medium text-slate-600 dark:text-slate-400 italic max-w-[200px] truncate group-hover:whitespace-normal group-hover:overflow-visible group-hover:max-w-none transition-all" title={h.note}>{h.note || 'No note provided'}</td>
+                           <td className={`px-6 py-4 text-right text-sm font-black ${h.quantity > 0 ? 'text-emerald-600' : 'text-blue-600'}`}>
                               {h.quantity > 0 ? '+' : ''}{h.quantity.toLocaleString()}
                            </td>
                         </tr>
                       )) : (
                         <tr>
-                           <td colSpan={4} className="px-8 py-20 text-center text-slate-300 uppercase font-black tracking-widest text-[10px]">No site activity recorded for this material</td>
+                           <td colSpan={4} className="px-6 py-20 text-center text-slate-300 uppercase font-black tracking-widest text-[10px]">No site activity recorded for this material</td>
                         </tr>
                       )}
                    </tbody>

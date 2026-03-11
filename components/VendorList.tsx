@@ -1,19 +1,15 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Search, 
-  Plus,
-  X,
   History,
   DollarSign,
-  Pencil,
-  Trash2,
-  MoreVertical,
-  ArrowDownCircle,
-  Clock,
   Building2,
   AlertCircle,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  ArrowDownCircle,
+  Clock,
+  X
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Vendor, Payment, PaymentMethod } from '../types';
@@ -22,7 +18,11 @@ import { VendorLedgerModal } from './VendorLedgerModal';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const VendorList: React.FC = () => {
-  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor, addPayment } = useApp();
+  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor, addPayment, currentUser } = useApp();
+  
+  const canCreateVendors = currentUser.permissions?.['vendors']?.includes('create');
+  const canEditVendors = currentUser.permissions?.['vendors']?.includes('edit');
+  const canDeleteVendors = currentUser.permissions?.['vendors']?.includes('delete');
   const [searchTerm, setSearchTerm] = useState('');
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -44,6 +44,7 @@ export const VendorList: React.FC = () => {
   });
   
   const [viewingVendorId, setViewingVendorId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const activeVendor = useMemo(() => vendors.find(v => v.id === viewingVendorId), [vendors, viewingVendorId]);
   
   const [formData, setFormData] = useState({
@@ -213,12 +214,6 @@ export const VendorList: React.FC = () => {
     );
   }, [combinedLedger, ledgerSearchTerm, projects]);
 
-  const handleDeleteVendor = (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete ${name}?`)) {
-      deleteVendor(id);
-    }
-  };
-
   const handleOpenAddVendor = () => {
     setEditingVendor(null);
     setFormData({ name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '', isActive: true });
@@ -304,12 +299,7 @@ export const VendorList: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Supplier Registry</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Monitor outstanding balances and site engagements.</p>
         </div>
-        <button 
-          onClick={handleOpenAddVendor}
-          className="w-full sm:w-auto bg-[#003366] text-white px-6 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-        >
-          <Plus size={20} /> Register Supplier
-        </button>
+        {/* Removed Register Supplier button */}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4">
@@ -349,7 +339,6 @@ export const VendorList: React.FC = () => {
                 <th className="px-8 py-5">Active Sites</th>
                 <th className="px-8 py-5">Outstanding Bal.</th>
                 <th className="px-8 py-5">Last Payment</th>
-                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -362,7 +351,7 @@ export const VendorList: React.FC = () => {
                 const activeSitesCount = projects.filter(p => associatedProjectIds.has(p.id) && p.status === 'Active').length;
 
                 return (
-                  <tr key={vendor.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                  <tr key={vendor.id} onClick={() => handleViewVendor(vendor.id)} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
                          <div className="w-12 h-12 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl flex items-center justify-center font-black text-lg shrink-0 shadow-sm group-hover:scale-110 transition-transform">
@@ -427,68 +416,8 @@ export const VendorList: React.FC = () => {
                          ) : (
                            <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest italic">No Payments</span>
                          )}
-                         <button 
-                          onClick={() => {
-                            setPayingVendor(vendor);
-                            setPaymentFormData(prev => ({ ...prev, projectId: projects[0]?.id || '' }));
-                          }}
-                          className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white dark:bg-emerald-900/20 dark:text-emerald-400 dark:hover:bg-emerald-600 dark:hover:text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
-                         >
-                           <DollarSign size={12} /> Pay
-                         </button>
+
                        </div>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex justify-end gap-2 items-center">
-                         <button 
-                          onClick={() => {
-                            setPayingVendor(vendor);
-                            setPaymentFormData(prev => ({ ...prev, projectId: projects[0]?.id || '' }));
-                          }}
-                          className="p-3 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-2xl transition-all shadow-sm"
-                          title="Record Payment"
-                         >
-                           <DollarSign size={20} />
-                         </button>
-                         <button 
-                          onClick={() => handleViewVendor(vendor.id)} 
-                          className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all shadow-sm"
-                          title="View Full Ledger"
-                         >
-                           <History size={20} />
-                         </button>
-                         <div className="relative group/actions">
-                            <button className="p-3 text-slate-300 hover:text-slate-600 transition-colors">
-                               <MoreVertical size={18} />
-                            </button>
-                            <div className="absolute right-0 bottom-full mb-2 hidden group-hover/actions:flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-20 w-32 animate-in fade-in slide-in-from-bottom-2">
-                               <button 
-                                onClick={() => {
-                                  setEditingVendor(vendor);
-                                  setFormData({ 
-                                    name: vendor.name || '', 
-                                    phone: vendor.phone || '', 
-                                    email: vendor.email || '',
-                                    category: vendor.category || tradeCategories[0] || 'Material', 
-                                    address: vendor.address || '', 
-                                    balance: (vendor.balance || 0).toString(),
-                                    isActive: vendor.isActive !== false
-                                  });
-                                  setShowModal(true);
-                                }}
-                                className="px-4 py-3 text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                               >
-                                  <Pencil size={14} /> Edit
-                               </button>
-                               <button 
-                                onClick={() => handleDeleteVendor(vendor.id, vendor.name)}
-                                className="px-4 py-3 text-[10px] font-bold uppercase text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 border-t border-slate-100 dark:border-slate-700"
-                               >
-                                  <Trash2 size={14} /> Delete
-                               </button>
-                            </div>
-                         </div>
-                      </div>
                     </td>
                   </tr>
                 );
@@ -567,6 +496,7 @@ export const VendorList: React.FC = () => {
             setQuickPaymentFormData(prev => ({ ...prev, amount: bill.remainingBalance.toString() }));
           }}
           formatCurrency={formatCurrency}
+          canCreateVendors={canCreateVendors}
         />
       )}
 
@@ -723,6 +653,7 @@ export const VendorList: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Removed ConfirmationDialog */}
     </div>
   );
 };

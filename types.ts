@@ -1,5 +1,12 @@
 
-export type UserRole = 'Admin' | 'Accountant' | 'Site Manager';
+export type UserRole = 'Admin' | 'Project Manager' | 'Finance';
+
+export type PermissionAction = 'view' | 'create' | 'edit' | 'delete';
+export type ModuleName = 'projects' | 'materials' | 'expenses' | 'incomes' | 'invoices' | 'payments' | 'labor' | 'vendors' | 'reports' | 'settings';
+
+export type UserPermissions = {
+  [key in ModuleName]?: PermissionAction[];
+};
 
 export interface User {
   id: string;
@@ -7,6 +14,8 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
+  permissions?: UserPermissions;
+  password?: string;
 }
 
 export type ProjectStatus = string;
@@ -171,6 +180,7 @@ export interface AppState {
   laborLogs: LaborLog[];
   laborPayments: LaborPayment[];
   activityLogs: ActivityLog[];
+  users: User[];
   tradeCategories: string[];
   stockingUnits: string[];
   siteStatuses: string[];

@@ -66,14 +66,7 @@ export const SyncCenter: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </div>
 
           <div className="space-y-3">
-            <button 
-              onClick={() => state.forceSync()}
-              disabled={state.isSyncing}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-4 rounded-2xl flex items-center justify-center gap-3 text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm active:scale-95 group"
-            >
-              <RefreshCw size={18} className={`text-emerald-500 group-hover:rotate-180 transition-transform duration-500 ${state.isSyncing ? 'animate-spin' : ''}`} />
-              {state.isSyncing ? 'Pushing Data...' : 'Manual Data Sync'}
-            </button>
+
             
             <div className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
                {state.syncError ? (

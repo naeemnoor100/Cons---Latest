@@ -6,22 +6,18 @@ import {
   Search, 
   X, 
   TrendingDown, 
-  Trash2,
   Briefcase,
   Filter,
-  Pencil,
   AlertCircle,
-  Plus,
   ArrowRightLeft,
   ClipboardList,
   Scale,
   Lock,
-  Layers,
   Warehouse,
-  MoveHorizontal,
   Truck,
   Link
 } from 'lucide-react';
+import { ConfirmationDialog } from './ConfirmationDialog';
 import { useApp } from '../AppContext';
 import { Material, MaterialUnit, StockHistoryEntry } from '../types';
 import { BulkStockInwardModal } from './BulkStockInwardModal';
@@ -42,7 +38,10 @@ interface BulkRow {
 }
 
 export const Inventory: React.FC = () => {
-  const { materials, projects, vendors, stockingUnits, payments, expenses, updateMaterial, addMaterial, deleteMaterial, addExpense, deleteExpense, updateExpense, allowDecimalStock, isProjectLocked } = useApp();
+  const { materials, projects, vendors, stockingUnits, payments, expenses, updateMaterial, addMaterial, addExpense, allowDecimalStock, isProjectLocked, currentUser } = useApp();
+  
+  const canEditMaterials = currentUser.permissions?.['materials']?.includes('edit');
+  const canDeleteMaterials = currentUser.permissions?.['materials']?.includes('delete');
   const [searchTerm, setSearchTerm] = useState('');
   const [projectFilter, setProjectFilter] = useState('All');
   const [inventorySort, setInventorySort] = useState<InventorySortOption>('name');
@@ -65,6 +64,7 @@ export const Inventory: React.FC = () => {
   
   const [editingHistoryEntry, setEditingHistoryEntry] = useState<{material: Material, entry: StockHistoryEntry} | null>(null);
   const [showEditHistoryModal, setShowEditHistoryModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{id: string, name: string, type: string} | null>(null);
   const [historyEditFormData, setHistoryEditFormData] = useState({
     quantity: '', unitPrice: '', projectId: '', vendorId: '', date: '', note: ''
   });
@@ -667,10 +667,6 @@ export const Inventory: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage godown stock and project site assets.</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-          <button onClick={handleOpenTransferModal} className="flex-1 sm:flex-none bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><MoveHorizontal size={18} /> Internal Transfer</button>
-          <button onClick={handleOpenBulkModal} className="flex-1 sm:flex-none bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Layers size={18} /> Bulk Hub Inward</button>
-          <button onClick={handleOpenProcureModal} className="flex-1 sm:flex-none bg-slate-900 dark:bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-xl"><Plus size={18} /> Hub Procure</button>
-          <button onClick={() => handleOpenUsageModal()} className="flex-1 sm:flex-none bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><TrendingDown size={18} /> Record Use</button>
         </div>
       </div>
 
@@ -714,7 +710,6 @@ export const Inventory: React.FC = () => {
                 <th className="px-8 py-5">Material Asset</th>
                 <th className="px-8 py-5">Value {projectFilter !== 'All' ? '(At Hub)' : '(Total Pool)'}</th>
                 <th className="px-8 py-5">Availability Status</th>
-                <th className="px-8 py-5 text-right">Control</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -726,7 +721,7 @@ export const Inventory: React.FC = () => {
                         <Package size={48} />
                       </div>
                       <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-xs">No materials found in this hub</p>
-                      <button onClick={handleOpenProcureModal} className="mt-2 text-blue-600 font-black uppercase tracking-tighter text-[10px] hover:underline">Procure your first asset</button>
+
                     </div>
                   </td>
                 </tr>
@@ -763,21 +758,6 @@ export const Inventory: React.FC = () => {
                        <button onClick={() => setBreakdownMaterial(mat)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 hover:scale-105 active:scale-95 transition-all ${isLowStock ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/10 dark:border-red-900/20' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800'}`}>
                           {remaining.toLocaleString()} {mat.unit}s {isProjectFiltered ? (filterProj?.isGodown ? 'in Godown' : 'on Site') : ''}
                        </button>
-                    </td>
-                    <td className="px-8 py-5 text-right">
-                       <div className="flex justify-end gap-2 items-center">
-                         <button 
-                           onClick={() => handleOpenUsageModal(mat.id, isProjectFiltered ? projectFilter : undefined)} 
-                           disabled={isProjectFiltered && isProjectLocked(projectFilter)}
-                           className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-sm flex items-center gap-2 ${isProjectFiltered && isProjectLocked(projectFilter) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : (isProjectFiltered && !filterProj?.isGodown ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 hover:bg-blue-600 hover:text-white')}`} 
-                           title={isProjectFiltered && isProjectLocked(projectFilter) ? "Project Locked" : "Dispatch / Use"}
-                         >
-                           {isProjectFiltered && filterProj?.isGodown ? <><Truck size={14} /> Dispatch Hub</> : <><TrendingDown size={14} /> Record Use</>}
-                         </button>
-                         <button onClick={() => { setSelectedMaterialId(mat.id); setHistorySearch(''); setHistorySort('date-desc'); setActiveHistoryTab('all'); }} className="p-3 text-slate-400 bg-slate-50 dark:bg-slate-700/50 rounded-2xl hover:text-slate-900 dark:hover:text-white transition-all shadow-sm" title="Hub History"><History size={20} /></button>
-                         <button onClick={() => handleOpenEditModal(mat)} className="p-3 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
-                         <button onClick={() => { if(confirm(`Permanent Action: Are you sure you want to delete ${mat.name}?`)) deleteMaterial(mat.id); }} className="p-3 text-slate-300 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
-                       </div>
                     </td>
                   </tr>
                 );
@@ -1017,7 +997,6 @@ export const Inventory: React.FC = () => {
                           <th className="px-8 py-5 text-right">Hub Value Date</th>
                           <th className="px-8 py-5 text-right">Est. Hub Value</th>
                           <th className="px-8 py-5">Project Allocation</th>
-                          <th className="px-8 py-5 text-right">Control</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -1048,7 +1027,6 @@ export const Inventory: React.FC = () => {
                                 {formatCurrency(Math.abs(entry.quantity) * activeUnitPrice)}
                               </td>
                               <td className="px-8 py-5"><div className="flex flex-col gap-1">{project && <span className={`text-[11px] font-bold uppercase tracking-tight flex items-center gap-1 ${project.isGodown ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>{project.isGodown ? <Warehouse size={12} className="text-emerald-500"/> : <Briefcase size={12} className="text-blue-500"/>} {project.name}</span>}</div></td>
-                              <td className="px-8 py-5 text-right"><div className="flex justify-end gap-1"><button onClick={() => triggerHistoryEdit(entry)} className="p-2 text-slate-300 hover:text-blue-600 transition-colors"><Pencil size={16} /></button><button onClick={() => handleDeleteHistoryEntry(historyMaterial!, entry.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button></div></td>
                             </tr>
                           );
                         })}
@@ -1258,6 +1236,20 @@ export const Inventory: React.FC = () => {
                 </div>
             </div>
         </div>
+      )}
+      {deleteTarget && (
+        <ConfirmationDialog
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            if (deleteTarget.type === 'Material') {
+              deleteMaterial(deleteTarget.id);
+            }
+            setDeleteTarget(null);
+          }}
+          title={`Delete ${deleteTarget.type}`}
+          message={`Are you sure you want to delete the ${deleteTarget.type.toLowerCase()} "${deleteTarget.name}"? This action cannot be undone.`}
+        />
       )}
     </div>
   );

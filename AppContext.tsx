@@ -195,7 +195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         next = { 
           ...next, 
-          activityLogs: [newLog, ...(next.activityLogs || [])].slice(0, 1000) 
+          activityLogs: [newLog, ...(next.activityLogs || [])].slice(0, 9999) 
         };
       }
 

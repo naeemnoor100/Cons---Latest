@@ -70,14 +70,14 @@ export const Dashboard: React.FC = () => {
   const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.amount, 0);
   const totalReceivables = Math.max(0, totalInvoiced - totalIncome);
   
-  const activeProjectsCount = projects.filter(p => p.status === 'Active' && !p.isGodown).length;
+  const activeProjectsCount = projects.filter(p => p.status === 'Active' && !p.isGodown && !p.isDeleted).length;
 
   const godownValue = useMemo(() => {
     let value = 0;
     materials.forEach(m => {
       m.history?.forEach(h => {
         const p = projects.find(proj => proj.id === h.projectId);
-        if (p?.isGodown) {
+        if (p?.isGodown && !p.isDeleted) {
           value += (h.quantity * (h.unitPrice || m.costPerUnit));
         }
       });
@@ -88,7 +88,7 @@ export const Dashboard: React.FC = () => {
   const inventoryValue = materials.reduce((acc, m) => acc + ((m.totalPurchased - m.totalUsed) * m.costPerUnit), 0);
 
   const projectStats = useMemo(() => {
-    return projects.filter(p => !p.isGodown).map(p => {
+    return projects.filter(p => !p.isGodown && !p.isDeleted).map(p => {
       const spent = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
       const utilization = p.budget > 0 ? Math.round((spent / p.budget) * 100) : 0;
       return { name: p.name, spent, utilization, budget: p.budget, id: p.id };

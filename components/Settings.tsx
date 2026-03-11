@@ -39,6 +39,7 @@ export const Settings: React.FC = () => {
   const [dbInitStatus, setDbInitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [activitySearch, setActivitySearch] = useState('');
   
   // To avoid unused var errors
   console.log(saveStatus, dbInitStatus, testStatus, importStatus);
@@ -407,58 +408,117 @@ export const Settings: React.FC = () => {
 
             {activeSection === 'activity-log' && (
               <div className="p-8 space-y-6 animate-in fade-in duration-300">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">System Activity Log</h3>
-                  <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">Last 1000 actions</span>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">System Activity Log</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-1">Audit trail of user actions</p>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:flex-none">
+                      <input 
+                        type="text" 
+                        placeholder="Search logs..." 
+                        className="w-full sm:w-64 pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all dark:text-white"
+                        value={activitySearch}
+                        onChange={(e) => setActivitySearch(e.target.value)}
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      </div>
+                      {activitySearch && (
+                        <button onClick={() => setActivitySearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-xl whitespace-nowrap">
+                      {activityLogs.length} Events
+                    </span>
+                  </div>
                 </div>
                 
-                <div className="bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                  <div className="max-h-[600px] overflow-y-auto no-scrollbar">
-                    {(!activityLogs || activityLogs.length === 0) ? (
-                      <div className="p-12 text-center text-slate-500 font-bold text-sm">No activity recorded yet.</div>
-                    ) : (
-                      <table className="w-full text-left">
-                        <thead className="bg-white dark:bg-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
-                          <tr>
-                            <th className="px-6 py-4">Time</th>
-                            <th className="px-6 py-4">User</th>
-                            <th className="px-6 py-4">Action</th>
-                            <th className="px-6 py-4">Entity</th>
-                            <th className="px-6 py-4">Details</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {activityLogs.map(log => (
-                            <tr key={log.id} className="hover:bg-white dark:hover:bg-slate-800 transition-colors">
-                              <td className="px-6 py-4 text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                {new Date(log.timestamp).toLocaleString('en-IN', {
-                                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                                })}
-                              </td>
-                              <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white">
-                                {log.userName}
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`inline-flex px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
-                                  log.action === 'Create' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                                  log.action === 'Update' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                                  log.action === 'Delete' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' :
-                                  'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
-                                }`}>
-                                  {log.action}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                {log.entityType}
-                              </td>
-                              <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-400">
-                                {log.details}
-                              </td>
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col">
+                  <div className="overflow-x-auto">
+                    <div className="max-h-[600px] overflow-y-auto no-scrollbar min-w-[800px]">
+                      {(!activityLogs || activityLogs.length === 0) ? (
+                        <div className="p-12 text-center text-slate-500 font-bold text-sm">No activity recorded yet.</div>
+                      ) : (
+                        <table className="w-full text-left border-collapse">
+                          <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm backdrop-blur-sm">
+                            <tr>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-40">Time</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-48">User</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-32">Action</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-40">Entity</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">Details</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                            {activityLogs
+                              .filter(log => 
+                                !activitySearch || 
+                                log.userName.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                                log.action.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                                log.entityType.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                                log.details.toLowerCase().includes(activitySearch.toLowerCase())
+                              )
+                              .map(log => (
+                              <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                <td className="px-6 py-4 text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">
+                                      {new Date(log.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">
+                                      {new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-black text-slate-500 uppercase">
+                                      {log.userName.charAt(0)}
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[120px]" title={log.userName}>
+                                      {log.userName}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${
+                                    log.action === 'Create' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30' :
+                                    log.action === 'Update' ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30' :
+                                    log.action === 'Delete' ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:border-rose-900/30' :
+                                    'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+                                  }`}>
+                                    {log.action}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                                  {log.entityType}
+                                </td>
+                                <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                  <p className="line-clamp-2" title={log.details}>{log.details}</p>
+                                </td>
+                              </tr>
+                            ))}
+                            {activityLogs.length > 0 && activityLogs.filter(log => 
+                                !activitySearch || 
+                                log.userName.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                                log.action.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                                log.entityType.toLowerCase().includes(activitySearch.toLowerCase()) ||
+                                log.details.toLowerCase().includes(activitySearch.toLowerCase())
+                              ).length === 0 && (
+                                <tr>
+                                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">
+                                    No matching logs found
+                                  </td>
+                                </tr>
+                              )}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -9,6 +9,32 @@ import { DB_CONFIG } from "./db_config.ts";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+class Lock {
+  private locked = false;
+  private queue: (() => void)[] = [];
+
+  async acquire() {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+    return new Promise<void>(resolve => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release() {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) next();
+    } else {
+      this.locked = false;
+    }
+  }
+}
+
+const saveLock = new Lock();
+
 const db = new sqlite3.Database(DB_CONFIG.database);
 
 // Initialize Relational DB
@@ -90,6 +116,7 @@ async function startServer() {
         const employees = await all("SELECT * FROM employees");
         const laborLogs = await all("SELECT * FROM labor_logs");
         const laborPayments = await all("SELECT * FROM labor_payments");
+        const users = await all("SELECT * FROM users");
         const settings = await get("SELECT * FROM settings WHERE id = ?", [syncId]);
 
         // Fetch history for each material
@@ -153,6 +180,10 @@ async function startServer() {
           laborPayments: laborPayments.map(lp => ({
             ...lp,
             employeeId: lp.employee_id
+          })),
+          users: users.map(u => ({
+            ...u,
+            permissions: typeof u.permissions === 'string' ? JSON.parse(u.permissions || '{}') : (u.permissions || {})
           }))
         };
 
@@ -177,6 +208,7 @@ async function startServer() {
       const { syncId } = data;
 
       try {
+        await saveLock.acquire();
         // Use a transaction for atomic updates
         await run("BEGIN TRANSACTION");
 
@@ -278,10 +310,23 @@ async function startServer() {
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `, lp => [lp.id, lp.employeeId, lp.amount, lp.date, lp.method, lp.reference, lp.notes]);
 
+        // Users
+        console.log('DEBUG: Saving users:', data.users);
+        await refillTable("users", data.users || [], `
+          INSERT INTO users (id, name, email, role, avatar, permissions)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, u => [u.id, u.name, u.email, u.role, u.avatar, JSON.stringify(u.permissions || {})]);
+
         await run("COMMIT");
+        saveLock.release();
         return res.json({ success: true });
       } catch (err) {
-        await run("ROLLBACK");
+        try {
+            await run("ROLLBACK");
+        } catch {
+            // Ignore rollback error
+        }
+        saveLock.release();
         console.error("Save error:", err);
         return res.status(500).json({ error: "Save failed" });
       }

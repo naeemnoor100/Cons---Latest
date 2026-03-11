@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Briefcase, 
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { SyncCenter } from './SyncCenter';
+import { UserRole } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -77,10 +78,11 @@ const MobileTabItem: React.FC<{
 );
 
 export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
-  const { currentUser, syncId, isSyncing, syncError, undo, redo, canUndo, canRedo, theme } = useApp();
+  const { currentUser, updateUser, syncId, isSyncing, syncError, undo, redo, canUndo, canRedo, theme } = useApp();
   const [showSyncCenter, setShowSyncCenter] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showRoleSelector, setShowRoleSelector] = useState(false);
 
   const primaryMenuItems = [
     { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} strokeWidth={2.5} /> },
@@ -99,6 +101,67 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
   ];
 
+  const allowedTabs = currentUser.role.toLowerCase() === 'admin' 
+    ? primaryMenuItems.map(m => m.id).concat(secondaryMenuItems.map(m => m.id))
+    : [...primaryMenuItems, ...secondaryMenuItems].filter(item => {
+        // Map menu IDs to ModuleName keys
+        const moduleKeyMap: Record<string, ModuleName> = {
+          'projects': 'projects',
+          'labor': 'labor',
+          'materials': 'materials',
+          'expenses': 'expenses',
+          'invoices': 'invoices',
+          'income': 'incomes',
+          'vendors': 'vendors',
+          'payments': 'payments',
+          'reports': 'reports'
+        };
+        const moduleKey = moduleKeyMap[item.id];
+        if (item.id === 'dashboard' || item.id === 'settings') return true; 
+        
+        // Fallback: Role-based default permissions if explicit permissions are missing or empty
+        if (currentUser.role === 'Project Manager' && ['projects', 'labor', 'materials', 'vendors'].includes(item.id)) {
+           // Check if explicit permissions exist and are empty (meaning explicitly denied all), otherwise allow
+           const perms = (currentUser.permissions || {})[moduleKey];
+           if (!currentUser.permissions || Object.keys(currentUser.permissions).length === 0) return true;
+           // If permissions exist but this specific module is not defined, allow by default for this role
+           if (!perms) return true;
+        }
+        
+        if (currentUser.role === 'Finance' && ['expenses', 'invoices', 'income', 'payments', 'reports'].includes(item.id)) {
+           const perms = (currentUser.permissions || {})[moduleKey];
+           if (!currentUser.permissions || Object.keys(currentUser.permissions).length === 0) return true;
+           if (!perms) return true;
+        }
+
+        if (!moduleKey) return false;
+        
+        const perms = (currentUser.permissions || {})[moduleKey];
+        console.log(`DEBUG: Checking permission for ${item.id} (module: ${moduleKey}). User permissions:`, perms);
+        // Check if user has any permissions for this module
+        return !!perms && perms.length > 0;
+      }).map(item => item.id);
+  
+  console.log('DEBUG: Allowed tabs:', allowedTabs);
+  
+  // Always allow dashboard and settings
+  if (!allowedTabs.includes('dashboard')) allowedTabs.push('dashboard');
+  if (!allowedTabs.includes('settings')) allowedTabs.push('settings');
+  
+  const filteredPrimaryMenuItems = primaryMenuItems.filter(item => allowedTabs.includes(item.id));
+  const filteredSecondaryMenuItems = secondaryMenuItems.filter(item => allowedTabs.includes(item.id));
+
+  useEffect(() => {
+    if (!allowedTabs.includes(activeTab)) {
+      setActiveTab('dashboard');
+    }
+  }, [currentUser.role, activeTab, allowedTabs, setActiveTab]);
+
+  const handleRoleChange = (role: UserRole) => {
+    updateUser({ ...currentUser, role });
+    setShowRoleSelector(false);
+  };
+
   return (
     <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} bg-slate-50 dark:bg-slate-950 overflow-hidden`}>
       {/* Desktop Sidebar */}
@@ -110,18 +173,42 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
           </div>
         </div>
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
-          {[...primaryMenuItems, ...secondaryMenuItems].map((item) => (
+          {[...filteredPrimaryMenuItems, ...filteredSecondaryMenuItems].map((item) => (
             <SidebarItem key={item.id} {...item} isActive={activeTab === item.id} onClick={() => setActiveTab(item.id)} />
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-          <div className="flex items-center gap-3 p-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 relative">
+          <button 
+            onClick={() => setShowRoleSelector(!showRoleSelector)}
+            className="w-full flex items-center gap-3 p-2 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          >
             <img src={currentUser.avatar} alt={currentUser.name} className="w-10 h-10 rounded-xl object-cover border-2 border-slate-50 dark:border-slate-700" />
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden text-left">
               <p className="text-xs font-black text-slate-900 dark:text-white truncate">{currentUser.name}</p>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{currentUser.role}</p>
             </div>
-          </div>
+          </button>
+          
+          {showRoleSelector && (
+            <div className="absolute bottom-full left-4 right-4 mb-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden z-50">
+              <div className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Switch Role</span>
+              </div>
+              {(['Admin', 'Project Manager', 'Finance'] as UserRole[]).map(role => (
+                <button
+                  key={role}
+                  onClick={() => handleRoleChange(role)}
+                  className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors ${
+                    currentUser.role === role 
+                      ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -162,13 +249,37 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
               {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : syncError ? <AlertCircle size={18} /> : syncId ? <Cloud size={18} /> : <WifiOff size={18} />}
             </button>
 
-            <button onClick={() => setActiveTab('settings')} className="hidden lg:flex p-2.5 text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-all">
-              <SettingsIcon size={18} />
-            </button>
+            {allowedTabs.includes('settings') && (
+              <button onClick={() => setActiveTab('settings')} className="hidden lg:flex p-2.5 text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-all">
+                <SettingsIcon size={18} />
+              </button>
+            )}
             
-            <button className="lg:hidden w-8 h-8 rounded-lg overflow-hidden border border-slate-200">
+            <button className="lg:hidden w-8 h-8 rounded-lg overflow-hidden border border-slate-200 relative" onClick={() => setShowRoleSelector(!showRoleSelector)}>
                <img src={currentUser.avatar} className="w-full h-full object-cover" alt="User" />
             </button>
+            
+            {/* Mobile Role Selector Dropdown */}
+            {showRoleSelector && (
+              <div className="lg:hidden absolute top-16 right-4 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden z-50">
+                <div className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Switch Role</span>
+                </div>
+                {(['Admin', 'Project Manager', 'Finance'] as UserRole[]).map(role => (
+                  <button
+                    key={role}
+                    onClick={() => handleRoleChange(role)}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors ${
+                      currentUser.role === role 
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </header>
 
@@ -181,7 +292,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
 
         {/* Mobile Bottom Navigation */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-t border-slate-200/50 dark:border-slate-800/50 px-2 flex items-center justify-around h-[72px] pb-safe z-50">
-          {primaryMenuItems.map(item => (
+          {filteredPrimaryMenuItems.map(item => (
             <MobileTabItem 
               key={item.id} 
               {...item} 
@@ -189,12 +300,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
               onClick={() => { setActiveTab(item.id); setShowMoreMenu(false); }} 
             />
           ))}
-          <MobileTabItem 
-            icon={<MoreHorizontal size={18} strokeWidth={2.5} />} 
-            label="More" 
-            isActive={showMoreMenu || secondaryMenuItems.some(m => m.id === activeTab)} 
-            onClick={() => setShowMoreMenu(true)} 
-          />
+          {filteredSecondaryMenuItems.length > 0 && (
+            <MobileTabItem 
+              icon={<MoreHorizontal size={18} strokeWidth={2.5} />} 
+              label="More" 
+              isActive={showMoreMenu || filteredSecondaryMenuItems.some(m => m.id === activeTab)} 
+              onClick={() => setShowMoreMenu(true)} 
+            />
+          )}
         </nav>
 
         {/* Mobile Sidebar Drawer */}
@@ -218,7 +331,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                 </button>
               </div>
               <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
-                {[...primaryMenuItems, ...secondaryMenuItems].map((item) => (
+                {[...filteredPrimaryMenuItems, ...filteredSecondaryMenuItems].map((item) => (
                   <SidebarItem 
                     key={item.id} 
                     {...item} 
@@ -254,7 +367,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                  <button onClick={() => setShowMoreMenu(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400"><X size={18} /></button>
                </div>
                <div className="grid grid-cols-3 gap-y-6 gap-x-2">
-                  {secondaryMenuItems.map(item => (
+                  {filteredSecondaryMenuItems.map(item => (
                     <button 
                       key={item.id} 
                       onClick={() => { setActiveTab(item.id); setShowMoreMenu(false); }}

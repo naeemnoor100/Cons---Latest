@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Calendar, DollarSign, Clock, MapPin, TrendingUp, TrendingDown, Filter } from 'lucide-react';
+import { X, DollarSign, Clock } from 'lucide-react';
 import { Employee, LaborLog, LaborPayment, Project } from '../types';
 
 interface EmployeeInsightsModalProps {
