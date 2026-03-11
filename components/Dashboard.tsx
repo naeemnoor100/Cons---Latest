@@ -88,7 +88,7 @@ export const Dashboard: React.FC = () => {
   const inventoryValue = materials.reduce((acc, m) => acc + ((m.totalPurchased - m.totalUsed) * m.costPerUnit), 0);
 
   const projectStats = useMemo(() => {
-    return projects.filter(p => !p.isGodown).map(p => {
+    return projects.filter(p => !p.isGodown && !p.isDeleted && (p.status === 'Active' || p.status === 'Completed')).map(p => {
       const spent = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
       const utilization = p.budget > 0 ? Math.round((spent / p.budget) * 100) : 0;
       return { name: p.name, spent, utilization, budget: p.budget, id: p.id };
