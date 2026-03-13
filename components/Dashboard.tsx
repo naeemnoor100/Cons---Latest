@@ -96,12 +96,19 @@ export const Dashboard: React.FC = () => {
     }).sort((a, b) => b.utilization - a.utilization);
   }, [projects, expenses]);
 
-  const topMaterials = useMemo(() => {
+  const allMaterials = useMemo(() => {
     return [...materials]
       .map(m => ({ ...m, value: (m.totalPurchased - m.totalUsed) * m.costPerUnit }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+      .sort((a, b) => b.value - a.value);
   }, [materials]);
+
+  const [assetPage, setAssetPage] = useState(1);
+  const assetsPerPage = 10;
+  const totalAssetPages = Math.ceil(allMaterials.length / assetsPerPage);
+  const paginatedAssets = useMemo(() => {
+    const startIndex = (assetPage - 1) * assetsPerPage;
+    return allMaterials.slice(startIndex, startIndex + assetsPerPage);
+  }, [allMaterials, assetPage]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -196,13 +203,28 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col">
-          <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-700">
+          <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
             <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
               <Package size={16} className="text-blue-500" /> High-Value Assets
             </h3>
+            {totalAssetPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setAssetPage(prev => Math.max(prev - 1, 1))}
+                  disabled={assetPage === 1}
+                  className="px-2 py-1 text-[10px] font-bold bg-slate-100 rounded disabled:opacity-50"
+                >Prev</button>
+                <span className="text-[10px] font-bold">{assetPage} / {totalAssetPages}</span>
+                <button 
+                  onClick={() => setAssetPage(prev => Math.min(prev + 1, totalAssetPages))}
+                  disabled={assetPage === totalAssetPages}
+                  className="px-2 py-1 text-[10px] font-bold bg-slate-100 rounded disabled:opacity-50"
+                >Next</button>
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto no-scrollbar p-3 sm:p-4 space-y-3">
-            {topMaterials.length > 0 ? topMaterials.map(m => (
+            {paginatedAssets.length > 0 ? paginatedAssets.map(m => (
               <div key={m.id} className="p-4 border border-slate-100 dark:border-slate-700 rounded-2xl bg-slate-50/30 dark:bg-slate-900/10">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1 min-w-0 pr-2">

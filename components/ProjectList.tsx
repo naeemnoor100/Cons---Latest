@@ -316,7 +316,7 @@ export const ProjectList: React.FC = () => {
       categories['Labor'] = (categories['Labor'] || 0) + laborFromLogs;
     }
 
-    return { totalSpent, totalCollected, totalInvoiced, totalLabor, receivable: totalInvoiced - totalCollected, progress, categoryBreakdown: categories, allExpenses: projectExpenses, invoices: projectInvoices };
+    return { totalSpent, totalCollected, totalInvoiced, totalLabor, receivable: totalInvoiced - totalCollected, remainingAmount: budget - totalCollected, progress, categoryBreakdown: categories, allExpenses: projectExpenses, invoices: projectInvoices };
   }, [expenses, incomes, invoices, laborLogs]);
 
   const projectArrivals = useMemo(() => {
@@ -700,7 +700,13 @@ export const ProjectList: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{project.name}</h3>
+                  <div className="flex justify-between items-start gap-2">
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{project.name}</h3>
+                    <div className="flex flex-col items-end shrink-0">
+                      <span className="text-[9px] font-black text-emerald-600 uppercase">Rec: {formatCurrency(metrics.totalCollected)}</span>
+                      <span className="text-[9px] font-black text-slate-500 uppercase">Rem: {formatCurrency(metrics.remainingAmount)}</span>
+                    </div>
+                  </div>
                   <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1">{project.isGodown ? `Supervisor: ${project.client}` : `Client: ${project.client}`}</p>
                   <p className="text-slate-400 text-[10px] sm:text-xs font-bold uppercase flex items-center gap-1.5 mt-0.5 sm:mt-1"><MapPin size={12} /> {project.location}</p>
                   
@@ -825,7 +831,15 @@ export const ProjectList: React.FC = () => {
               </div>
               <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/20 dark:bg-slate-900/10 no-scrollbar">
                 {!viewingProject.isGodown && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Received Amount</p>
+                      <p className="text-xl font-black text-emerald-600">{formatCurrency(viewingProjectMetrics.totalCollected)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Remaining Amount</p>
+                      <p className="text-xl font-black text-slate-900 dark:text-white">{formatCurrency(viewingProjectMetrics.remainingAmount)}</p>
+                    </div>
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Master Budget</p>
                       <p className="text-xl font-black text-slate-900 dark:text-white">{formatCurrency(viewingProject.budget)}</p>

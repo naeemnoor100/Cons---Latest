@@ -42,7 +42,20 @@ export const Reports: React.FC = () => {
   const [summaryVendorId, setSummaryVendorId] = useState<string>('');
 
   const [materialLocatorPage, setMaterialLocatorPage] = useState(1);
+  const [cashFlowPage, setCashFlowPage] = useState(1);
+  const [assetDistributionPage, setAssetDistributionPage] = useState(1);
+  const [sitesSummaryPage, setSitesSummaryPage] = useState(1);
+  const [expenditurePage, setExpenditurePage] = useState(1);
+  const [materialSummaryPage, setMaterialSummaryPage] = useState(1);
+  const [supplierSummaryPage, setSupplierSummaryPage] = useState(1);
+  const [laborSummaryPage, setLaborSummaryPage] = useState(1);
+  const [invoiceSummaryPage, setInvoiceSummaryPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
+  const CASH_FLOW_ITEMS_PER_PAGE = 10;
+  const ASSET_DISTRIBUTION_ITEMS_PER_PAGE = 10;
+  const SITES_SUMMARY_ITEMS_PER_PAGE = 10;
+  const EXPENDITURE_ITEMS_PER_PAGE = 20;
+  const SUMMARY_ITEMS_PER_PAGE = 10;
 
   const [materialFilters, setMaterialFilters] = useState({
     site: '',
@@ -53,6 +66,7 @@ export const Reports: React.FC = () => {
     totalValue: '',
     price: ''
   });
+  const [materialLocatorSort, setMaterialLocatorSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'lastUpdated', direction: 'desc' });
 
   const [vendorSupplyPage, setVendorSupplyPage] = useState(1);
 
@@ -64,6 +78,7 @@ export const Reports: React.FC = () => {
     totalValue: '',
     price: ''
   });
+  const [vendorSupplySort, setVendorSupplySort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'lastSupplied', direction: 'desc' });
 
   const [stockReportFilters, setStockReportFilters] = useState({
     site: '',
@@ -71,12 +86,14 @@ export const Reports: React.FC = () => {
     quantity: '',
     value: ''
   });
+  const [stockReportSort, setStockReportSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'projectName', direction: 'asc' });
 
   const stockReportData = useMemo(() => {
     const report: { projectId: string; projectName: string; materialName: string; unit: string; quantity: number; value: number }[] = [];
 
     projects.forEach(project => {
-      materials.forEach(mat => {
+        if (!(project.status === 'Active' || project.isGodown)) return;
+        materials.forEach(mat => {
         const history = mat.history || [];
         
         // Logic from ProjectList.tsx / Inventory.tsx to calculate total remaining for the project
@@ -130,8 +147,20 @@ export const Reports: React.FC = () => {
       const matchQty = item.quantity.toString().includes(stockReportFilters.quantity);
       const matchValue = item.value.toString().includes(stockReportFilters.value);
       return matchSite && matchMaterial && matchQty && matchValue;
-    }).sort((a, b) => a.projectName.localeCompare(b.projectName) || a.materialName.localeCompare(b.materialName));
-  }, [projects, materials, stockReportFilters]);
+    }).sort((a, b) => {
+      const field = stockReportSort.field as keyof typeof a;
+      const direction = stockReportSort.direction === 'asc' ? 1 : -1;
+      const valA = a[field];
+      const valB = b[field];
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return valA.localeCompare(valB) * direction;
+      }
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return (valA - valB) * direction;
+      }
+      return 0;
+    });
+  }, [projects, materials, stockReportFilters, stockReportSort]);
 
   const activeSummaryMaterialId = summaryMaterialId;
   const activeSummaryVendorId = summaryVendorId || vendors[0]?.id || '';
@@ -225,10 +254,26 @@ export const Reports: React.FC = () => {
       const matchPrice = price.toFixed(2).includes(materialFilters.price);
       return matchMaterial && matchSite && matchVendor && matchDate && matchAvailable && matchValue && matchPrice;
     });
-    // Sort by lastUpdated descending to show "Last" items first
-    filtered.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+    filtered.sort((a, b) => {
+      const field = materialLocatorSort.field as keyof typeof a;
+      const direction = materialLocatorSort.direction === 'asc' ? 1 : -1;
+      const valA = a[field];
+      const valB = b[field];
+      
+      if (field === 'lastUpdated') {
+        return (new Date(valA as string).getTime() - new Date(valB as string).getTime()) * direction;
+      }
+      
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return valA.localeCompare(valB) * direction;
+      }
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return (valA - valB) * direction;
+      }
+      return 0;
+    });
     return filtered;
-  }, [materialLocatorData, materialFilters]);
+  }, [materialLocatorData, materialFilters, materialLocatorSort]);
 
   const totalMaterialValue = useMemo(() => {
     return filteredMaterialStocks.reduce((sum, stock) => sum + stock.value, 0);
@@ -251,18 +296,34 @@ export const Reports: React.FC = () => {
       const matchPrice = price.toFixed(2).includes(vendorFilters.price);
       return matchSite && matchMaterial && matchDate && matchQuantity && matchValue && matchPrice;
     });
-    // Sort by lastSupplied descending
-    filtered.sort((a, b) => new Date(b.lastSupplied).getTime() - new Date(a.lastSupplied).getTime());
+    filtered.sort((a, b) => {
+      const field = vendorSupplySort.field as keyof typeof a;
+      const direction = vendorSupplySort.direction === 'asc' ? 1 : -1;
+      const valA = a[field];
+      const valB = b[field];
+      
+      if (field === 'lastSupplied') {
+        return (new Date(valA as string).getTime() - new Date(valB as string).getTime()) * direction;
+      }
+      
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return valA.localeCompare(valB) * direction;
+      }
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return (valA - valB) * direction;
+      }
+      return 0;
+    });
     return filtered;
-  }, [vendorDistributionData, vendorFilters]);
+  }, [vendorDistributionData, vendorFilters, vendorSupplySort]);
 
   const totalVendorValue = useMemo(() => {
     return filteredVendorDistributions.reduce((sum, dist) => sum + dist.value, 0);
   }, [filteredVendorDistributions]);
 
   const paginatedVendorDistributions = useMemo(() => {
-    const startIndex = (vendorSupplyPage - 1) * ITEMS_PER_PAGE;
-    return filteredVendorDistributions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const startIndex = (vendorSupplyPage - 1) * 100;
+    return filteredVendorDistributions.slice(startIndex, startIndex + 100);
   }, [filteredVendorDistributions, vendorSupplyPage]);
 
   const projectSummaryData = useMemo(() => {
@@ -277,6 +338,7 @@ export const Reports: React.FC = () => {
     const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
     
     const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
+    const totalReceived = incomes.filter(i => i.projectId === summaryProjectId).reduce((sum, i) => sum + i.amount, 0);
     const remainingBudget = project.budget - totalSpent;
 
     const materialSummaryMap: Record<string, { id: string, name: string, unit: string, used: number, remaining: number, inward: number, usedValue: number, remainingValue: number }> = {};
@@ -358,6 +420,7 @@ export const Reports: React.FC = () => {
     return {
       project,
       totalSpent,
+      totalReceived,
       remainingBudget,
       materialSummary,
       supplierSummary,
@@ -395,9 +458,8 @@ export const Reports: React.FC = () => {
       .map(([name, amount]) => ({ name, amount, percentage: totalSpent > 0 ? (amount / totalSpent) * 100 : 0 }))
       .sort((a, b) => b.amount - a.amount);
 
-    const topExpenses = [...projectExpenses]
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 50);
+    const allExpenses = [...projectExpenses]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return {
       project,
@@ -405,7 +467,7 @@ export const Reports: React.FC = () => {
       totalCollected,
       remainingBudget,
       categorySummary,
-      topExpenses
+      allExpenses
     };
   }, [selectedProjectId, projects, expenses, incomes, laborLogs]);
 
@@ -439,12 +501,22 @@ export const Reports: React.FC = () => {
         billed: totalInvoiced,
         received: totalCollected,
         receivable: receivable,
+        remainingAmount: project.budget - totalCollected,
         profit: totalCollected - totalSpent
       };
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    }).sort((a, b) => {
+      if (a.status === 'Active' && b.status !== 'Active') return -1;
+      if (a.status !== 'Active' && b.status === 'Active') return 1;
+      return a.name.localeCompare(b.name);
+    });
   }, [projects, expenses, incomes, invoices, laborLogs]);
 
-  const financialData = useMemo(() => projects.map(p => {
+  const paginatedSitesSummaryData = useMemo(() => {
+    const startIndex = (sitesSummaryPage - 1) * SITES_SUMMARY_ITEMS_PER_PAGE;
+    return sitesSummaryData.slice(startIndex, startIndex + SITES_SUMMARY_ITEMS_PER_PAGE);
+  }, [sitesSummaryData, sitesSummaryPage]);
+
+  const financialData = useMemo(() => projects.filter(p => p.status === 'Active').map(p => {
     const spentExpenses = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
     const spentLabor = laborLogs.filter(l => l.projectId === p.id).reduce((sum, l) => sum + l.wageAmount, 0);
     const spent = spentExpenses + spentLabor;
@@ -461,10 +533,26 @@ export const Reports: React.FC = () => {
     };
   }), [projects, expenses, incomes, payments, laborLogs]);
 
+  const paginatedFinancialData = useMemo(() => {
+    const startIndex = (cashFlowPage - 1) * CASH_FLOW_ITEMS_PER_PAGE;
+    return financialData.slice(startIndex, startIndex + CASH_FLOW_ITEMS_PER_PAGE);
+  }, [financialData, cashFlowPage]);
+
   const materialData = useMemo(() => materials.map(m => ({
     name: m.name,
     value: (m.totalPurchased - m.totalUsed) * m.costPerUnit
   })).filter(m => m.value > 0), [materials]);
+
+  const paginatedMaterialData = useMemo(() => {
+    const startIndex = (assetDistributionPage - 1) * ASSET_DISTRIBUTION_ITEMS_PER_PAGE;
+    return materialData.slice(startIndex, startIndex + ASSET_DISTRIBUTION_ITEMS_PER_PAGE);
+  }, [materialData, assetDistributionPage]);
+
+  const paginatedAllExpenses = useMemo(() => {
+    if (!selectedProjectReport) return [];
+    const startIndex = (expenditurePage - 1) * EXPENDITURE_ITEMS_PER_PAGE;
+    return selectedProjectReport.allExpenses.slice(startIndex, startIndex + EXPENDITURE_ITEMS_PER_PAGE);
+  }, [selectedProjectReport, expenditurePage]);
 
   const timelineData = useMemo(() => {
     const combined: Record<string, { month: string, Income: number, Expense: number, Paid: number }> = {};
@@ -585,9 +673,9 @@ export const Reports: React.FC = () => {
                 </h3>
               </div>
               <div className="h-80">
-                {financialData.length > 0 ? (
+                {paginatedFinancialData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <RechartsBarChart data={financialData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <RechartsBarChart data={paginatedFinancialData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
                       <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
@@ -605,6 +693,25 @@ export const Reports: React.FC = () => {
                   </div>
                 )}
               </div>
+              {financialData.length > CASH_FLOW_ITEMS_PER_PAGE && (
+                <div className="flex justify-center items-center gap-4 mt-6">
+                  <button 
+                    onClick={() => setCashFlowPage(p => Math.max(1, p - 1))}
+                    disabled={cashFlowPage === 1}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Page {cashFlowPage} of {Math.ceil(financialData.length / CASH_FLOW_ITEMS_PER_PAGE)}</span>
+                  <button 
+                    onClick={() => setCashFlowPage(p => Math.min(Math.ceil(financialData.length / CASH_FLOW_ITEMS_PER_PAGE), p + 1))}
+                    disabled={cashFlowPage === Math.ceil(financialData.length / CASH_FLOW_ITEMS_PER_PAGE)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -615,11 +722,11 @@ export const Reports: React.FC = () => {
                 </h3>
               </div>
               <div className="h-80">
-                {materialData.length > 0 ? (
+                {paginatedMaterialData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsPieChart>
-                      <Pie data={materialData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
-                        {materialData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                      <Pie data={paginatedMaterialData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                        {paginatedMaterialData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                       </Pie>
                       <Tooltip formatter={(val: number) => formatCurrency(val)} />
                       <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" wrapperStyle={{fontSize: 10}} />
@@ -632,6 +739,25 @@ export const Reports: React.FC = () => {
                   </div>
                 )}
               </div>
+              {materialData.length > ASSET_DISTRIBUTION_ITEMS_PER_PAGE && (
+                <div className="flex justify-center items-center gap-4 mt-6">
+                  <button 
+                    onClick={() => setAssetDistributionPage(p => Math.max(1, p - 1))}
+                    disabled={assetDistributionPage === 1}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Page {assetDistributionPage} of {Math.ceil(materialData.length / ASSET_DISTRIBUTION_ITEMS_PER_PAGE)}</span>
+                  <button 
+                    onClick={() => setAssetDistributionPage(p => Math.min(Math.ceil(materialData.length / ASSET_DISTRIBUTION_ITEMS_PER_PAGE), p + 1))}
+                    disabled={assetDistributionPage === Math.ceil(materialData.length / ASSET_DISTRIBUTION_ITEMS_PER_PAGE)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest disabled:opacity-50 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -700,32 +826,50 @@ export const Reports: React.FC = () => {
           {selectedProjectReport ? (
             <div className="space-y-8">
               {/* Financial Pulse Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6">
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-2xl">
-                    <TrendingDown size={28} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl">
+                    <Briefcase size={24} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Spent</p>
-                    <p className="text-2xl font-black text-red-600">{formatCurrency(selectedProjectReport.totalSpent)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Master Budget</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white">{formatCurrency(selectedProjectReport.project.budget)}</p>
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6">
-                  <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-2xl">
-                    <TrendingUp size={28} />
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-2xl">
+                    <TrendingDown size={24} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Collected</p>
-                    <p className="text-2xl font-black text-emerald-600">{formatCurrency(selectedProjectReport.totalCollected)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Spent</p>
+                    <p className="text-lg font-black text-red-600">{formatCurrency(selectedProjectReport.totalSpent)}</p>
                   </div>
                 </div>
-                <div className="bg-slate-900 dark:bg-slate-950 p-8 rounded-[2rem] text-white shadow-2xl flex items-center gap-6">
-                  <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-500/20">
-                    <DollarSign size={28} />
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-2xl">
+                    <TrendingUp size={24} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Remaining Budget</p>
-                    <p className={`text-2xl font-black ${selectedProjectReport.remainingBudget < 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Collected</p>
+                    <p className="text-lg font-black text-emerald-600">{formatCurrency(selectedProjectReport.totalCollected)}</p>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-2xl">
+                    <DollarSign size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Remaining Amount</p>
+                    <p className="text-lg font-black text-amber-600">{formatCurrency(selectedProjectReport.project.budget - selectedProjectReport.totalCollected)}</p>
+                  </div>
+                </div>
+                <div className="bg-slate-900 dark:bg-slate-950 p-6 rounded-[2rem] text-white shadow-lg flex items-center gap-4">
+                  <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/20">
+                    <DollarSign size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-0.5">Remaining Budget</p>
+                    <p className={`text-lg font-black ${selectedProjectReport.remainingBudget < 0 ? 'text-red-400' : 'text-blue-400'}`}>
                       {formatCurrency(selectedProjectReport.remainingBudget)}
                     </p>
                   </div>
@@ -775,7 +919,7 @@ export const Reports: React.FC = () => {
                       <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
                         <ClipboardList size={20} />
                       </div>
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">Top 50 Expenditure Items</h4>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">All Expenditure Items</h4>
                     </div>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-900 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">Audit Trail</span>
                   </div>
@@ -790,12 +934,12 @@ export const Reports: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                        {selectedProjectReport.topExpenses.length > 0 ? selectedProjectReport.topExpenses.map((exp, idx) => (
+                        {paginatedAllExpenses.length > 0 ? paginatedAllExpenses.map((exp, idx) => (
                           <tr key={exp.id} className="hover:bg-slate-50/50 transition-colors group">
                             <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
                             <td className="px-8 py-5">
                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400">#{idx + 1}</div>
+                                  <div className="w-8 h-8 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400">#{idx + 1 + (expenditurePage - 1) * EXPENDITURE_ITEMS_PER_PAGE}</div>
                                   <div>
                                     <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tighter">{exp.notes}</p>
                                     <p className="text-[9px] font-black uppercase text-blue-500">{exp.category}</p>
@@ -872,13 +1016,13 @@ export const Reports: React.FC = () => {
           {projectSummaryData ? (
             <div className="space-y-8">
               {/* Budget Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6">
                   <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl">
                     <Wallet size={28} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Budget</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Budget</p>
                     <p className="text-2xl font-black text-blue-600">{formatCurrency(projectSummaryData.project.budget)}</p>
                   </div>
                 </div>
@@ -891,13 +1035,22 @@ export const Reports: React.FC = () => {
                     <p className="text-2xl font-black text-red-600">{formatCurrency(projectSummaryData.totalSpent)}</p>
                   </div>
                 </div>
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6">
+                  <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-2xl">
+                    <TrendingUp size={28} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining Amount</p>
+                    <p className="text-2xl font-black text-emerald-600">{formatCurrency(projectSummaryData.project.budget - projectSummaryData.totalReceived)}</p>
+                  </div>
+                </div>
                 <div className="bg-slate-900 dark:bg-slate-950 p-8 rounded-[2rem] text-white shadow-2xl flex items-center gap-6">
-                  <div className="p-4 bg-emerald-600 text-white rounded-2xl shadow-xl shadow-emerald-500/20">
+                  <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-500/20">
                     <DollarSign size={28} />
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Remaining Budget</p>
-                    <p className={`text-2xl font-black ${projectSummaryData.remainingBudget < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    <p className={`text-2xl font-black ${projectSummaryData.remainingBudget < 0 ? 'text-red-400' : 'text-blue-400'}`}>
                       {formatCurrency(projectSummaryData.remainingBudget)}
                     </p>
                   </div>
@@ -923,7 +1076,7 @@ export const Reports: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                        {projectSummaryData.materialSummary.length > 0 ? projectSummaryData.materialSummary.map((mat, idx) => (
+                        {projectSummaryData.materialSummary.slice((materialSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, materialSummaryPage * SUMMARY_ITEMS_PER_PAGE).length > 0 ? projectSummaryData.materialSummary.slice((materialSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, materialSummaryPage * SUMMARY_ITEMS_PER_PAGE).map((mat, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="px-8 py-4">
                               <p className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">{mat.name}</p>
@@ -946,6 +1099,27 @@ export const Reports: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                  {projectSummaryData.materialSummary.length > SUMMARY_ITEMS_PER_PAGE && (
+                    <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                      <button 
+                        onClick={() => setMaterialSummaryPage(p => Math.max(1, p - 1))}
+                        disabled={materialSummaryPage === 1}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Page {materialSummaryPage} of {Math.ceil(projectSummaryData.materialSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                      </span>
+                      <button 
+                        onClick={() => setMaterialSummaryPage(p => Math.min(Math.ceil(projectSummaryData.materialSummary.length / SUMMARY_ITEMS_PER_PAGE), p + 1))}
+                        disabled={materialSummaryPage === Math.ceil(projectSummaryData.materialSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Suppliers Summary */}
@@ -965,7 +1139,7 @@ export const Reports: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                        {projectSummaryData.supplierSummary.length > 0 ? projectSummaryData.supplierSummary.map((sup, idx) => (
+                        {projectSummaryData.supplierSummary.slice((supplierSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, supplierSummaryPage * SUMMARY_ITEMS_PER_PAGE).length > 0 ? projectSummaryData.supplierSummary.slice((supplierSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, supplierSummaryPage * SUMMARY_ITEMS_PER_PAGE).map((sup, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">
                               {sup.name}
@@ -982,6 +1156,27 @@ export const Reports: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                  {projectSummaryData.supplierSummary.length > SUMMARY_ITEMS_PER_PAGE && (
+                    <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                      <button 
+                        onClick={() => setSupplierSummaryPage(p => Math.max(1, p - 1))}
+                        disabled={supplierSummaryPage === 1}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Page {supplierSummaryPage} of {Math.ceil(projectSummaryData.supplierSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                      </span>
+                      <button 
+                        onClick={() => setSupplierSummaryPage(p => Math.min(Math.ceil(projectSummaryData.supplierSummary.length / SUMMARY_ITEMS_PER_PAGE), p + 1))}
+                        disabled={supplierSummaryPage === Math.ceil(projectSummaryData.supplierSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Labor Summary */}
@@ -1002,7 +1197,7 @@ export const Reports: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                        {projectSummaryData.laborSummary.length > 0 ? projectSummaryData.laborSummary.map((lab, idx) => (
+                        {projectSummaryData.laborSummary.slice((laborSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, laborSummaryPage * SUMMARY_ITEMS_PER_PAGE).length > 0 ? projectSummaryData.laborSummary.slice((laborSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, laborSummaryPage * SUMMARY_ITEMS_PER_PAGE).map((lab, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="px-8 py-4 text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">
                               {lab.name}
@@ -1022,6 +1217,27 @@ export const Reports: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                  {projectSummaryData.laborSummary.length > SUMMARY_ITEMS_PER_PAGE && (
+                    <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                      <button 
+                        onClick={() => setLaborSummaryPage(p => Math.max(1, p - 1))}
+                        disabled={laborSummaryPage === 1}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Page {laborSummaryPage} of {Math.ceil(projectSummaryData.laborSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                      </span>
+                      <button 
+                        onClick={() => setLaborSummaryPage(p => Math.min(Math.ceil(projectSummaryData.laborSummary.length / SUMMARY_ITEMS_PER_PAGE), p + 1))}
+                        disabled={laborSummaryPage === Math.ceil(projectSummaryData.laborSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Invoices Summary */}
@@ -1043,7 +1259,7 @@ export const Reports: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                        {projectSummaryData.invoiceSummary.length > 0 ? projectSummaryData.invoiceSummary.map((inv, idx) => (
+                        {projectSummaryData.invoiceSummary.slice((invoiceSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, invoiceSummaryPage * SUMMARY_ITEMS_PER_PAGE).length > 0 ? projectSummaryData.invoiceSummary.slice((invoiceSummaryPage - 1) * SUMMARY_ITEMS_PER_PAGE, invoiceSummaryPage * SUMMARY_ITEMS_PER_PAGE).map((inv, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="px-8 py-4">
                               <p className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase truncate max-w-[150px]">{inv.description}</p>
@@ -1074,6 +1290,27 @@ export const Reports: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+                  {projectSummaryData.invoiceSummary.length > SUMMARY_ITEMS_PER_PAGE && (
+                    <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                      <button 
+                        onClick={() => setInvoiceSummaryPage(p => Math.max(1, p - 1))}
+                        disabled={invoiceSummaryPage === 1}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        Page {invoiceSummaryPage} of {Math.ceil(projectSummaryData.invoiceSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                      </span>
+                      <button 
+                        onClick={() => setInvoiceSummaryPage(p => Math.min(Math.ceil(projectSummaryData.invoiceSummary.length / SUMMARY_ITEMS_PER_PAGE), p + 1))}
+                        disabled={invoiceSummaryPage === Math.ceil(projectSummaryData.invoiceSummary.length / SUMMARY_ITEMS_PER_PAGE)}
+                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1112,10 +1349,11 @@ export const Reports: React.FC = () => {
                     <th className="px-6 py-4 text-right">Total Billed</th>
                     <th className="px-6 py-4 text-right">Total Received</th>
                     <th className="px-6 py-4 text-right">Receivable</th>
+                    <th className="px-6 py-4 text-right">Remaining Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                  {sitesSummaryData.map((site) => (
+                  {paginatedSitesSummaryData.map((site) => (
                     <tr key={site.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4 text-xs font-bold text-slate-900 dark:text-white uppercase">{site.name}</td>
                       <td className="px-6 py-4">
@@ -1131,16 +1369,38 @@ export const Reports: React.FC = () => {
                       <td className="px-6 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(site.billed)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-emerald-600">{formatCurrency(site.received)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-slate-500">{formatCurrency(site.receivable)}</td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(site.remainingAmount)}</td>
                     </tr>
                   ))}
-                  {sitesSummaryData.length === 0 && (
+                  {paginatedSitesSummaryData.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-6 py-10 text-center text-slate-400 text-xs font-bold uppercase">No active sites found</td>
+                      <td colSpan={9} className="px-6 py-10 text-center text-slate-400 text-xs font-bold uppercase">No active sites found</td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+            {sitesSummaryData.length > SITES_SUMMARY_ITEMS_PER_PAGE && (
+              <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
+                <button 
+                  onClick={() => setSitesSummaryPage(p => Math.max(1, p - 1))}
+                  disabled={sitesSummaryPage === 1}
+                  className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  Page {sitesSummaryPage} of {Math.ceil(sitesSummaryData.length / SITES_SUMMARY_ITEMS_PER_PAGE)}
+                </span>
+                <button 
+                  onClick={() => setSitesSummaryPage(p => Math.min(Math.ceil(sitesSummaryData.length / SITES_SUMMARY_ITEMS_PER_PAGE), p + 1))}
+                  disabled={sitesSummaryPage === Math.ceil(sitesSummaryData.length / SITES_SUMMARY_ITEMS_PER_PAGE)}
+                  className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1158,6 +1418,27 @@ export const Reports: React.FC = () => {
                   </span>
                 </h3>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <div className="flex items-center gap-2">
+                    <select 
+                      value={materialLocatorSort.field}
+                      onChange={(e) => setMaterialLocatorSort(prev => ({ ...prev, field: e.target.value }))}
+                      className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none"
+                    >
+                      <option value="materialName">Material</option>
+                      <option value="projectName">Site</option>
+                      <option value="vendorName">Vendor</option>
+                      <option value="lastUpdated">Last Updated</option>
+                      <option value="quantity">Quantity</option>
+                      <option value="unitPrice">Unit Price</option>
+                      <option value="value">Value</option>
+                    </select>
+                    <button 
+                      onClick={() => setMaterialLocatorSort(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                      className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none"
+                    >
+                      {materialLocatorSort.direction === 'asc' ? 'Asc' : 'Desc'}
+                    </button>
+                  </div>
                   <div className="relative w-full sm:w-auto">
                     <select 
                       value={summaryMaterialId}
@@ -1320,6 +1601,26 @@ export const Reports: React.FC = () => {
                   </span>
                 </h3>
                 <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <div className="flex items-center gap-2">
+                    <select 
+                      value={vendorSupplySort.field}
+                      onChange={(e) => setVendorSupplySort(prev => ({ ...prev, field: e.target.value }))}
+                      className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none"
+                    >
+                      <option value="projectName">Site</option>
+                      <option value="matName">Material</option>
+                      <option value="lastSupplied">Last Supplied</option>
+                      <option value="quantity">Quantity</option>
+                      <option value="unitPrice">Unit Price</option>
+                      <option value="value">Value</option>
+                    </select>
+                    <button 
+                      onClick={() => setVendorSupplySort(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                      className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none"
+                    >
+                      {vendorSupplySort.direction === 'asc' ? 'Asc' : 'Desc'}
+                    </button>
+                  </div>
                   <div className="relative w-full sm:w-auto">
                     <select 
                       value={activeSummaryVendorId}
@@ -1430,7 +1731,7 @@ export const Reports: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-              {filteredVendorDistributions.length > ITEMS_PER_PAGE && (
+              {filteredVendorDistributions.length > 100 && (
                 <div className="p-4 border-t border-slate-50 dark:border-slate-700 flex justify-between items-center">
                   <button 
                     onClick={() => setVendorSupplyPage(p => Math.max(1, p - 1))}
@@ -1440,11 +1741,11 @@ export const Reports: React.FC = () => {
                     Previous
                   </button>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    Page {vendorSupplyPage} of {Math.ceil(filteredVendorDistributions.length / ITEMS_PER_PAGE)}
+                    Page {vendorSupplyPage} of {Math.ceil(filteredVendorDistributions.length / 100)}
                   </span>
                   <button 
-                    onClick={() => setVendorSupplyPage(p => Math.min(Math.ceil(filteredVendorDistributions.length / ITEMS_PER_PAGE), p + 1))}
-                    disabled={vendorSupplyPage === Math.ceil(filteredVendorDistributions.length / ITEMS_PER_PAGE)}
+                    onClick={() => setVendorSupplyPage(p => Math.min(Math.ceil(filteredVendorDistributions.length / 100), p + 1))}
+                    disabled={vendorSupplyPage === Math.ceil(filteredVendorDistributions.length / 100)}
                     className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
                   >
                     Next
@@ -1457,13 +1758,31 @@ export const Reports: React.FC = () => {
       {reportActiveTab === 'stock-report' && (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-              <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
+              <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex justify-between items-center">
                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                   <Package size={18} className="text-blue-600" />
                   Site-wise Stock Report
                 </h3>
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={stockReportSort.field}
+                    onChange={(e) => setStockReportSort(prev => ({ ...prev, field: e.target.value }))}
+                    className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none"
+                  >
+                    <option value="projectName">Site</option>
+                    <option value="materialName">Material</option>
+                    <option value="quantity">Quantity</option>
+                    <option value="value">Value</option>
+                  </select>
+                  <button 
+                    onClick={() => setStockReportSort(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                    className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-[10px] font-normal outline-none"
+                  >
+                    {stockReportSort.direction === 'asc' ? 'Asc' : 'Desc'}
+                  </button>
+                </div>
               </div>
-              <div className="overflow-x-auto no-scrollbar max-h-[600px]">
+              <div className="overflow-x-auto overflow-y-auto max-h-[600px]">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
                     <tr>
