@@ -21,8 +21,7 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer, 
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 import { useApp } from '../AppContext';
 import { Project } from '../types';

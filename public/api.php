@@ -450,46 +450,6 @@ function syncTable($conn, $tableName, $syncId, $items, $columns) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
     
-    if ($action === 'delete_state') {
-        $syncId = $input['syncId'] ?? '';
-        if (!$syncId) {
-            http_response_code(400);
-            echo json_encode(['error' => 'No syncId']);
-            exit;
-        }
-        
-        $conn = getDBConnection();
-        if ($conn) {
-            try {
-                $conn->beginTransaction();
-                // Delete from all tables
-                foreach (array_keys($tablesSchema) as $table) {
-                    $stmt = $conn->prepare("DELETE FROM $table WHERE syncId = ?");
-                    $stmt->execute([$syncId]);
-                }
-                $stmt = $conn->prepare("DELETE FROM app_settings WHERE syncId = ?");
-                $stmt->execute([$syncId]);
-                $stmt = $conn->prepare("DELETE FROM sessions WHERE syncId = ?");
-                $stmt->execute([$syncId]);
-                $conn->commit();
-                echo json_encode(['success' => true]);
-            } catch (PDOException $e) {
-                $conn->rollBack();
-                http_response_code(500);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-            }
-        } else {
-            // JSON Fallback
-            $db = (file_exists($dataFile) && filesize($dataFile) > 2) ? json_decode(file_get_contents($dataFile), true) : ['sessions' => []];
-            if (isset($db['sessions'][$syncId])) {
-                unset($db['sessions'][$syncId]);
-                file_put_contents($dataFile, json_encode($db, JSON_PRETTY_PRINT));
-            }
-            echo json_encode(['success' => true]);
-        }
-        exit;
-    }
-
     if ($action === 'save_state' || (isset($input['syncId']) && $action === '')) {
         $data = $input;
         if (!$data || !isset($data['syncId'])) {

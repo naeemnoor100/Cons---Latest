@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Search, 
-  History,
+  Plus,
   DollarSign,
   Building2,
   AlertCircle,
@@ -9,11 +9,14 @@ import {
   ArrowRight,
   ArrowDownCircle,
   Clock,
+  Pencil,
+  Trash2,
   X
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Vendor, Payment, PaymentMethod } from '../types';
 import { VendorLedgerModal } from './VendorLedgerModal';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -28,6 +31,17 @@ export const VendorList: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [payingVendor, setPayingVendor] = useState<Vendor | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   const [quickPaymentBill, setQuickPaymentBill] = useState<{id: string, remainingBalance: number, projectId: string} | null>(null);
   const [quickPaymentFormData, setQuickPaymentFormData] = useState({
     amount: '',
@@ -44,7 +58,6 @@ export const VendorList: React.FC = () => {
   });
   
   const [viewingVendorId, setViewingVendorId] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const activeVendor = useMemo(() => vendors.find(v => v.id === viewingVendorId), [vendors, viewingVendorId]);
   
   const [formData, setFormData] = useState({
@@ -64,6 +77,20 @@ export const VendorList: React.FC = () => {
   const handleViewVendor = (id: string) => {
     setViewingVendorId(id);
     setLedgerSearchTerm('');
+  };
+
+  const handleDelete = (id: string) => {
+    const vendor = vendors.find(v => v.id === id);
+    if (!vendor) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Supplier',
+      message: `Are you sure you want to delete supplier "${vendor.name}"?`,
+      onConfirm: () => {
+        deleteVendor(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const totalOutstanding = useMemo(() => vendors.reduce((sum, v) => sum + v.balance, 0), [vendors]);
@@ -214,17 +241,12 @@ export const VendorList: React.FC = () => {
     );
   }, [combinedLedger, ledgerSearchTerm, projects]);
 
-  const handleOpenAddVendor = () => {
-    setEditingVendor(null);
-    setFormData({ name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '', isActive: true });
-    setShowModal(true);
-  };
-
   const handleQuickPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickPaymentBill || !activeVendor) return;
 
     const amountToPay = parseFloat(quickPaymentFormData.amount) || 0;
+    if (amountToPay <= 0 || amountToPay > activeVendorStats.totalDues) return;
 
     const payment: Payment = {
       id: 'pay' + Date.now(),
@@ -269,7 +291,7 @@ export const VendorList: React.FC = () => {
     if (!payingVendor) return;
 
     const amountToPay = parseFloat(paymentFormData.amount) || 0;
-    if (amountToPay <= 0) return;
+    if (amountToPay <= 0 || amountToPay > payingVendor.balance) return;
 
     const payment: Payment = {
       id: 'pay' + Date.now(),
@@ -299,7 +321,14 @@ export const VendorList: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Supplier Registry</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Monitor outstanding balances and site engagements.</p>
         </div>
-        {/* Removed Register Supplier button */}
+        {canCreateVendors && (
+          <button 
+            onClick={() => { setEditingVendor(null); setFormData({ name: '', phone: '', email: '', category: 'Material', address: '', balance: '', isActive: true }); setShowModal(true); }}
+            className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+          >
+            <Plus size={20} /> Register Supplier
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4">
@@ -339,6 +368,7 @@ export const VendorList: React.FC = () => {
                 <th className="px-8 py-5">Active Sites</th>
                 <th className="px-8 py-5">Outstanding Bal.</th>
                 <th className="px-8 py-5">Last Payment</th>
+                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -419,6 +449,28 @@ export const VendorList: React.FC = () => {
 
                        </div>
                     </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 transition-opacity">
+                        {canEditVendors && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setEditingVendor(vendor); setFormData({ name: vendor.name, phone: vendor.phone, email: vendor.email || '', category: vendor.category, address: vendor.address || '', balance: vendor.balance.toString(), isActive: vendor.isActive !== false }); setShowModal(true); }}
+                            className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                            title="Edit Supplier"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
+                        {canDeleteVendors && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDelete(vendor.id); }}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Delete Supplier"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -429,13 +481,13 @@ export const VendorList: React.FC = () => {
 
       {/* Add/Edit Vendor Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/30">
-                 <h2 className="text-xl font-black uppercase">{editingVendor ? 'Modify Supplier' : 'Register Supplier'}</h2>
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+              <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/30">
+                 <h2 className="text-lg sm:text-xl font-black uppercase">{editingVendor ? 'Modify Supplier' : 'Register Supplier'}</h2>
                  <button onClick={() => setShowModal(false)} className="p-2 text-slate-400 hover:text-slate-900"><X size={32} /></button>
               </div>
-              <form onSubmit={handleVendorSubmit} className="p-8 space-y-5">
+              <form onSubmit={handleVendorSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                  <div className="space-y-1">
                     <label className="text-[10px] font-black uppercase text-slate-400 px-1">Supplier Name</label>
                     <input type="text" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
@@ -502,9 +554,9 @@ export const VendorList: React.FC = () => {
 
       {/* Generic Payment Modal */}
       {payingVendor && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
+        <div className="fixed inset-0 z-[210] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-md shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
                <div className="flex items-center gap-4">
                   <div className="p-3 bg-emerald-600 text-white rounded-2xl">
                      <DollarSign size={24} />
@@ -517,7 +569,7 @@ export const VendorList: React.FC = () => {
                <button onClick={() => setPayingVendor(null)} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
             </div>
             
-            <form onSubmit={handlePaymentSubmit} className="p-8 space-y-5">
+            <form onSubmit={handlePaymentSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                <div className="bg-slate-900 p-5 rounded-2xl text-white flex justify-between items-center">
                   <div>
                     <p className="text-[8px] font-black text-white/50 uppercase tracking-widest mb-1">Current Balance</p>
@@ -535,12 +587,31 @@ export const VendorList: React.FC = () => {
                   <input 
                     type="number" 
                     step="0.01" 
+                    max={payingVendor.balance}
+                    min="0"
                     required 
                     className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10" 
                     value={paymentFormData.amount} 
-                    onChange={e => setPaymentFormData(p => ({ ...p, amount: e.target.value }))} 
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) {
+                        if (val > payingVendor.balance) {
+                          setPaymentFormData(p => ({ ...p, amount: payingVendor.balance.toString() }));
+                          return;
+                        } else if (val < 0) {
+                          setPaymentFormData(p => ({ ...p, amount: '0' }));
+                          return;
+                        }
+                      }
+                      setPaymentFormData(p => ({ ...p, amount: e.target.value }));
+                    }} 
                     placeholder="0.00"
                   />
+                  {payingVendor.balance >= 0 && (
+                    <p className="text-[10px] text-slate-500 font-bold px-1">
+                      Max allowed: {formatCurrency(payingVendor.balance)}
+                    </p>
+                  )}
                </div>
 
                <div className="grid grid-cols-2 gap-4">
@@ -583,9 +654,9 @@ export const VendorList: React.FC = () => {
 
       {/* Quick Payment Modal */}
       {quickPaymentBill && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
+        <div className="fixed inset-0 z-[210] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-md shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
                <div className="flex items-center gap-4">
                   <div className="p-3 bg-emerald-600 text-white rounded-2xl">
                      <DollarSign size={24} />
@@ -598,7 +669,7 @@ export const VendorList: React.FC = () => {
                <button onClick={() => setQuickPaymentBill(null)} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
             </div>
             
-            <form onSubmit={handleQuickPaymentSubmit} className="p-8 space-y-5">
+            <form onSubmit={handleQuickPaymentSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                <div className="bg-slate-900 p-5 rounded-2xl text-white flex justify-between items-center">
                   <div>
                     <p className="text-[8px] font-black text-white/50 uppercase tracking-widest mb-1">Total Outstanding</p>
@@ -619,11 +690,30 @@ export const VendorList: React.FC = () => {
                   <input 
                     type="number" 
                     step="0.01" 
+                    max={activeVendorStats.totalDues}
+                    min="0"
                     required 
                     className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10" 
                     value={quickPaymentFormData.amount} 
-                    onChange={e => setQuickPaymentFormData(p => ({ ...p, amount: e.target.value }))} 
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val)) {
+                        if (val > activeVendorStats.totalDues) {
+                          setQuickPaymentFormData(p => ({ ...p, amount: activeVendorStats.totalDues.toString() }));
+                          return;
+                        } else if (val < 0) {
+                          setQuickPaymentFormData(p => ({ ...p, amount: '0' }));
+                          return;
+                        }
+                      }
+                      setQuickPaymentFormData(p => ({ ...p, amount: e.target.value }));
+                    }} 
                   />
+                  {activeVendorStats.totalDues >= 0 && (
+                    <p className="text-[10px] text-slate-500 font-bold px-1">
+                      Max allowed: {formatCurrency(activeVendorStats.totalDues)}
+                    </p>
+                  )}
                </div>
 
                <div className="grid grid-cols-2 gap-4">
@@ -653,7 +743,13 @@ export const VendorList: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Removed ConfirmationDialog */}
+      <ConfirmationDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

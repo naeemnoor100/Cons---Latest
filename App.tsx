@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { AppProvider } from './AppContext';
+import { AppProvider } from './AppProvider';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { ProjectList } from './components/ProjectList';
@@ -13,15 +13,10 @@ import { InvoiceManager } from './components/InvoiceManager';
 import { Settings } from './components/Settings';
 import { SupplierPayments } from './components/SupplierPayments';
 import { LaborManager } from './components/LaborManager';
-import { Login } from './components/Login';
+import { SplashScreen } from './components/SplashScreen';
 
 const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isAuthenticated] = useState(localStorage.getItem('isAuthenticated') === 'true');
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
 
   const renderContent = () => {
     switch (activeTab) {
@@ -60,6 +55,12 @@ const MainApp: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+  }
+
   return (
     <AppProvider>
       <MainApp />

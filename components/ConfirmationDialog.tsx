@@ -10,14 +10,6 @@ interface ConfirmationDialogProps {
 }
 
 export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ isOpen, title, message, onConfirm, onCancel }) => {
-  const [password, setPassword] = React.useState('');
-
-  React.useEffect(() => {
-    if (isOpen) {
-      setPassword('');
-    }
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   return (
@@ -29,23 +21,11 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({ isOpen, 
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">{message}</p>
         
-        <div className="mb-6">
-          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Type "04-03-2026" to confirm</label>
-          <input 
-            type="text" 
-            className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            placeholder="04-03-2026"
-          />
-        </div>
-
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all">Cancel</button>
           <button 
             onClick={onConfirm} 
-            disabled={password !== '04-03-2026'}
-            className="flex-1 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-rose-600 text-white hover:bg-rose-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-rose-600 text-white hover:bg-rose-700 transition-all"
           >
             Delete
           </button>

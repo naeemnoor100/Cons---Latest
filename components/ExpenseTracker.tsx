@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-  Plus, Receipt, X, Briefcase, Pencil, Trash2, Package, ShoppingCart, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight, Lock
+  Plus, Receipt, X, Briefcase, Pencil, Trash2, Package, ShoppingCart, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Expense, PaymentMethod } from '../types';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -16,6 +17,17 @@ export const ExpenseTracker: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [trackStock, setTrackStock] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -163,30 +175,34 @@ export const ExpenseTracker: React.FC = () => {
     e.preventDefault();
     
     let parentId = editingExpense?.parentPurchaseId;
+    let unitPrice = editingExpense?.unitPrice;
     if (trackStock && formData.category === 'Material' && formData.materialId && formData.materialQuantity && !isPurchase) {
        const selection = siteSpecificInventory.find(s => 
          (s.id + '|' + s.batchId) === formData.materialId || s.id === formData.materialId
        );
        if (selection && selection.batchId) {
          parentId = selection.batchId;
+         unitPrice = selection.unitPrice;
        }
     }
 
     const finalMaterialId = trackStock ? formData.materialId.split('|')[0] : undefined;
     const finalQuantity = trackStock ? (formData.materialId ? parseFloat(formData.materialQuantity) || undefined : undefined) : undefined;
 
+    const inventoryAction = editingExpense?.inventoryAction || (trackStock ? (isPurchase ? 'Purchase' : 'Usage') : undefined);
     const expData: Expense = {
       id: editingExpense ? editingExpense.id : 'e' + Date.now().toString(),
       date: formData.date,
       projectId: formData.projectId,
       vendorId: formData.vendorId || undefined,
-      amount: parseFloat(formData.amount) || 0,
+      amount: inventoryAction === 'Transfer' ? 0 : (parseFloat(formData.amount) || 0),
       paymentMethod: formData.paymentMethod,
       notes: formData.notes || 'General Expense',
       category: formData.category,
       materialId: finalMaterialId,
       materialQuantity: finalQuantity,
-      inventoryAction: editingExpense?.inventoryAction || (trackStock ? (isPurchase ? 'Purchase' : 'Usage') : undefined),
+      unitPrice: unitPrice,
+      inventoryAction: inventoryAction,
       parentPurchaseId: trackStock ? parentId : undefined
     };
 
@@ -227,9 +243,15 @@ export const ExpenseTracker: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Delete this expense record? Associated vendor balance and material stock levels will be restored.")) {
-      deleteExpense(id);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Expense',
+      message: 'Are you sure you want to delete this expense record? Associated vendor balance and material stock levels will be restored.',
+      onConfirm: () => {
+        deleteExpense(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   return (
@@ -239,7 +261,14 @@ export const ExpenseTracker: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Financial Ledger</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Record expenditures and trigger stock arrivals.</p>
         </div>
-
+        {canCreateExpenses && (
+          <button 
+            onClick={() => { resetForm(); setShowModal(true); }}
+            className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+          >
+            <Plus size={20} /> Record Expense
+          </button>
+        )}
       </div>
 
       {/* Deep Search & Filters Hub */}
@@ -289,13 +318,13 @@ export const ExpenseTracker: React.FC = () => {
                 <th className="px-8 py-5 text-center">Quantity</th>
                 <th className="px-8 py-5">Category</th>
                 <th className="px-8 py-5 text-right">Amount</th>
+                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filteredExpenses.length > 0 ? filteredExpenses.map((exp) => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
-                const isCompleted = isProjectLocked(exp.projectId);
                 return (
                   <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                     <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(exp.date).toLocaleDateString()}</td>
@@ -330,6 +359,28 @@ export const ExpenseTracker: React.FC = () => {
                     <td className="px-8 py-5 text-right">
                       <p className="text-sm font-black text-red-600">{formatCurrency(exp.amount)}</p>
                     </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 transition-opacity">
+                        {canEditExpenses && (
+                          <button 
+                            onClick={() => openEdit(exp)}
+                            className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                            title="Edit Expense"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
+                        {canDeleteExpenses && (
+                          <button 
+                            onClick={() => handleDelete(exp.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Delete Expense"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               }) : (
@@ -347,21 +398,21 @@ export const ExpenseTracker: React.FC = () => {
 
       {/* Expense Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900 shrink-0">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900 shrink-0">
               <div className="flex gap-4 items-center">
-                 <div className="p-4 bg-red-600 text-white rounded-2xl shadow-lg">
+                 <div className="p-3 sm:p-4 bg-red-600 text-white rounded-2xl shadow-lg">
                     <Receipt size={24} />
                  </div>
                  <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{editingExpense ? 'Modify Entry' : 'Record Expenditure'}</h2>
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{editingExpense ? 'Modify Entry' : 'Record Expenditure'}</h2>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">{isPurchase ? 'Adding to stock inventory' : 'Deducting from purchased stock'}</p>
                  </div>
               </div>
               <button onClick={() => { setShowModal(false); setEditingExpense(null); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
             </div>
-            <form onSubmit={handleCreateOrUpdateExpense} className="p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
+            <form onSubmit={handleCreateOrUpdateExpense} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Site</label>
@@ -511,6 +562,13 @@ export const ExpenseTracker: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmationDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

@@ -5,7 +5,6 @@ export const MOCK_USER: User = {
   name: 'Administrator',
   email: 'admin@buildmaster.pro',
   role: 'Admin',
-  password: 'admin',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop',
   permissions: {
     projects: ['view', 'create', 'edit', 'delete'],

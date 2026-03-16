@@ -5,18 +5,18 @@ import {
   X, 
   Pencil, 
   Trash2, 
+  Plus,
   HardHat, 
   DollarSign, 
   ClipboardList,
   UserPlus,
-  ArrowRight,
-  Lock,
   MapPin
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Employee, LaborLog, PaymentMethod, LaborPayment } from '../types';
 import { BulkLaborLogModal } from './BulkLaborLogModal';
 import { EmployeeInsightsModal } from './EmployeeInsightsModal';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -53,6 +53,18 @@ export const LaborManager: React.FC = () => {
   const [selectedEmployeeForInsights, setSelectedEmployeeForInsights] = useState<Employee | null>(null);
   const [editingLog, setEditingLog] = useState<LaborLog | null>(null);
   const [editingPayment, setEditingPayment] = useState<LaborPayment | null>(null);
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   const [employeeFormData, setEmployeeFormData] = useState({
     name: '', role: '', phone: '', dailyWage: '', status: 'Active' as 'Active' | 'Inactive', joiningDate: new Date().toISOString().split('T')[0], currentSiteId: ''
@@ -235,6 +247,42 @@ export const LaborManager: React.FC = () => {
     setShowPaymentModal(true);
   };
 
+  const handleDeleteEmployee = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Employee',
+      message: 'Are you sure you want to delete this employee? This will hide them from future logs.',
+      onConfirm: () => {
+        deleteEmployee(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleDeleteLog = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Attendance Log',
+      message: 'Are you sure you want to delete this attendance log?',
+      onConfirm: () => {
+        deleteLaborLog(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleDeletePayment = (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Payment Record',
+      message: 'Are you sure you want to delete this payment record?',
+      onConfirm: () => {
+        deleteLaborPayment(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
   const triggerPayEmployee = (empId: string, amount: number) => {
     setEditingPayment(null);
     setPaymentFormData({
@@ -256,7 +304,28 @@ export const LaborManager: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage employees, attendance, and payments.</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
-
+          {canCreateLabor && (
+            <>
+              <button 
+                onClick={() => { setEditingEmployee(null); setEmployeeFormData({ name: '', role: '', phone: '', dailyWage: '', status: 'Active', joiningDate: new Date().toISOString().split('T')[0], currentSiteId: '' }); setShowEmployeeModal(true); }}
+                className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2"
+              >
+                <Plus size={16} /> Add Employee
+              </button>
+              <button 
+                onClick={() => { setEditingLog(null); setLogFormData({ date: new Date().toISOString().split('T')[0], employeeId: '', projectId: '', hoursWorked: '8', status: 'Present', notes: '', wageAmount: '' }); setShowLogModal(true); }}
+                className="bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2"
+              >
+                <Plus size={16} /> Log Attendance
+              </button>
+              <button 
+                onClick={() => { setEditingPayment(null); setPaymentFormData({ employeeId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash', reference: '', notes: '' }); setShowPaymentModal(true); }}
+                className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2"
+              >
+                <Plus size={16} /> Record Payment
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -311,8 +380,25 @@ export const LaborManager: React.FC = () => {
                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${emp.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
                     {emp.status}
                   </span>
-                  <div className="flex gap-2">
-
+                  <div className="flex gap-2 transition-opacity">
+                    {canEditLabor && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); openEditEmployee(emp); }}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                        title="Edit Employee"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    )}
+                    {canDeleteLabor && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDeleteEmployee(emp.id); }}
+                        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                        title="Delete Employee"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{emp.name}</h3>
@@ -334,7 +420,18 @@ export const LaborManager: React.FC = () => {
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-900/50 p-2 sm:p-2.5 rounded-xl">
                     <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5 sm:mb-1">Balance</p>
-                    <p className="text-[10px] sm:text-[11px] font-black text-rose-600">{formatCurrency(emp.remaining)}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] sm:text-[11px] font-black text-rose-600">{formatCurrency(emp.remaining)}</p>
+                      {emp.remaining > 0 && canCreateLabor && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); triggerPayEmployee(emp.id, emp.remaining); }}
+                          className="p-1 bg-emerald-100 text-emerald-700 rounded-md hover:scale-110 transition-all"
+                          title="Pay Balance"
+                        >
+                          <DollarSign size={10} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -357,6 +454,7 @@ export const LaborManager: React.FC = () => {
                   <th className="px-8 py-5">Status</th>
                   <th className="px-8 py-5">Hours</th>
                   <th className="px-8 py-5 text-right">Wage</th>
+                  <th className="px-8 py-5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -382,6 +480,28 @@ export const LaborManager: React.FC = () => {
                       </td>
                       <td className="px-8 py-5 text-sm font-black text-slate-700 dark:text-slate-200">{log.hoursWorked}h</td>
                       <td className="px-8 py-5 text-right text-sm font-black text-blue-600">{formatCurrency(log.wageAmount)}</td>
+                      <td className="px-8 py-5 text-right">
+                        <div className="flex items-center justify-end gap-2 transition-opacity">
+                          {canEditLabor && !isCompleted && (
+                            <button 
+                              onClick={() => openEditLog(log)}
+                              className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                              title="Edit Log"
+                            >
+                              <Pencil size={18} />
+                            </button>
+                          )}
+                          {canDeleteLabor && !isCompleted && (
+                            <button 
+                              onClick={() => handleDeleteLog(log.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Delete Log"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -400,6 +520,7 @@ export const LaborManager: React.FC = () => {
                   <th className="px-8 py-5">Method</th>
                   <th className="px-8 py-5">Reference</th>
                   <th className="px-8 py-5 text-right">Amount</th>
+                  <th className="px-8 py-5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -415,6 +536,28 @@ export const LaborManager: React.FC = () => {
                       <td className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase">{pay.method}</td>
                       <td className="px-8 py-5 text-xs font-bold text-slate-400 uppercase">{pay.reference || '--'}</td>
                       <td className="px-8 py-5 text-right text-sm font-black text-emerald-600">{formatCurrency(pay.amount)}</td>
+                      <td className="px-8 py-5 text-right">
+                        <div className="flex items-center justify-end gap-2 transition-opacity">
+                          {canEditLabor && (
+                            <button 
+                              onClick={() => openEditPayment(pay)}
+                              className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                              title="Edit Payment"
+                            >
+                              <Pencil size={18} />
+                            </button>
+                          )}
+                          {canDeleteLabor && (
+                            <button 
+                              onClick={() => handleDeletePayment(pay.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                              title="Delete Payment"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -426,21 +569,21 @@ export const LaborManager: React.FC = () => {
 
       {/* Employee Modal */}
       {showEmployeeModal && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/30 dark:bg-slate-900/20">
+        <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/30 dark:bg-slate-900/20">
               <div className="flex gap-4 items-center">
-                <div className="p-4 bg-slate-900 text-white rounded-2xl shadow-lg">
+                <div className="p-3 sm:p-4 bg-slate-900 text-white rounded-2xl shadow-lg">
                   <UserPlus size={24} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</h2>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</h2>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Workforce Registration</p>
                 </div>
               </div>
               <button onClick={() => setShowEmployeeModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
             </div>
-            <form onSubmit={handleEmployeeSubmit} className="p-8 space-y-5">
+            <form onSubmit={handleEmployeeSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Full Name</label>
@@ -514,21 +657,21 @@ export const LaborManager: React.FC = () => {
 
       {/* Daily Log Modal */}
       {showLogModal && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-blue-50/30 dark:bg-blue-900/20">
+        <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-blue-50/30 dark:bg-blue-900/20">
               <div className="flex gap-4 items-center">
-                <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg">
+                <div className="p-3 sm:p-4 bg-blue-600 text-white rounded-2xl shadow-lg">
                   <ClipboardList size={24} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingLog ? 'Edit Labor Log' : 'Record Daily Attendance'}</h2>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingLog ? 'Edit Labor Log' : 'Record Daily Attendance'}</h2>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Daily Workforce Tracking</p>
                 </div>
               </div>
               <button onClick={() => setShowLogModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
             </div>
-            <form onSubmit={handleLogSubmit} className="p-8 space-y-5">
+            <form onSubmit={handleLogSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Date</label>
@@ -606,21 +749,21 @@ export const LaborManager: React.FC = () => {
 
       {/* Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30 dark:bg-emerald-900/20">
+        <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30 dark:bg-emerald-900/20">
               <div className="flex gap-4 items-center">
-                <div className="p-4 bg-emerald-600 text-white rounded-2xl shadow-lg">
+                <div className="p-3 sm:p-4 bg-emerald-600 text-white rounded-2xl shadow-lg">
                   <DollarSign size={24} />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingPayment ? 'Edit Payment' : 'Pay Employee'}</h2>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{editingPayment ? 'Edit Payment' : 'Pay Employee'}</h2>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Workforce Wage Disbursement</p>
                 </div>
               </div>
               <button onClick={() => setShowPaymentModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
             </div>
-            <form onSubmit={handlePaymentSubmit} className="p-8 space-y-5">
+            <form onSubmit={handlePaymentSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Date</label>
@@ -666,6 +809,13 @@ export const LaborManager: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmationDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

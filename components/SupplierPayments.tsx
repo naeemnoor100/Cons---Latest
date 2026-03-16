@@ -12,18 +12,30 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { PaymentMethod, Payment } from '../types';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const SupplierPayments: React.FC = () => {
   const { payments, vendors, projects, addPayment, updatePayment, deletePayment, currentUser } = useApp();
   
-  const canCreateVendors = currentUser.permissions?.['vendors']?.includes('create');
-  const canEditVendors = currentUser.permissions?.['vendors']?.includes('edit');
-  const canDeleteVendors = currentUser.permissions?.['vendors']?.includes('delete');
+  const canCreatePayments = currentUser.permissions?.['payments']?.includes('create');
+  const canEditPayments = currentUser.permissions?.['payments']?.includes('edit');
+  const canDeletePayments = currentUser.permissions?.['payments']?.includes('delete');
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   
   // Modal state
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
@@ -51,6 +63,11 @@ export const SupplierPayments: React.FC = () => {
     return vendor ? vendor.balance : 0;
   }, [selectedVendorId, vendors]);
 
+  const maxAllowedAmount = useMemo(() => {
+    if (!selectedVendorId) return 0;
+    return editingPayment ? selectedVendorBalance + editingPayment.amount : selectedVendorBalance;
+  }, [selectedVendorId, selectedVendorBalance, editingPayment]);
+
   const handleCloseModal = useCallback(() => {
     setShowModal(false);
     setEditingPayment(null);
@@ -64,12 +81,17 @@ export const SupplierPayments: React.FC = () => {
     e.preventDefault();
     if (!selectedVendorId) return;
     
+    const amount = parseFloat(paymentFormData.amount) || 0;
+    if (amount > maxAllowedAmount) {
+      return; // Prevent submission if amount exceeds max
+    }
+    
     const paymentData: Payment = {
       id: editingPayment ? editingPayment.id : 'pay' + Date.now().toString(),
       date: paymentFormData.date,
       vendorId: selectedVendorId,
       projectId: paymentFormData.projectId || projects[0]?.id || '',
-      amount: parseFloat(paymentFormData.amount) || 0,
+      amount: amount,
       method: paymentFormData.method,
       reference: paymentFormData.reference
     };
@@ -81,7 +103,7 @@ export const SupplierPayments: React.FC = () => {
     }
     
     handleCloseModal();
-  }, [selectedVendorId, editingPayment, paymentFormData, projects, updatePayment, addPayment, handleCloseModal]);
+  }, [selectedVendorId, editingPayment, paymentFormData, projects, updatePayment, addPayment, handleCloseModal, maxAllowedAmount]);
 
   const handleEdit = (payment: Payment) => {
     setEditingPayment(payment);
@@ -98,9 +120,15 @@ export const SupplierPayments: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this payment? This will also revert the vendor balance.')) {
-      await deletePayment(id);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Payment',
+      message: 'Are you sure you want to delete this payment? This will also revert the vendor balance.',
+      onConfirm: async () => {
+        await deletePayment(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   return (
@@ -110,7 +138,14 @@ export const SupplierPayments: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Supplier Payments</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm">Manage and record settlements with vendors.</p>
         </div>
-
+        {canCreatePayments && (
+          <button 
+            onClick={() => { handleCloseModal(); setShowModal(true); }}
+            className="w-full sm:w-auto bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+          >
+            <Plus size={20} /> Record Payment
+          </button>
+        )}
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
@@ -136,6 +171,7 @@ export const SupplierPayments: React.FC = () => {
                 <th className="px-8 py-5">Amount</th>
                 <th className="px-8 py-5">Method</th>
                 <th className="px-8 py-5">Reference</th>
+                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -158,12 +194,34 @@ export const SupplierPayments: React.FC = () => {
                     <td className="px-8 py-5 text-xs font-bold text-slate-500">
                       {payment.reference || '-'}
                     </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 transition-opacity">
+                        {canEditPayments && (
+                          <button 
+                            onClick={() => handleEdit(payment)}
+                            className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                            title="Edit Payment"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
+                        {canDeletePayments && (
+                          <button 
+                            onClick={() => handleDelete(payment.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Delete Payment"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
               {filteredPayments.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-8 py-10 text-center text-slate-400 text-sm font-bold uppercase">
+                  <td colSpan={6} className="px-8 py-10 text-center text-slate-400 text-sm font-bold uppercase">
                     No payments found.
                   </td>
                 </tr>
@@ -174,15 +232,15 @@ export const SupplierPayments: React.FC = () => {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300 flex flex-col max-h-[90vh]">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/20 dark:bg-emerald-900/10 shrink-0">
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500 flex flex-col max-h-[90vh]">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/20 dark:bg-emerald-900/10 shrink-0">
                <div className="flex gap-4 items-center">
-                 <div className="p-4 bg-emerald-600 text-white rounded-[1.5rem] shadow-xl shadow-emerald-200 dark:shadow-none">
+                 <div className="p-3 sm:p-4 bg-emerald-600 text-white rounded-[1.5rem] shadow-xl shadow-emerald-200 dark:shadow-none">
                     <DollarSign size={28} />
                  </div>
                  <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
                       {editingPayment ? 'Modify Settlement' : 'New Settlement'}
                     </h2>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">
@@ -193,7 +251,7 @@ export const SupplierPayments: React.FC = () => {
                <button onClick={handleCloseModal} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar">
+            <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Select Vendor</label>
                   <select 
@@ -236,12 +294,31 @@ export const SupplierPayments: React.FC = () => {
                     <input 
                       type="number" 
                       step="0.01" 
+                      max={maxAllowedAmount}
+                      min="0"
                       required 
                       placeholder="0.00" 
                       className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all" 
                       value={paymentFormData.amount} 
-                      onChange={(e) => setPaymentFormData(p => ({ ...p, amount: e.target.value }))} 
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          if (val > maxAllowedAmount) {
+                            setPaymentFormData(p => ({ ...p, amount: maxAllowedAmount.toString() }));
+                            return;
+                          } else if (val < 0) {
+                            setPaymentFormData(p => ({ ...p, amount: '0' }));
+                            return;
+                          }
+                        }
+                        setPaymentFormData(p => ({ ...p, amount: e.target.value }));
+                      }} 
                     />
+                    {maxAllowedAmount >= 0 && (
+                      <p className="text-[10px] text-slate-500 font-bold px-1">
+                        Max allowed: {formatCurrency(maxAllowedAmount)}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Value Date</label>
@@ -283,6 +360,13 @@ export const SupplierPayments: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmationDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

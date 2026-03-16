@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Package, 
   ShoppingCart, 
-  History, 
   Search, 
   X, 
   TrendingDown, 
@@ -14,8 +13,10 @@ import {
   Scale,
   Lock,
   Warehouse,
-  Truck,
-  Link
+  Link,
+  MoveHorizontal,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { useApp } from '../AppContext';
@@ -25,7 +26,6 @@ import { BulkStockInwardModal } from './BulkStockInwardModal';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 type InventorySortOption = 'name' | 'stock-low' | 'stock-high' | 'cost';
-type HistorySortOption = 'date-desc' | 'date-asc' | 'qty-high' | 'qty-low';
 type HistoryTab = 'all' | 'purchases' | 'usage' | 'transfers';
 
 interface BulkRow {
@@ -38,8 +38,9 @@ interface BulkRow {
 }
 
 export const Inventory: React.FC = () => {
-  const { materials, projects, vendors, stockingUnits, payments, expenses, updateMaterial, addMaterial, addExpense, allowDecimalStock, isProjectLocked, currentUser } = useApp();
+  const { materials, projects, vendors, stockingUnits, payments, expenses, updateMaterial, addMaterial, deleteMaterial, addExpense, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked, currentUser } = useApp();
   
+  const canCreateMaterials = currentUser.permissions?.['materials']?.includes('create');
   const canEditMaterials = currentUser.permissions?.['materials']?.includes('edit');
   const canDeleteMaterials = currentUser.permissions?.['materials']?.includes('delete');
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,8 +53,15 @@ export const Inventory: React.FC = () => {
     selectedMaterialId ? materials.find(m => m.id === selectedMaterialId) || null : null
   , [materials, selectedMaterialId]);
   const [historySearch, setHistorySearch] = useState('');
-  const [historySort, setHistorySort] = useState<HistorySortOption>('date-desc');
   const [activeHistoryTab, setActiveHistoryTab] = useState<HistoryTab>('all');
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_ITEMS_PER_PAGE = 50;
+  const [historyFilters, setHistoryFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    projectId: '',
+    vendorId: ''
+  });
   
   const [showProcureModal, setShowProcureModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -70,6 +78,18 @@ export const Inventory: React.FC = () => {
   });
 
   const [breakdownMaterial, setBreakdownMaterial] = useState<Material | null>(null);
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Bulk Inward State
   const [bulkRows, setBulkRows] = useState<BulkRow[]>([
@@ -310,6 +330,7 @@ export const Inventory: React.FC = () => {
       materialId: selectedBatch.id,
       vendorId: selectedBatch.vendorId,
       materialQuantity: -qty,
+      unitPrice: selectedBatch.unitPrice,
       inventoryAction: 'Transfer',
       parentPurchaseId: selectedBatch.batchId,
       notes: transferData.notes || `Internal Transfer Out to ${projects.find(p => p.id === transferData.destProjectId)?.name}`
@@ -326,23 +347,13 @@ export const Inventory: React.FC = () => {
       materialId: selectedBatch.id,
       vendorId: selectedBatch.vendorId,
       materialQuantity: qty,
+      unitPrice: selectedBatch.unitPrice,
       inventoryAction: 'Transfer',
       parentPurchaseId: selectedBatch.batchId, // Carry over original batch link for audit trail
-      unitPrice: selectedBatch.unitPrice, // Keep the original valuation
       notes: transferData.notes || `Internal Transfer In from ${projects.find(p => p.id === transferData.sourceProjectId)?.name}`
     });
 
     setShowTransferModal(false);
-  };
-
-  const handleOpenEditModal = (mat: Material) => {
-    setEditingMaterial(mat);
-    setEditFormData({ 
-      name: mat.name, 
-      unit: mat.unit, 
-      lowStockThreshold: (mat.lowStockThreshold ?? 10).toString() 
-    });
-    setShowEditModal(true);
   };
 
   const handleEditMaterialSubmit = async (e: React.FormEvent) => {
@@ -408,6 +419,11 @@ export const Inventory: React.FC = () => {
       if (activeHistoryTab === 'usage' && entry.type !== 'Usage') return false;
       if (activeHistoryTab === 'transfers' && entry.type !== 'Transfer') return false;
       
+      if (historyFilters.dateFrom && entry.date < historyFilters.dateFrom) return false;
+      if (historyFilters.dateTo && entry.date > historyFilters.dateTo) return false;
+      if (historyFilters.projectId && entry.projectId !== historyFilters.projectId) return false;
+      if (historyFilters.vendorId && entry.vendorId !== historyFilters.vendorId) return false;
+
       const projectName = projects.find(p => p.id === entry.projectId)?.name || '';
       const vendorName = vendors.find(v => v.id === entry.vendorId)?.name || '';
       const search = historySearch.toLowerCase();
@@ -416,13 +432,16 @@ export const Inventory: React.FC = () => {
     return result.sort((a, b) => {
       const timeB = new Date(b.date).getTime();
       const timeA = new Date(a.date).getTime();
-      if (historySort === 'date-desc') return timeB - timeA;
-      if (historySort === 'date-asc') return timeA - timeB;
-      if (historySort === 'qty-high') return b.quantity - a.quantity;
-      if (historySort === 'qty-low') return a.quantity - b.quantity;
-      return 0;
+      return timeB - timeA;
     });
-  }, [historyMaterial, historySearch, historySort, projects, vendors, activeHistoryTab]);
+  }, [historyMaterial, historySearch, projects, vendors, activeHistoryTab, historyFilters]);
+
+  const paginatedHistory = useMemo(() => {
+    const startIndex = (historyPage - 1) * HISTORY_ITEMS_PER_PAGE;
+    return filteredHistory.slice(startIndex, startIndex + HISTORY_ITEMS_PER_PAGE);
+  }, [filteredHistory, historyPage]);
+
+  const totalHistoryPages = Math.ceil(filteredHistory.length / HISTORY_ITEMS_PER_PAGE);
 
   const projectBreakdown = useMemo(() => {
     if (!breakdownMaterial) return [];
@@ -569,6 +588,7 @@ export const Inventory: React.FC = () => {
         materialId: selectedBatch.id, 
         vendorId: selectedBatch.vendorId, 
         materialQuantity: -qty, 
+        unitPrice: selectedBatch.unitPrice,
         inventoryAction: 'Usage', 
         parentPurchaseId: selectedBatch.batchId,
         notes: usageData.notes || `Usage: ${qty} ${selectedBatch.unit} of ${selectedBatch.name}` 
@@ -579,24 +599,38 @@ export const Inventory: React.FC = () => {
     }
   };
 
-  const handleDeleteHistoryEntry = async (material: Material, entryId: string) => {
-    if (payments.some(p => p.materialBatchId === entryId)) { 
-      alert("Lock Violation: This entry is linked to payments in the Supplier Ledger."); 
-      return; 
-    }
-    
-    const expenseId = entryId.startsWith('sh-exp-') ? entryId.replace('sh-exp-', '') : null;
-    
-    if (!confirm("Confirm Sync: This will delete the entry and revert stock levels. Continue?")) return;
-    
-    if (expenseId) { 
-      await deleteExpense(expenseId); 
-    } else { 
-      const newHistory = material.history?.filter(h => h.id !== entryId) || []; 
-      const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0); 
-      const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0)); 
-      await updateMaterial({ ...material, totalPurchased, totalUsed, history: newHistory }); 
-    }
+  const handleEditHistoryEntry = (material: Material, entry: StockHistoryEntry) => {
+    setEditingHistoryEntry({ material, entry });
+    setHistoryEditFormData({
+      quantity: entry.quantity.toString(),
+      unitPrice: (entry.unitPrice || material.costPerUnit).toString(),
+      date: entry.date,
+      projectId: entry.projectId || '',
+      vendorId: entry.vendorId || '',
+      note: entry.note || ''
+    });
+    setShowEditHistoryModal(true);
+  };
+
+  const handleDeleteHistoryEntry = async (material: Material, entry: StockHistoryEntry) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Log Entry',
+      message: `Are you sure you want to delete this ${entry.type} entry? This will update the material's total stock.`,
+      onConfirm: async () => {
+        const isLinkedExpense = entry.id.startsWith('sh-exp-');
+        if (isLinkedExpense) {
+          const expenseId = entry.id.replace('sh-exp-', '');
+          await deleteExpense(expenseId);
+        } else {
+          const newHistory = (material.history || []).filter(h => h.id !== entry.id);
+          const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
+          const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
+          await updateMaterial({ ...material, totalPurchased, totalUsed, history: newHistory });
+        }
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const handleEditHistorySubmit = async (e: React.FormEvent) => {
@@ -616,7 +650,7 @@ export const Inventory: React.FC = () => {
           date: historyEditFormData.date, 
           projectId: historyEditFormData.projectId || oldExp.projectId, 
           vendorId: historyEditFormData.vendorId || oldExp.vendorId, 
-          amount: Math.abs(newQty) * (oldExp.inventoryAction === 'Usage' ? (newPrice || material.costPerUnit) : newPrice), 
+          amount: oldExp.inventoryAction === 'Transfer' ? 0 : Math.abs(newQty) * (oldExp.inventoryAction === 'Usage' ? (newPrice || material.costPerUnit) : newPrice), 
           materialId: material.id, 
           materialQuantity: newQty, 
           notes: historyEditFormData.note,
@@ -637,21 +671,6 @@ export const Inventory: React.FC = () => {
 
     setShowEditHistoryModal(false);
     setEditingHistoryEntry(null);
-  };
-
-  const triggerHistoryEdit = (entry: StockHistoryEntry) => {
-    if (!historyMaterial) return;
-    const activeUnitPrice = entry.unitPrice || historyMaterial.costPerUnit;
-    setEditingHistoryEntry({ material: historyMaterial, entry }); 
-    setHistoryEditFormData({ 
-      quantity: entry.quantity.toString(), 
-      unitPrice: activeUnitPrice.toString(), 
-      projectId: entry.projectId || '', 
-      vendorId: entry.vendorId || '', 
-      date: entry.date, 
-      note: entry.note || '' 
-    }); 
-    setShowEditHistoryModal(true);
   };
 
   const handleUsageSelection = (val: string) => {
@@ -676,6 +695,22 @@ export const Inventory: React.FC = () => {
           <input type="text" placeholder="Search by asset name..." className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white font-bold" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         <div className="flex flex-wrap gap-2">
+          {canCreateMaterials && (
+            <>
+              <button onClick={handleOpenProcureModal} className="px-5 py-3.5 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2 text-[10px]">
+                <ShoppingCart size={14} /> Procure
+              </button>
+              <button onClick={handleOpenBulkModal} className="px-5 py-3.5 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2 text-[10px]">
+                <Package size={14} /> Bulk Inward
+              </button>
+              <button onClick={() => handleOpenUsageModal()} className="px-5 py-3.5 bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2 text-[10px]">
+                <TrendingDown size={14} /> Record Usage
+              </button>
+              <button onClick={handleOpenTransferModal} className="px-5 py-3.5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2 text-[10px]">
+                <ArrowRightLeft size={14} /> Transfer
+              </button>
+            </>
+          )}
           <div className="relative">
              <Warehouse className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
              <select className="pl-10 pr-8 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
@@ -710,6 +745,7 @@ export const Inventory: React.FC = () => {
                 <th className="px-8 py-5">Material Asset</th>
                 <th className="px-8 py-5">Value {projectFilter !== 'All' ? '(At Hub)' : '(Total Pool)'}</th>
                 <th className="px-8 py-5">Availability Status</th>
+                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -758,6 +794,65 @@ export const Inventory: React.FC = () => {
                        <button onClick={() => setBreakdownMaterial(mat)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 hover:scale-105 active:scale-95 transition-all ${isLowStock ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/10 dark:border-red-900/20' : 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800'}`}>
                           {remaining.toLocaleString()} {mat.unit}s {isProjectFiltered ? (filterProj?.isGodown ? 'in Godown' : 'on Site') : ''}
                        </button>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenUsageModal(mat.id, projectFilter !== 'All' ? projectFilter : undefined);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 rounded-xl transition-colors text-[10px] font-black uppercase tracking-widest mr-2"
+                          title="Record Consumption"
+                        >
+                          <TrendingDown size={14} />
+                          <span>Consume</span>
+                        </button>
+                        <button 
+                          onClick={() => setSelectedMaterialId(mat.id)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Stock History"
+                        >
+                          <ClipboardList size={18} />
+                        </button>
+                        {canEditMaterials && (
+                          <button 
+                            onClick={() => {
+                              setEditingMaterial(mat);
+                              setEditFormData({
+                                name: mat.name,
+                                unit: mat.unit,
+                                costPerUnit: mat.costPerUnit.toString(),
+                                lowStockThreshold: (mat.lowStockThreshold || 10).toString()
+                              });
+                              setShowEditModal(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                            title="Edit Material"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
+                        {canDeleteMaterials && (
+                          <button 
+                            onClick={() => {
+                              setConfirmDialog({
+                                isOpen: true,
+                                title: 'Delete Material',
+                                message: `Are you sure you want to delete ${mat.name}? This will not remove historical logs but will hide the material from future selection.`,
+                                onConfirm: () => {
+                                  deleteMaterial(mat.id);
+                                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                }
+                              });
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Delete Material"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -867,7 +962,7 @@ export const Inventory: React.FC = () => {
       {/* Procure Modal */}
       {showProcureModal && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
+           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
               <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center shrink-0">
                  <div className="flex gap-4 items-center">
                    <div className="p-4 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl shadow-lg">
@@ -971,16 +1066,39 @@ export const Inventory: React.FC = () => {
             </div>
 
             <div className="flex bg-slate-50/50 dark:bg-slate-900/20 border-b border-slate-100 dark:border-slate-700 px-8 shrink-0">
-               <button onClick={() => setActiveHistoryTab('all')} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'all' ? 'border-slate-900 text-slate-900 dark:border-white dark:text-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={14} /> Full Hub Log</button>
-               <button onClick={() => setActiveHistoryTab('purchases')} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'purchases' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ShoppingCart size={14} /> Reception</button>
-               <button onClick={() => setActiveHistoryTab('usage')} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'usage' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><TrendingDown size={14} /> Consumption</button>
-               <button onClick={() => setActiveHistoryTab('transfers')} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'transfers' ? 'border-amber-600 text-amber-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ArrowRightLeft size={14} /> Dispatch/Transfers</button>
+               <button onClick={() => { setActiveHistoryTab('all'); setHistoryPage(1); }} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'all' ? 'border-slate-900 text-slate-900 dark:border-white dark:text-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={14} /> Full Hub Log</button>
+               <button onClick={() => { setActiveHistoryTab('purchases'); setHistoryPage(1); }} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'purchases' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ShoppingCart size={14} /> Reception</button>
+               <button onClick={() => { setActiveHistoryTab('usage'); setHistoryPage(1); }} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'usage' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><TrendingDown size={14} /> Consumption</button>
+               <button onClick={() => { setActiveHistoryTab('transfers'); setHistoryPage(1); }} className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest border-b-4 transition-all flex items-center gap-2 ${activeHistoryTab === 'transfers' ? 'border-amber-600 text-amber-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ArrowRightLeft size={14} /> Dispatch/Transfers</button>
             </div>
 
-            <div className="px-8 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-4 items-center shrink-0">
-               <div className="relative flex-1 w-full">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input type="text" placeholder="Filter by Date, Hub, Site, Driver or Note..." className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
+            <div className="px-8 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex flex-col gap-4 shrink-0">
+               <div className="flex flex-col sm:flex-row gap-4 items-center">
+                 <div className="relative flex-1 w-full">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input type="text" placeholder="Filter by Date, Hub, Site, Driver or Note..." className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" value={historySearch} onChange={(e) => { setHistorySearch(e.target.value); setHistoryPage(1); }} />
+                 </div>
+                 <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+                    <input type="date" className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[130px]" value={historyFilters.dateFrom} onChange={(e) => { setHistoryFilters(p => ({ ...p, dateFrom: e.target.value })); setHistoryPage(1); }} title="From Date" />
+                    <input type="date" className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[130px]" value={historyFilters.dateTo} onChange={(e) => { setHistoryFilters(p => ({ ...p, dateTo: e.target.value })); setHistoryPage(1); }} title="To Date" />
+                    <select className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[150px]" value={historyFilters.projectId} onChange={(e) => { setHistoryFilters(p => ({ ...p, projectId: e.target.value })); setHistoryPage(1); }}>
+                      <option value="">All Projects/Hubs</option>
+                      {projects.filter(p => !p.isDeleted).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    <select className="px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm min-w-[150px]" value={historyFilters.vendorId} onChange={(e) => { setHistoryFilters(p => ({ ...p, vendorId: e.target.value })); setHistoryPage(1); }}>
+                      <option value="">All Vendors</option>
+                      {vendors.filter(v => v.isActive !== false).map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                    {(historyFilters.dateFrom || historyFilters.dateTo || historyFilters.projectId || historyFilters.vendorId) && (
+                      <button onClick={() => { setHistoryFilters({ dateFrom: '', dateTo: '', projectId: '', vendorId: '' }); setHistoryPage(1); }} className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors whitespace-nowrap">
+                        Clear Filters
+                      </button>
+                    )}
+                 </div>
                </div>
             </div>
 
@@ -997,10 +1115,11 @@ export const Inventory: React.FC = () => {
                           <th className="px-8 py-5 text-right">Hub Value Date</th>
                           <th className="px-8 py-5 text-right">Est. Hub Value</th>
                           <th className="px-8 py-5">Project Allocation</th>
+                          <th className="px-8 py-5 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                        {filteredHistory.map((entry) => {
+                        {paginatedHistory.map((entry) => {
                           const project = projects.find(p => p.id === entry.projectId);
                           const vendor = vendors.find(v => v.id === entry.vendorId);
                           const isLinkedExpense = entry.id.startsWith('sh-exp-');
@@ -1027,6 +1146,24 @@ export const Inventory: React.FC = () => {
                                 {formatCurrency(Math.abs(entry.quantity) * activeUnitPrice)}
                               </td>
                               <td className="px-8 py-5"><div className="flex flex-col gap-1">{project && <span className={`text-[11px] font-bold uppercase tracking-tight flex items-center gap-1 ${project.isGodown ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>{project.isGodown ? <Warehouse size={12} className="text-emerald-500"/> : <Briefcase size={12} className="text-blue-500"/>} {project.name}</span>}</div></td>
+                              <td className="px-8 py-5 text-right">
+                                <div className="flex items-center justify-end gap-2 transition-opacity">
+                                  <button 
+                                    onClick={() => handleEditHistoryEntry(historyMaterial!, entry)}
+                                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                                    title="Edit Entry"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteHistoryEntry(historyMaterial!, entry)}
+                                    className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                                    title="Delete Entry"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           );
                         })}
@@ -1034,6 +1171,50 @@ export const Inventory: React.FC = () => {
                     </table>
                  </div>
                </div>
+               {totalHistoryPages > 1 && (
+                 <div className="mt-6 flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                     Showing {((historyPage - 1) * HISTORY_ITEMS_PER_PAGE) + 1} to {Math.min(historyPage * HISTORY_ITEMS_PER_PAGE, filteredHistory.length)} of {filteredHistory.length} entries
+                   </p>
+                   <div className="flex items-center gap-2">
+                     <button
+                       onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                       disabled={historyPage === 1}
+                       className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                     >
+                       Previous
+                     </button>
+                     <div className="flex items-center gap-1">
+                       {Array.from({ length: Math.min(5, totalHistoryPages) }, (_, i) => {
+                         let pageNum = historyPage;
+                         if (historyPage <= 3) pageNum = i + 1;
+                         else if (historyPage >= totalHistoryPages - 2) pageNum = totalHistoryPages - 4 + i;
+                         else pageNum = historyPage - 2 + i;
+                         
+                         if (pageNum > 0 && pageNum <= totalHistoryPages) {
+                           return (
+                             <button
+                               key={pageNum}
+                               onClick={() => setHistoryPage(pageNum)}
+                               className={`w-8 h-8 flex items-center justify-center rounded-xl text-xs font-bold transition-colors ${historyPage === pageNum ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                             >
+                               {pageNum}
+                             </button>
+                           );
+                         }
+                         return null;
+                       })}
+                     </div>
+                     <button
+                       onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                       disabled={historyPage === totalHistoryPages}
+                       className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                     >
+                       Next
+                     </button>
+                   </div>
+                 </div>
+               )}
             </div>
           </div>
         </div>
@@ -1042,7 +1223,7 @@ export const Inventory: React.FC = () => {
       {/* Edit History Item Modal */}
       {showEditHistoryModal && editingHistoryEntry && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
+           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
               <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-blue-50/30 dark:bg-blue-900/10 flex justify-between items-center shrink-0">
                  <div className="flex gap-4 items-center">
                     <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg"><Pencil size={24} /></div>
@@ -1078,7 +1259,7 @@ export const Inventory: React.FC = () => {
       {/* Consumption / Dispatch Modal */}
       {showUsageModal && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
+           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
               <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-blue-50/30 dark:bg-blue-900/20 flex justify-between items-center shrink-0">
                  <div className="flex gap-4 items-center">
                     <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg"><TrendingDown size={24} /></div>
@@ -1154,7 +1335,7 @@ export const Inventory: React.FC = () => {
       {/* Edit Material Modal */}
       {showEditModal && editingMaterial && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
+           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom-8 duration-300">
               <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-between items-center shrink-0">
                  <div className="flex gap-4 items-center">
                     <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg"><Pencil size={24} /></div>
@@ -1162,7 +1343,7 @@ export const Inventory: React.FC = () => {
                  </div>
                  <button onClick={() => setShowEditModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
               </div>
-              <form onSubmit={handleEditMaterialSubmit} className="p-8 space-y-5">
+              <form onSubmit={handleEditMaterialSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                  <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Material Name</label>
                     <input type="text" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={editFormData.name} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} />
@@ -1251,6 +1432,13 @@ export const Inventory: React.FC = () => {
           message={`Are you sure you want to delete the ${deleteTarget.type.toLowerCase()} "${deleteTarget.name}"? This action cannot be undone.`}
         />
       )}
+      <ConfirmationDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

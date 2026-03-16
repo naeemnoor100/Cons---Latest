@@ -11,18 +11,30 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Income, PaymentMethod, Invoice } from '../types';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ProjectIncome: React.FC = () => {
   const { projects, incomes, invoices, addIncome, updateIncome, deleteIncome, isProjectLocked, currentUser } = useApp();
   
-  const canCreateIncome = currentUser.permissions?.['income']?.includes('create');
-  const canEditIncome = currentUser.permissions?.['income']?.includes('edit');
-  const canDeleteIncome = currentUser.permissions?.['income']?.includes('delete');
+  const canCreateIncome = currentUser.permissions?.['incomes']?.includes('create');
+  const canEditIncome = currentUser.permissions?.['incomes']?.includes('edit');
+  const canDeleteIncome = currentUser.permissions?.['incomes']?.includes('delete');
   const [showModal, setShowModal] = useState(false);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   
   const [formData, setFormData] = useState({
     projectId: projects[0]?.id || '', 
@@ -99,23 +111,16 @@ export const ProjectIncome: React.FC = () => {
     });
   };
 
-  const openEdit = (i: Income) => {
-    setEditingIncome(i);
-    setFormData({
-      projectId: i.projectId, 
-      amount: i.amount.toString(), 
-      description: i.description, 
-      date: i.date, 
-      method: i.method,
-      invoiceId: i.invoiceId || ''
-    });
-    setShowModal(true);
-  };
-
   const handleDelete = (id: string) => {
-    if (confirm("Delete this income record? Associated invoice status (if any) will revert to 'Sent'.")) {
-      deleteIncome(id);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Income Record',
+      message: "Are you sure you want to delete this income record? Associated invoice status (if any) will revert to 'Sent'.",
+      onConfirm: () => {
+        deleteIncome(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   const projectIncomesGrouped = useMemo(() => {
@@ -158,7 +163,14 @@ export const ProjectIncome: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div><h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Revenue Ledger</h2><p className="text-slate-500 dark:text-slate-400 text-sm">Track milestones and project receipts.</p></div>
-
+        {canCreateIncome && (
+          <button 
+            onClick={() => { setEditingIncome(null); setFormData({ projectId: projects[0]?.id || '', amount: '', date: new Date().toISOString().split('T')[0], description: '', method: 'Bank', invoiceId: '' }); setShowModal(true); }}
+            className="w-full sm:w-auto bg-emerald-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+          >
+            <Plus size={20} /> Record Income
+          </button>
+        )}
       </div>
 
       <div className="relative">
@@ -181,7 +193,7 @@ export const ProjectIncome: React.FC = () => {
             </div>
             <table className="w-full text-left">
               <thead className="bg-white dark:bg-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-700">
-                <tr><th className="px-8 py-4">Date</th><th className="px-8 py-4">Milestone</th><th className="px-8 py-4">Method</th><th className="px-8 py-4 text-right">Amount</th></tr>
+                <tr><th className="px-8 py-4">Date</th><th className="px-8 py-4">Milestone</th><th className="px-8 py-4">Method</th><th className="px-8 py-4 text-right">Amount</th><th className="px-8 py-4 text-right">Actions</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                 {group.items.map((inc) => (
@@ -193,6 +205,28 @@ export const ProjectIncome: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-xs font-bold text-slate-400">{inc.method}</td>
                     <td className="px-8 py-5 text-right font-black text-emerald-600">{formatCurrency(inc.amount)}</td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 transition-opacity">
+                        {canEditIncome && (
+                          <button 
+                            onClick={() => { setEditingIncome(inc); setFormData({ projectId: inc.projectId, amount: inc.amount.toString(), date: inc.date, description: inc.description, method: inc.method, invoiceId: inc.invoiceId || '' }); setShowModal(true); }}
+                            className="p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+                            title="Edit Income"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
+                        {canDeleteIncome && (
+                          <button 
+                            onClick={() => handleDelete(inc.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Delete Income"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -202,16 +236,16 @@ export const ProjectIncome: React.FC = () => {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
+        <div className="fixed inset-0 z-[140] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
               <div className="flex items-center gap-3">
                  <div className="p-3 bg-emerald-600 text-white rounded-2xl"><ArrowUpCircle size={24} /></div>
-                 <h2 className="text-xl font-black uppercase">{editingIncome ? 'Edit Entry' : 'Record Receipt'}</h2>
+                 <h2 className="text-lg sm:text-xl font-black uppercase">{editingIncome ? 'Edit Entry' : 'Record Receipt'}</h2>
               </div>
               <button onClick={() => { setShowModal(false); setEditingIncome(null); }} className="p-2 text-slate-400 hover:text-slate-900"><X size={32} /></button>
             </div>
-            <form onSubmit={handleCreateOrUpdateIncome} className="p-8 space-y-6">
+            <form onSubmit={handleCreateOrUpdateIncome} className="p-6 sm:p-8 space-y-6 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase text-slate-400">Project Site</label>
@@ -269,6 +303,13 @@ export const ProjectIncome: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmationDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

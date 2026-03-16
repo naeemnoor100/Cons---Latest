@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Project, Income, PaymentMethod, Material, StockHistoryEntry, Invoice, Expense } from '../types';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -31,8 +32,22 @@ export const ProjectList: React.FC = () => {
     addExpense, updateExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
-    addMaterial, allowDecimalStock, isProjectLocked
+    addMaterial, allowDecimalStock, isProjectLocked,
+    currentUser
   } = useApp();
+  
+  const canCreateProjects = currentUser?.permissions?.['projects']?.includes('create');
+  const canEditProjects = currentUser?.permissions?.['projects']?.includes('edit');
+  const canDeleteProjects = currentUser?.permissions?.['projects']?.includes('delete');
+  const canCreateIncomes = currentUser?.permissions?.['incomes']?.includes('create');
+  const canEditIncomes = currentUser?.permissions?.['incomes']?.includes('edit');
+  const canDeleteIncomes = currentUser?.permissions?.['incomes']?.includes('delete');
+  const canEditExpenses = currentUser?.permissions?.['expenses']?.includes('edit');
+  const canDeleteExpenses = currentUser?.permissions?.['expenses']?.includes('delete');
+  const canCreateInvoices = currentUser?.permissions?.['invoices']?.includes('create');
+  const canEditInvoices = currentUser?.permissions?.['invoices']?.includes('edit');
+  const canDeleteInvoices = currentUser?.permissions?.['invoices']?.includes('delete');
+  const canCreateMaterials = currentUser?.permissions?.['materials']?.includes('create');
   
   const [filter, setFilter] = useState<string>('Active');
   const [showDeleted, setShowDeleted] = useState(false);
@@ -53,6 +68,18 @@ export const ProjectList: React.FC = () => {
   const [showInventoryUsageModal, setShowInventoryUsageModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showRecordArrivalModal, setShowRecordArrivalModal] = useState(false);
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Edit states for nested items
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
@@ -198,6 +225,7 @@ export const ProjectList: React.FC = () => {
       materialId: selectedBatch.id,
       vendorId: selectedBatch.vendorId,
       materialQuantity: -qty,
+      unitPrice: selectedBatch.unitPrice,
       inventoryAction: 'Transfer',
       parentPurchaseId: selectedBatch.batchId,
       notes: transferFormData.notes || `Internal Transfer Out to ${projects.find(p => p.id === transferFormData.destProjectId)?.name}`
@@ -449,6 +477,7 @@ export const ProjectList: React.FC = () => {
       vendorId: selectedBatch.vendorId, 
       inventoryAction: 'Usage', 
       materialQuantity: -qty, 
+      unitPrice: selectedBatch.unitPrice,
       parentPurchaseId: selectedBatch.batchId, 
       notes: inventoryUsageForm.notes || `Consumption: ${qty} ${selectedBatch.unit} of ${selectedBatch.name}` 
     });
@@ -576,7 +605,7 @@ export const ProjectList: React.FC = () => {
       if (mat) unitPrice = mat.costPerUnit;
     }
 
-    const newAmount = unitPrice ? newQty * unitPrice : expense.amount;
+    const newAmount = expense.inventoryAction === 'Transfer' ? 0 : (unitPrice ? newQty * unitPrice : expense.amount);
     
     // Preserve the sign (negative for usage/transfer out)
     const isNegative = (expense.materialQuantity || 0) < 0 || expense.inventoryAction === 'Usage';
@@ -595,25 +624,28 @@ export const ProjectList: React.FC = () => {
   const projectInvoicesForIncomeLink = viewingProject ? invoices.filter(inv => inv.projectId === viewingProject.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Portfolio & Godowns</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage project sites and central storage hubs.</p>
+    <>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Portfolio & Godowns</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage project sites and central storage hubs.</p>
+          </div>
+          {canCreateProjects && (
+            <button 
+              onClick={handleOpenAddModal}
+              className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+            >
+              <Plus size={20} /> Add Site / Godown
+            </button>
+          )}
         </div>
-        <button 
-          onClick={handleOpenAddModal}
-          className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-        >
-          <Plus size={20} /> Add Site / Godown
-        </button>
-      </div>
 
-      {godownProjects.length > 0 && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
-            <Warehouse size={16} /> Central Godowns (Stock Hubs)
-          </h3>
+        {godownProjects.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
+              <Warehouse size={16} /> Central Godowns (Stock Hubs)
+            </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {godownProjects.map(godown => (
               <div key={godown.id} className={`bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] border border-slate-800 overflow-hidden hover:border-emerald-500 transition-all group flex flex-col shadow-xl ${godown.isDeleted ? 'opacity-75 grayscale' : ''}`}>
@@ -622,11 +654,31 @@ export const ProjectList: React.FC = () => {
                   <div className="flex justify-between mb-4">
                     <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">Active Hub</span>
                     <div className="flex gap-2">
-                      <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(godown); }} className="p-1.5 text-slate-500 hover:text-white transition-colors"><Pencil size={16} /></button>
-                      {godown.isDeleted ? (
-                        <button onClick={(e) => { e.stopPropagation(); restoreProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-emerald-500 transition-colors"><Check size={16} /></button>
-                      ) : (
-                        <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete Godown ${godown.name}?`)) deleteProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                      {canEditProjects && (
+                        <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(godown); }} className="p-1.5 text-slate-500 hover:text-white transition-colors"><Pencil size={16} /></button>
+                      )}
+                      {canDeleteProjects && (
+                        godown.isDeleted ? (
+                          <button onClick={(e) => { e.stopPropagation(); restoreProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-emerald-500 transition-colors"><Check size={16} /></button>
+                        ) : (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setConfirmDialog({
+                                isOpen: true,
+                                title: 'Delete Godown',
+                                message: `Are you sure you want to delete Godown "${godown.name}"?`,
+                                onConfirm: () => {
+                                  deleteProject(godown.id);
+                                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                }
+                              });
+                            }} 
+                            className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -692,11 +744,31 @@ export const ProjectList: React.FC = () => {
                   <div className="flex justify-between mb-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${project.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-slate-100 text-slate-700 dark:bg-slate-900/30'}`}>{project.status}</span>
                     <div className="flex gap-2">
-                      <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(project); }} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
-                      {project.isDeleted ? (
-                        <button onClick={(e) => { e.stopPropagation(); restoreProject(project.id); }} className="p-1.5 text-slate-400 hover:text-emerald-600 transition-colors"><Check size={16} /></button>
-                      ) : (
-                        <button onClick={(e) => { e.stopPropagation(); if(confirm(`Delete ${project.name}?`)) deleteProject(project.id); }} className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                      {canEditProjects && (
+                        <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(project); }} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
+                      )}
+                      {canDeleteProjects && (
+                        project.isDeleted ? (
+                          <button onClick={(e) => { e.stopPropagation(); restoreProject(project.id); }} className="p-1.5 text-slate-400 hover:text-emerald-600 transition-colors"><Check size={16} /></button>
+                        ) : (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setConfirmDialog({
+                                isOpen: true,
+                                title: 'Delete Project',
+                                message: `Are you sure you want to delete project "${project.name}"?`,
+                                onConfirm: () => {
+                                  deleteProject(project.id);
+                                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                }
+                              });
+                            }} 
+                            className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -825,13 +897,15 @@ export const ProjectList: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => handleOpenEditProject(viewingProject)} className="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-white rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Edit Project Details"><Pencil size={18} /></button>
+                  {canEditProjects && (
+                    <button onClick={() => handleOpenEditProject(viewingProject)} className="p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-white rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Edit Project Details"><Pencil size={18} /></button>
+                  )}
                   <button onClick={() => setViewingProject(null)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-50/20 dark:bg-slate-900/10 no-scrollbar">
                 {!viewingProject.isGodown && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Received Amount</p>
                       <p className="text-xl font-black text-emerald-600">{formatCurrency(viewingProjectMetrics.totalCollected)}</p>
@@ -878,13 +952,13 @@ export const ProjectList: React.FC = () => {
                       {!viewingProject.isGodown && <button onClick={() => setActiveDetailTab('labor')} className={`px-6 py-5 text-[10px] font-black uppercase tracking-widest transition-all ${activeDetailTab === 'labor' ? 'bg-white dark:bg-slate-800 text-rose-600 border-b-4 border-rose-600' : 'text-slate-400'}`}>Labour Used</button>}
                     </div>
                     <div className="p-4 sm:p-0 flex gap-2 w-full sm:w-auto">
-                      {activeDetailTab === 'arrivals' && (
+                      {activeDetailTab === 'arrivals' && canCreateMaterials && (
                         <button onClick={() => setShowRecordArrivalModal(true)} className="flex-1 sm:flex-none bg-amber-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><Plus size={16} /> Record Inbound Arrival</button>
                       )}
-                      {!viewingProject.isGodown && activeDetailTab === 'income' && (
+                      {!viewingProject.isGodown && activeDetailTab === 'income' && canCreateIncomes && (
                         <button onClick={() => { setEditingIncome(null); setIncomeFormData({ amount: '', date: new Date().toISOString().split('T')[0], description: '', method: 'Bank', invoiceId: '' }); setShowQuickIncome(true); }} className="flex-1 sm:flex-none bg-emerald-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><Plus size={16} /> Record Income</button>
                       )}
-                      {!viewingProject.isGodown && activeDetailTab === 'invoices' && (
+                      {!viewingProject.isGodown && activeDetailTab === 'invoices' && canCreateInvoices && (
                         <button onClick={() => { setEditingInvoice(null); setInvoiceFormData({ amount: '', date: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], description: '' }); setShowInvoiceModal(true); }} className="flex-1 sm:flex-none bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"><FileText size={16} /> Generate Invoice</button>
                       )}
                     </div>
@@ -1193,8 +1267,8 @@ export const ProjectList: React.FC = () => {
                                    </div>
                                  ) : (
                                    <div className="flex justify-end gap-1">
-                                      <button onClick={(ev) => { ev.stopPropagation(); setEditingExpenseId(e.id); setEditingQuantity(Math.abs(e.materialQuantity || 0).toString()); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>
-                                      <button onClick={() => deleteExpense(e.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                                      {canEditExpenses && <button onClick={(ev) => { ev.stopPropagation(); setEditingExpenseId(e.id); setEditingQuantity(Math.abs(e.materialQuantity || 0).toString()); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={18} /></button>}
+                                      {canDeleteExpenses && <button onClick={() => deleteExpense(e.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>}
                                    </div>
                                  )}
                                </td>
@@ -1220,8 +1294,8 @@ export const ProjectList: React.FC = () => {
                                 <td className="px-8 py-5 text-right font-black text-emerald-600">{formatCurrency(inc.amount)}</td>
                                 <td className="px-8 py-5 text-right">
                                   <div className="flex justify-end gap-1">
-                                    <button onClick={() => handleOpenEditIncome(inc)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
-                                    <button onClick={() => deleteIncome(inc.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                                    {canEditIncomes && <button onClick={() => handleOpenEditIncome(inc)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>}
+                                    {canDeleteIncomes && <button onClick={() => deleteIncome(inc.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>}
                                   </div>
                                 </td>
                              </tr>
@@ -1263,9 +1337,9 @@ export const ProjectList: React.FC = () => {
                                  </td>
                                  <td className="px-8 py-5 text-right">
                                     <div className="flex justify-end gap-1">
-                                       {!isPaid && <button onClick={() => triggerCollectPayment(inv, remaining)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="Record Receipt"><ArrowDownCircle size={18} /></button>}
-                                       <button onClick={() => handleOpenEditInvoice(inv)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><Pencil size={18} /></button>
-                                       <button onClick={() => deleteInvoice(inv.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>
+                                       {!isPaid && canCreateIncomes && <button onClick={() => triggerCollectPayment(inv, remaining)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="Record Receipt"><ArrowDownCircle size={18} /></button>}
+                                       {canEditInvoices && <button onClick={() => handleOpenEditInvoice(inv)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><Pencil size={18} /></button>}
+                                       {canDeleteInvoices && <button onClick={() => deleteInvoice(inv.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={18} /></button>}
                                     </div>
                                  </td>
                                </tr>
@@ -1311,9 +1385,9 @@ export const ProjectList: React.FC = () => {
 
       {/* Record Arrival Modal */}
       {showRecordArrivalModal && viewingProject && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-amber-50/30 dark:bg-amber-900/10 flex justify-between items-center">
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+              <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-amber-50/30 dark:bg-amber-900/20 flex justify-between items-center">
                  <div className="flex gap-4 items-center">
                     <div className="p-3 bg-amber-600 text-white rounded-2xl shadow-lg"><ShoppingCart size={24} /></div>
                     <div>
@@ -1323,7 +1397,7 @@ export const ProjectList: React.FC = () => {
                  </div>
                  <button onClick={() => setShowRecordArrivalModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={28} /></button>
               </div>
-              <form onSubmit={handleRecordArrivalSubmit} className="p-8 space-y-5">
+              <form onSubmit={handleRecordArrivalSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                  <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Material Asset Category</label>
                     <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={arrivalFormData.materialId} onChange={e => setArrivalFormData(p => ({ ...p, materialId: e.target.value }))}>
@@ -1360,9 +1434,9 @@ export const ProjectList: React.FC = () => {
 
       {/* Quick Income Modal */}
       {showQuickIncome && viewingProject && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-             <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-                <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30 dark:bg-emerald-900/20">
+          <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+             <div className="bg-white dark:bg-slate-800 w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30 dark:bg-emerald-900/20">
                    <div className="flex gap-4 items-center">
                       <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg"><DollarSign size={24} /></div>
                       <div>
@@ -1372,7 +1446,7 @@ export const ProjectList: React.FC = () => {
                    </div>
                    <button onClick={() => { setShowQuickIncome(false); setEditingIncome(null); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={28} /></button>
                 </div>
-                <form onSubmit={handleQuickIncomeSubmit} className="p-8 space-y-5">
+                <form onSubmit={handleQuickIncomeSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Link to Receivable Invoice</label>
                       <select required disabled={!!editingIncome} className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none transition-all focus:ring-2 focus:ring-emerald-500 ${editingIncome ? 'opacity-50 cursor-not-allowed' : ''}`} value={incomeFormData.invoiceId} onChange={e => {
@@ -1416,9 +1490,9 @@ export const ProjectList: React.FC = () => {
 
       {/* Quick Invoice Modal */}
       {showInvoiceModal && viewingProject && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-              <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-indigo-50/30 dark:bg-indigo-900/20">
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+              <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-indigo-50/30 dark:bg-indigo-900/20 flex justify-between items-center">
                  <div className="flex gap-4 items-center">
                     <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg"><FileText size={24} /></div>
                     <div>
@@ -1428,7 +1502,7 @@ export const ProjectList: React.FC = () => {
                  </div>
                  <button onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={28} /></button>
               </div>
-              <form onSubmit={handleInvoiceSubmit} className="p-8 space-y-5">
+              <form onSubmit={handleInvoiceSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                  <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Billable Description</label><textarea required rows={2} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" placeholder="e.g. Structure Completion Milestone..." value={invoiceFormData.description} onChange={e => setInvoiceFormData(p => ({ ...p, description: e.target.value }))} /></div>
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Amount (Rs.)</label><input type="number" required step="0.01" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white" value={invoiceFormData.amount} onChange={e => setInvoiceFormData(p => ({ ...p, amount: e.target.value }))} /></div>
@@ -1447,8 +1521,8 @@ export const ProjectList: React.FC = () => {
 
       {/* Consumption Modal */}
       {showInventoryUsageModal && viewingProject && (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+        <div className="fixed inset-0 z-[140] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
              <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-blue-50/30 dark:bg-blue-900/20">
                 <div className="flex gap-4 items-center">
                   <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><Package size={24} /></div>
@@ -1456,7 +1530,7 @@ export const ProjectList: React.FC = () => {
                 </div>
                 <button onClick={() => { setShowInventoryUsageModal(false); setUsageMaterialSearch(''); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={28} /></button>
              </div>
-             <form onSubmit={handleInventoryUsageSubmit} className="p-8 space-y-6">
+             <form onSubmit={handleInventoryUsageSubmit} className="p-6 sm:p-8 space-y-6 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                 <div className="space-y-2">
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Select Material Pool</label>
                    <div className="relative mb-2">
@@ -1490,19 +1564,19 @@ export const ProjectList: React.FC = () => {
 
       {/* Internal Transfer Modal */}
       {showTransferModal && viewingProject && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 duration-300">
-             <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-indigo-50/30 dark:bg-indigo-900/10">
+        <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-2xl shadow-2xl overflow-hidden mobile-sheet flex flex-col animate-in slide-in-from-bottom duration-500">
+             <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-indigo-50/30 dark:bg-indigo-900/20">
                 <div className="flex gap-4 items-center">
-                  <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg"><MoveHorizontal size={28} /></div>
+                  <div className="p-3 sm:p-4 bg-indigo-600 text-white rounded-2xl shadow-lg"><MoveHorizontal size={28} /></div>
                   <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">Internal Stock Transfer</h2>
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">Internal Stock Transfer</h2>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Move material from {viewingProject.name} to another site</p>
                   </div>
                 </div>
                 <button onClick={() => setShowTransferModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
              </div>
-             <form onSubmit={handleTransferSubmit} className="p-8 space-y-6 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
+             <form onSubmit={handleTransferSubmit} className="p-6 sm:p-8 space-y-6 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Hub (From)</label>
@@ -1561,9 +1635,9 @@ export const ProjectList: React.FC = () => {
 
       {/* Material Log Sub-Modal */}
       {logMaterial && viewingProject && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-4xl h-[80vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-             <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-4xl h-[90vh] sm:h-[80vh] shadow-2xl overflow-hidden flex flex-col mobile-sheet animate-in slide-in-from-bottom duration-500">
+             <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center shrink-0">
                 <div className="flex gap-4 items-center">
                   <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><History size={24} /></div>
                   <div>
@@ -1645,5 +1719,13 @@ export const ProjectList: React.FC = () => {
         </div>
       )}
     </div>
-  );
+    <ConfirmationDialog 
+      isOpen={confirmDialog.isOpen}
+      title={confirmDialog.title}
+      message={confirmDialog.message}
+      onConfirm={confirmDialog.onConfirm}
+      onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+    />
+  </>
+);
 };

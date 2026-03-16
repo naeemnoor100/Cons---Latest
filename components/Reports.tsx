@@ -45,7 +45,7 @@ export const Reports: React.FC = () => {
   const [cashFlowPage, setCashFlowPage] = useState(1);
   const [assetDistributionPage, setAssetDistributionPage] = useState(1);
   const [sitesSummaryPage, setSitesSummaryPage] = useState(1);
-  const [expenditurePage, setExpenditurePage] = useState(1);
+  const [expenditurePage] = useState(1);
   const [materialSummaryPage, setMaterialSummaryPage] = useState(1);
   const [supplierSummaryPage, setSupplierSummaryPage] = useState(1);
   const [laborSummaryPage, setLaborSummaryPage] = useState(1);

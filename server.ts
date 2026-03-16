@@ -4,10 +4,107 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import sqlite3 from "sqlite3";
+import mysql from "mysql2/promise";
+import bcrypt from "bcryptjs";
 import { DB_CONFIG } from "./db_config.ts";
+import { 
+  Project, Vendor, Material, Expense, Payment, Income, Invoice, 
+  Employee, LaborLog, LaborPayment, User, StockHistoryEntry 
+} from "./types";
+
+interface AppSettings {
+  syncId: string;
+  theme: 'light' | 'dark';
+  allowDecimalStock: number;
+  tradeCategories: string;
+  stockingUnits: string;
+  siteStatuses: string;
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+interface Database {
+  run(sql: string, params?: unknown[]): Promise<unknown>;
+  all(sql: string, params?: unknown[]): Promise<unknown[]>;
+  get(sql: string, params?: unknown[]): Promise<unknown>;
+  exec(sql: string): Promise<void>;
+}
+
+class SqliteDatabase implements Database {
+  private db: sqlite3.Database;
+  constructor() {
+    this.db = new sqlite3.Database(DB_CONFIG.database);
+  }
+  run(sql: string, params: unknown[] = []) {
+    return new Promise((resolve, reject) => {
+      this.db.run(sql, params, function(err) {
+        if (err) reject(err);
+        else resolve(this);
+      });
+    });
+  }
+  all(sql: string, params: unknown[] = []) {
+    return new Promise<unknown[]>((resolve, reject) => {
+      this.db.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    });
+  }
+  get(sql: string, params: unknown[] = []) {
+    return new Promise<unknown>((resolve, reject) => {
+      this.db.get(sql, params, (err, row) => {
+        if (err) reject(err);
+        else resolve(row);
+      });
+    });
+  }
+  exec(sql: string) {
+    return new Promise<void>((resolve, reject) => {
+      this.db.exec(sql, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+}
+
+class MysqlDatabase implements Database {
+  private pool: mysql.Pool;
+  constructor() {
+    this.pool = mysql.createPool({
+      host: process.env.DB_HOST,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
+    });
+  }
+  async run(sql: string, params: unknown[] = []) {
+    const [result] = await this.pool.execute(sql, params);
+    return result;
+  }
+  async all(sql: string, params: unknown[] = []) {
+    const [rows] = await this.pool.execute(sql, params);
+    return rows as unknown[];
+  }
+  async get(sql: string, params: unknown[] = []) {
+    const [rows] = await this.pool.execute(sql, params);
+    return (rows as unknown[])[0];
+  }
+  async exec(sql: string) {
+    await this.pool.query(sql);
+  }
+}
+
+const isMysql = !!process.env.DB_HOST && process.env.DB_HOST !== 'localhost' && process.env.DB_HOST !== '127.0.0.1';
+const db: Database = isMysql ? new MysqlDatabase() : new SqliteDatabase();
+const all = db.all.bind(db);
+const get = db.get.bind(db);
+const run = db.run.bind(db);
 
 class Lock {
   private locked = false;
@@ -35,23 +132,17 @@ class Lock {
 
 const saveLock = new Lock();
 
-const db = new sqlite3.Database(DB_CONFIG.database);
-
 // Initialize Relational DB
 const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
 
 async function initDb() {
-  return new Promise<void>((resolve, reject) => {
-    db.exec(schema, (err) => {
-      if (err) {
-        console.error("Database initialization error:", err);
-        reject(err);
-      } else {
-        console.log("Relational database initialized");
-        resolve();
-      }
-    });
-  });
+  try {
+    await db.exec(schema);
+    console.log("Relational database initialized");
+  } catch (err) {
+    console.error("Database initialization error:", err);
+    throw err;
+  }
 }
 
 async function startServer() {
@@ -66,26 +157,60 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
 
-  // Helper to run queries as promises
-  const run = (sql: string, params: unknown[] = []) => new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
+  app.get("/api/check-init", async (req, res) => {
+    try {
+      const userCount = await get("SELECT COUNT(*) as count FROM users") as { count: number };
+      res.json({ initialized: userCount.count > 0 });
+    } catch (err) {
+      console.error("Check init error:", err);
+      res.status(500).json({ error: "Failed to check initialization" });
+    }
   });
 
-  const all = (sql: string, params: unknown[] = []) => new Promise<unknown[]>((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
+  app.post("/api/signup", async (req, res) => {
+    const { name, email, password, role } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    try {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const id = 'user-' + Date.now();
+      await run(
+        "INSERT INTO users (id, name, email, password, role, permissions) VALUES (?, ?, ?, ?, ?, ?)",
+        [id, name, email, hashedPassword, role || 'user', JSON.stringify({})]
+      );
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Signup error:", err);
+      res.status(500).json({ error: "Signup failed" });
+    }
   });
 
-  const get = (sql: string, params: unknown[] = []) => new Promise<unknown>((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
+  app.post("/api/login", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    try {
+      const user = await get("SELECT * FROM users WHERE email = ?", [email]) as User | undefined;
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const isValid = await bcrypt.compare(password, user.password || '');
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const userWithoutPassword = { ...user };
+      delete userWithoutPassword.password;
+      res.json({ user: userWithoutPassword });
+    } catch (err) {
+      console.error("Login error:", err);
+      res.status(500).json({ error: "Login failed" });
+    }
   });
 
   // API Routes
@@ -106,22 +231,22 @@ async function startServer() {
       
       try {
         // Reconstruct AppState from tables
-        const projects = await all("SELECT * FROM projects");
-        const vendors = await all("SELECT * FROM vendors");
-        const materials = await all("SELECT * FROM materials");
-        const expenses = await all("SELECT * FROM expenses");
-        const payments = await all("SELECT * FROM payments");
-        const incomes = await all("SELECT * FROM incomes");
-        const invoices = await all("SELECT * FROM invoices");
-        const employees = await all("SELECT * FROM employees");
-        const laborLogs = await all("SELECT * FROM labor_logs");
-        const laborPayments = await all("SELECT * FROM labor_payments");
-        const users = await all("SELECT * FROM users");
-        const settings = await get("SELECT * FROM settings WHERE id = ?", [syncId]);
+        const projects = await all("SELECT * FROM projects WHERE syncId = ?", [syncId]) as Project[];
+        const vendors = await all("SELECT * FROM vendors WHERE syncId = ?", [syncId]) as Vendor[];
+        const materials = await all("SELECT * FROM materials WHERE syncId = ?", [syncId]) as Material[];
+        const expenses = await all("SELECT * FROM expenses WHERE syncId = ?", [syncId]) as Expense[];
+        const payments = await all("SELECT * FROM payments WHERE syncId = ?", [syncId]) as Payment[];
+        const incomes = await all("SELECT * FROM incomes WHERE syncId = ?", [syncId]) as Income[];
+        const invoices = await all("SELECT * FROM invoices WHERE syncId = ?", [syncId]) as Invoice[];
+        const employees = await all("SELECT * FROM employees WHERE syncId = ?", [syncId]) as Employee[];
+        const laborLogs = await all("SELECT * FROM laborLogs WHERE syncId = ?", [syncId]) as LaborLog[];
+        const laborPayments = await all("SELECT * FROM laborPayments WHERE syncId = ?", [syncId]) as LaborPayment[];
+        const users = await all("SELECT * FROM users WHERE syncId = ?", [syncId]) as User[];
+        const settings = await get("SELECT * FROM app_settings WHERE syncId = ?", [syncId]) as AppSettings | undefined;
 
         // Fetch history for each material
         for (const mat of materials) {
-          mat.history = await all("SELECT * FROM stock_history WHERE material_id = ?", [mat.id]);
+          mat.history = await all("SELECT * FROM stockHistory WHERE materialId = ? AND syncId = ?", [mat.id, syncId]) as StockHistoryEntry[];
         }
 
         if (!settings) {
@@ -131,56 +256,29 @@ async function startServer() {
         const state = {
           syncId,
           theme: settings.theme,
-          allowDecimalStock: !!settings.allow_decimal_stock,
-          tradeCategories: JSON.parse(settings.trade_categories || '[]'),
-          stockingUnits: JSON.parse(settings.stocking_units || '[]'),
-          siteStatuses: JSON.parse(settings.site_statuses || '[]'),
-          projects: projects.map(p => ({ ...p, isGodown: !!p.is_godown })),
-          vendors: vendors.map(v => ({ ...v, isActive: !!v.is_active })),
+          allowDecimalStock: !!settings.allowDecimalStock,
+          tradeCategories: JSON.parse(settings.tradeCategories || '[]'),
+          stockingUnits: JSON.parse(settings.stockingUnits || '[]'),
+          siteStatuses: JSON.parse(settings.siteStatuses || '[]'),
+          projects: projects.map(p => ({ ...p, isGodown: !!p.isGodown, isDeleted: !!p.isDeleted })),
+          vendors: vendors.map(v => ({ ...v, isActive: !!v.isActive })),
           materials: materials.map(m => ({
             ...m,
-            costPerUnit: m.cost_per_unit,
-            totalPurchased: m.total_purchased,
-            totalUsed: m.total_used,
-            lowStockThreshold: m.low_stock_threshold,
-            history: m.history.map((h: Record<string, unknown>) => ({
+            history: (m.history || []).map((h) => ({
               ...h,
-              projectId: h.project_id,
-              vendorId: h.vendor_id,
-              unitPrice: h.unit_price,
-              parentPurchaseId: h.parent_purchase_id
+              projectId: h.projectId,
+              vendorId: h.vendorId,
+              unitPrice: h.unitPrice,
+              parentPurchaseId: h.parentPurchaseId
             }))
           })),
-          expenses: expenses.map(e => ({
-            ...e,
-            projectId: e.project_id,
-            vendorId: e.vendor_id,
-            materialId: e.material_id,
-            materialQuantity: e.material_quantity,
-            unitPrice: e.unit_price,
-            inventoryAction: e.inventory_action,
-            parentPurchaseId: e.parent_purchase_id
-          })),
-          payments: payments.map(p => ({
-            ...p,
-            vendorId: p.vendor_id,
-            materialBatchId: p.material_batch_id,
-            masterPaymentId: p.master_payment_id,
-            isAllocation: !!p.is_allocation
-          })),
-          incomes: incomes.map(i => ({ ...i, projectId: i.project_id })),
-          invoices: invoices.map(i => ({ ...i, projectId: i.project_id })),
-          employees: employees.map(e => ({ ...e, dailyWage: e.daily_wage, isActive: !!e.is_active })),
-          laborLogs: laborLogs.map(l => ({
-            ...l,
-            employeeId: l.employee_id,
-            projectId: l.project_id,
-            wageAmount: l.wage_amount
-          })),
-          laborPayments: laborPayments.map(lp => ({
-            ...lp,
-            employeeId: lp.employee_id
-          })),
+          expenses: expenses.map(e => ({ ...e })),
+          payments: payments.map(p => ({ ...p, isAllocation: !!p.isAllocation })),
+          incomes: incomes.map(i => ({ ...i })),
+          invoices: invoices.map(i => ({ ...i })),
+          employees: employees.map(e => ({ ...e, isActive: !!e.isActive })),
+          laborLogs: laborLogs.map(l => ({ ...l })),
+          laborPayments: laborPayments.map(lp => ({ ...lp })),
           users: users.map(u => ({
             ...u,
             permissions: typeof u.permissions === 'string' ? JSON.parse(u.permissions || '{}') : (u.permissions || {})
@@ -214,14 +312,14 @@ async function startServer() {
 
         // Update Settings
         await run(`
-          INSERT INTO settings (id, theme, allow_decimal_stock, trade_categories, stocking_units, site_statuses)
+          INSERT INTO app_settings (syncId, theme, allowDecimalStock, tradeCategories, stockingUnits, siteStatuses)
           VALUES (?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
+          ON CONFLICT(syncId) DO UPDATE SET
             theme = excluded.theme,
-            allow_decimal_stock = excluded.allow_decimal_stock,
-            trade_categories = excluded.trade_categories,
-            stocking_units = excluded.stocking_units,
-            site_statuses = excluded.site_statuses
+            allowDecimalStock = excluded.allowDecimalStock,
+            tradeCategories = excluded.tradeCategories,
+            stockingUnits = excluded.stockingUnits,
+            siteStatuses = excluded.siteStatuses
         `, [
           syncId,
           data.theme,
@@ -232,89 +330,88 @@ async function startServer() {
         ]);
 
         // Helper to clear and refill tables
-        const refillTable = async (table: string, items: unknown[], insertSql: string, paramsFn: (item: Record<string, unknown>) => unknown[]) => {
-          await run(`DELETE FROM ${table}`);
+        const refillTable = async <T>(table: string, items: T[], insertSql: string, paramsFn: (item: T) => (string | number | null)[]) => {
+          await run(`DELETE FROM ${table} WHERE syncId = ?`, [syncId]);
           for (const item of items) {
-            await run(insertSql, paramsFn(item));
+            await run(insertSql, [syncId, ...paramsFn(item)]);
           }
         };
 
         // Projects
         await refillTable("projects", data.projects || [], `
-          INSERT INTO projects (id, name, location, client, supervisor, status, is_godown, start_date, end_date, budget, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, p => [p.id, p.name, p.location, p.client, p.supervisor, p.status, p.isGodown ? 1 : 0, p.startDate, p.endDate, p.budget, p.notes]);
+          INSERT INTO projects (syncId, id, name, location, client, startDate, endDate, budget, status, description, contactNumber, isGodown, isDeleted)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, p => [p.id, p.name, p.location, p.client, p.startDate, p.endDate, p.budget, p.status, p.description, p.contactNumber, p.isGodown ? 1 : 0, p.isDeleted ? 1 : 0]);
 
         // Vendors
         await refillTable("vendors", data.vendors || [], `
-          INSERT INTO vendors (id, name, contact, category, balance, is_active)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `, v => [v.id, v.name, v.contact, v.category, v.balance, v.isActive ? 1 : 0]);
+          INSERT INTO vendors (syncId, id, name, phone, address, category, email, balance, isActive)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, v => [v.id, v.name, v.phone, v.address, v.category, v.email, v.balance, v.isActive ? 1 : 0]);
 
         // Materials & History
-        await run("DELETE FROM stock_history");
-        await run("DELETE FROM materials");
+        await run("DELETE FROM stockHistory WHERE syncId = ?", [syncId]);
+        await run("DELETE FROM materials WHERE syncId = ?", [syncId]);
         for (const m of (data.materials || [])) {
           await run(`
-            INSERT INTO materials (id, name, unit, cost_per_unit, total_purchased, total_used, low_stock_threshold)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-          `, [m.id, m.name, m.unit, m.costPerUnit, m.totalPurchased, m.totalUsed, m.lowStockThreshold]);
+            INSERT INTO materials (syncId, id, name, unit, costPerUnit, totalPurchased, totalUsed, lowStockThreshold)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `, [syncId, m.id, m.name, m.unit, m.costPerUnit, m.totalPurchased, m.totalUsed, m.lowStockThreshold]);
           
           for (const h of (m.history || [])) {
             await run(`
-              INSERT INTO stock_history (id, material_id, date, type, quantity, project_id, vendor_id, note, unit_price, parent_purchase_id)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [h.id, m.id, h.date, h.type, h.quantity, h.projectId, h.vendorId, h.note, h.unitPrice, h.parentPurchaseId]);
+              INSERT INTO stockHistory (syncId, id, materialId, date, type, quantity, projectId, vendorId, note, unitPrice, parentPurchaseId)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [syncId, h.id, m.id, h.date, h.type, h.quantity, h.projectId, h.vendorId, h.note, h.unitPrice, h.parentPurchaseId]);
           }
         }
 
         // Expenses
         await refillTable("expenses", data.expenses || [], `
-          INSERT INTO expenses (id, date, project_id, vendor_id, amount, category, payment_method, notes, material_id, material_quantity, unit_price, inventory_action, parent_purchase_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, e => [e.id, e.date, e.projectId, e.vendorId, e.amount, e.category, e.paymentMethod, e.notes, e.materialId, e.materialQuantity, e.unitPrice, e.inventoryAction, e.parentPurchaseId]);
+          INSERT INTO expenses (syncId, id, date, projectId, vendorId, materialId, materialQuantity, unitPrice, amount, paymentMethod, notes, invoiceUrl, category, inventoryAction, parentPurchaseId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, e => [e.id, e.date, e.projectId, e.vendorId, e.materialId, e.materialQuantity, e.unitPrice, e.amount, e.paymentMethod, e.notes, e.invoiceUrl, e.category, e.inventoryAction, e.parentPurchaseId]);
 
         // Payments
         await refillTable("payments", data.payments || [], `
-          INSERT INTO payments (id, date, vendor_id, amount, method, reference, material_batch_id, master_payment_id, is_allocation)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, p => [p.id, p.date, p.vendorId, p.amount, p.method, p.reference, p.materialBatchId, p.masterPaymentId, p.isAllocation ? 1 : 0]);
+          INSERT INTO payments (syncId, id, date, vendorId, projectId, amount, method, reference, materialBatchId, masterPaymentId, isAllocation)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, p => [p.id, p.date, p.vendorId, p.projectId, p.amount, p.method, p.reference, p.materialBatchId, p.masterPaymentId, p.isAllocation ? 1 : 0]);
 
         // Incomes
         await refillTable("incomes", data.incomes || [], `
-          INSERT INTO incomes (id, date, project_id, amount, source, method, reference, notes)
+          INSERT INTO incomes (syncId, id, projectId, date, amount, description, method, invoiceId)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, i => [i.id, i.date, i.projectId, i.amount, i.source, i.method, i.reference, i.notes]);
+        `, i => [i.id, i.projectId, i.date, i.amount, i.description, i.method, i.invoiceId]);
 
         // Invoices
         await refillTable("invoices", data.invoices || [], `
-          INSERT INTO invoices (id, project_id, amount, date, due_date, description, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, i => [i.id, i.projectId, i.amount, i.date, i.dueDate, i.description, i.status]);
+          INSERT INTO invoices (syncId, id, projectId, date, amount, description, status, dueDate)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, i => [i.id, i.projectId, i.date, i.amount, i.description, i.status, i.dueDate]);
 
         // Employees
         await refillTable("employees", data.employees || [], `
-          INSERT INTO employees (id, name, role, phone, daily_wage, is_active)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `, e => [e.id, e.name, e.role, e.phone, e.dailyWage, e.isActive ? 1 : 0]);
+          INSERT INTO employees (syncId, id, name, role, phone, dailyWage, status, joiningDate, currentSiteId)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, e => [e.id, e.name, e.role, e.phone, e.dailyWage, e.status, e.joiningDate, e.currentSiteId]);
 
         // Labor Logs
-        await refillTable("labor_logs", data.laborLogs || [], `
-          INSERT INTO labor_logs (id, employee_id, project_id, date, status, wage_amount, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, l => [l.id, l.employeeId, l.projectId, l.date, l.status, l.wageAmount, l.notes]);
+        await refillTable("laborLogs", data.laborLogs || [], `
+          INSERT INTO laborLogs (syncId, id, date, employeeId, projectId, hoursWorked, wageAmount, status, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, l => [l.id, l.date, l.employeeId, l.projectId, l.hoursWorked, l.wageAmount, l.status, l.notes]);
 
         // Labor Payments
-        await refillTable("labor_payments", data.laborPayments || [], `
-          INSERT INTO labor_payments (id, employee_id, amount, date, method, reference, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, lp => [lp.id, lp.employeeId, lp.amount, lp.date, lp.method, lp.reference, lp.notes]);
+        await refillTable("laborPayments", data.laborPayments || [], `
+          INSERT INTO laborPayments (syncId, id, employeeId, date, amount, method, reference, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, lp => [lp.id, lp.employeeId, lp.date, lp.amount, lp.method, lp.reference, lp.notes]);
 
         // Users
-        console.log('DEBUG: Saving users:', data.users);
         await refillTable("users", data.users || [], `
-          INSERT INTO users (id, name, email, role, avatar, permissions)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO users (syncId, id, name, email, role, avatar, permissions)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         `, u => [u.id, u.name, u.email, u.role, u.avatar, JSON.stringify(u.permissions || {})]);
 
         await run("COMMIT");

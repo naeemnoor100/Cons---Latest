@@ -9,13 +9,13 @@ import {
   Briefcase, 
   Pencil,
   Trash2,
-  Lock,
   Check,
   ArrowUp,
   ArrowDown
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
+import { ConfirmationDialog } from './ConfirmationDialog';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
@@ -30,6 +30,17 @@ export const InvoiceManager: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   const handleSort = (key: string) => {
     setSortConfig(current => ({
@@ -45,33 +56,6 @@ export const InvoiceManager: React.FC = () => {
     dueDate: '',
     description: ''
   });
-
-  const handleOpenAdd = () => {
-    setEditingInvoice(null);
-    const today = new Date().toISOString().split('T')[0];
-    const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-    setFormData({
-      projectId: projects.find(p => !p.isGodown && p.status !== 'Completed')?.id || projects.find(p => !p.isGodown)?.id || projects[0]?.id || '',
-      amount: '',
-      date: today,
-      dueDate: nextWeek,
-      description: ''
-    });
-    setShowModal(true);
-  };
-
-  const handleOpenEdit = (inv: Invoice) => {
-    setEditingInvoice(inv);
-    setFormData({
-      projectId: inv.projectId,
-      amount: inv.amount.toString(),
-      date: inv.date,
-      dueDate: inv.dueDate,
-      description: inv.description
-    });
-    setShowModal(true);
-  };
-
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -169,9 +153,15 @@ export const InvoiceManager: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Permanently delete this invoice?")) {
-      await deleteInvoice(id);
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Invoice',
+      message: 'Are you sure you want to permanently delete this invoice?',
+      onConfirm: () => {
+        deleteInvoice(id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
   };
 
   return (
@@ -181,7 +171,14 @@ export const InvoiceManager: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight uppercase">Client Billing Center</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Manage project milestones and receivables.</p>
         </div>
-
+        {canCreateInvoices && (
+          <button 
+            onClick={() => { setEditingInvoice(null); setFormData({ projectId: projects[0]?.id || '', amount: '', date: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 15*86400000).toISOString().split('T')[0], description: '' }); setShowModal(true); }}
+            className="w-full sm:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+          >
+            <Plus size={20} /> Generate Invoice
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -275,6 +272,7 @@ export const InvoiceManager: React.FC = () => {
                     {sortConfig.key === 'remaining' && (sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
                   </div>
                 </th>
+                <th className="px-8 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -282,7 +280,6 @@ export const InvoiceManager: React.FC = () => {
                 const project = projects.find(p => p.id === inv.projectId);
                 const { isPaid, remaining } = getInvoiceMetrics(inv);
                 const isPartial = !isPaid && remaining < inv.amount && remaining > 0;
-                const isCompleted = project?.status === 'Completed';
                 return (
                   <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : isPartial ? 'bg-amber-50/40 dark:bg-amber-900/5 hover:bg-amber-50/60' : 'hover:bg-slate-50/50'}`}>
                     <td className="px-8 py-5 font-bold text-slate-400 text-xs">#{inv.id.slice(-6).toUpperCase()}</td>
@@ -319,6 +316,28 @@ export const InvoiceManager: React.FC = () => {
                         <span className={isPartial ? 'text-amber-600' : 'text-red-600'}>{formatCurrency(remaining)}</span>
                       )}
                     </td>
+                    <td className="px-8 py-5 text-right">
+                      <div className="flex items-center justify-end gap-2 transition-opacity">
+                        {canEditInvoices && (
+                          <button 
+                            onClick={() => { setEditingInvoice(inv); setFormData({ projectId: inv.projectId, amount: inv.amount.toString(), date: inv.date, dueDate: inv.dueDate, description: inv.description }); setShowModal(true); }}
+                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                            title="Edit Invoice"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
+                        {canDeleteInvoices && (
+                          <button 
+                            onClick={() => handleDelete(inv.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Delete Invoice"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -328,21 +347,21 @@ export const InvoiceManager: React.FC = () => {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-indigo-50/30 dark:bg-indigo-900/10 flex justify-between items-center shrink-0">
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 bg-indigo-50/30 dark:bg-indigo-900/10 flex justify-between items-center shrink-0">
                <div className="flex gap-4 items-center">
-                 <div className="p-4 bg-indigo-600 text-white rounded-2xl shadow-lg">
+                 <div className="p-3 sm:p-4 bg-indigo-600 text-white rounded-2xl shadow-lg">
                     <FileText size={24} />
                  </div>
                  <div>
-                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{editingInvoice ? 'Modify Invoice' : 'Generate Invoice'}</h2>
+                    <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">{editingInvoice ? 'Modify Invoice' : 'Generate Invoice'}</h2>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">Official Client Billing Entry</p>
                  </div>
                </div>
                <button onClick={() => { setShowModal(false); setEditingInvoice(null); }} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
             </div>
-            <form onSubmit={handleSubmit} className="p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
+            <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Target Project Site</label>
                 <select 
@@ -417,6 +436,13 @@ export const InvoiceManager: React.FC = () => {
           </div>
         </div>
       )}
+      <ConfirmationDialog 
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

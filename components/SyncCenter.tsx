@@ -1,7 +1,6 @@
 import React from 'react';
 import { 
   Cloud, 
-  RefreshCw, 
   Smartphone, 
   Monitor, 
   ShieldCheck, 

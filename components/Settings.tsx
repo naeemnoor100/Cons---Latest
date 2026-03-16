@@ -1,8 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { 
-  User, 
   Globe, 
-  Save, 
   Plus, 
   X, 
   List, 
@@ -24,36 +22,32 @@ import { INITIAL_STATE } from '../constants';
 
 export const Settings: React.FC = () => {
   const { 
-    currentUser, updateUser, theme, setTheme, 
+    theme, setTheme, 
     tradeCategories, addTradeCategory, removeTradeCategory,
     stockingUnits, addStockingUnit, removeStockingUnit,
     siteStatuses, addSiteStatus, removeSiteStatus,
     allowDecimalStock, setAllowDecimalStock,
     projects, vendors, materials, expenses, incomes, invoices, payments,
     employees, laborLogs, laborPayments, activityLogs,
-    importState, forceSync
+    importState, forceSync, syncId
   } = useApp();
   
-  const [activeSection, setActiveSection] = useState<'profile' | 'system' | 'master-lists' | 'database' | 'backup' | 'activity-log'>('profile');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [activeSection, setActiveSection] = useState<'system' | 'master-lists' | 'database' | 'backup' | 'activity-log'>('system');
   const [dbInitStatus, setDbInitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [activitySearch, setActivitySearch] = useState('');
+  const [isWipePromptOpen, setIsWipePromptOpen] = useState(false);
+  const [wipePassword, setWipePassword] = useState('');
   
   // To avoid unused var errors
-  console.log(saveStatus, dbInitStatus, testStatus, importStatus);
+  console.log(dbInitStatus, testStatus, importStatus);
   
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
   const [newTradeCat, setNewTradeCat] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [newStatus, setNewStatus] = useState('');
-
-  const [profileData, setProfileData] = useState({
-    name: currentUser.name,
-    email: currentUser.email
-  });
 
   const handleExportData = () => {
     const fullState: AppState = {
@@ -108,20 +102,22 @@ export const Settings: React.FC = () => {
   };
 
   const handleResetApp = async () => {
-    const today = new Date();
-    const dd = String(today.getDate()).padStart(2, '0');
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const yyyy = today.getFullYear();
-    const password = `${dd}-${mm}-${yyyy}`;
-
-    const userInput = prompt(`CRITICAL WARNING: This will delete all data forever.\nTo confirm, please enter today's date as password (${password}):`);
-
-    if (userInput === password) {
-      await importState(INITIAL_STATE);
-      window.location.reload();
-    } else if (userInput !== null) {
-      alert("Incorrect password. Data wipe cancelled.");
+    const today = new Date().toISOString().split('T')[0];
+    if (wipePassword !== today) {
+      alert('Incorrect password');
+      return;
     }
+    try {
+      await fetch('/api.php?action=delete_state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ syncId: syncId })
+      });
+    } catch (error) {
+      console.error('Failed to clear data on server:', error);
+    }
+    await importState(INITIAL_STATE);
+    window.location.reload();
   };
 
   const handleExportExcel = () => {
@@ -195,16 +191,6 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaveStatus('saving');
-    updateUser({ ...currentUser, name: profileData.name, email: profileData.email });
-    setTimeout(() => {
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 3000);
-    }, 800);
-  };
-
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-end">
@@ -216,9 +202,6 @@ export const Settings: React.FC = () => {
 
       <div className="flex flex-col md:flex-row gap-6 sm:gap-8">
         <aside className="w-full md:w-64 flex md:flex-col gap-1 overflow-x-auto no-scrollbar shrink-0 pb-2 md:pb-0 border-b md:border-b-0 border-slate-100 dark:border-slate-800">
-          <button onClick={() => setActiveSection('profile')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'profile' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
-            <User size={18} /> <span className="text-xs sm:text-sm font-bold">Profile</span>
-          </button>
           <button onClick={() => setActiveSection('database')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'database' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
             <Server size={18} /> <span className="text-xs sm:text-sm font-bold">Database</span>
           </button>
@@ -317,33 +300,6 @@ export const Settings: React.FC = () => {
               </div>
             )}
 
-            {activeSection === 'profile' && (
-              <div className="p-8 animate-in fade-in duration-300">
-                <div className="flex items-center gap-6 mb-8">
-                  <img src={currentUser.avatar} alt="Profile" className="w-20 h-20 rounded-[2rem] object-cover border-4 border-slate-100 dark:border-slate-700 shadow-sm" />
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">{currentUser.name}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">{currentUser.role}</p>
-                  </div>
-                </div>
-                <form onSubmit={handleSaveProfile} className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase text-slate-400 px-1">Name</label>
-                      <input type="text" className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={profileData.name} onChange={e => setProfileData(p => ({ ...p, name: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase text-slate-400 px-1">Email</label>
-                      <input type="email" className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={profileData.email} onChange={e => setProfileData(p => ({ ...p, email: e.target.value }))} />
-                    </div>
-                  </div>
-                  <button type="submit" className="w-full flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl font-bold bg-[#003366] text-white shadow-lg active:scale-95 transition-all">
-                    <Save size={18} /> Update Profile
-                  </button>
-                </form>
-              </div>
-            )}
-
             {activeSection === 'database' && (
               <div className="p-8 space-y-8 animate-in fade-in duration-300">
                 <div className="bg-slate-900 p-6 rounded-[2rem] text-white flex flex-col sm:flex-row justify-between items-center gap-4 shadow-xl">
@@ -387,7 +343,14 @@ export const Settings: React.FC = () => {
                  </div>
                  <div className="p-6 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 rounded-[2rem] space-y-4">
                     <h4 className="text-xs font-black uppercase text-rose-600">Danger Zone</h4>
-                    <button onClick={handleResetApp} className="flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all">Wipe All Data</button>
+                    {isWipePromptOpen ? (
+                      <div className="flex flex-col gap-2">
+                        <input type="text" value={wipePassword} onChange={(e) => setWipePassword(e.target.value)} placeholder="Enter password (YYYY-MM-DD)" className="px-4 py-2 rounded-xl border border-rose-200" />
+                        <button onClick={handleResetApp} className="flex items-center justify-center px-6 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all">Confirm Wipe</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setIsWipePromptOpen(true)} className="flex items-center gap-2 px-6 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all">Wipe All Data</button>
+                    )}
                  </div>
               </div>
             )}

@@ -190,3 +190,58 @@ export interface AppState {
   syncId?: string;
   lastUpdated?: number;
 }
+
+export interface AppContextType extends AppState {
+  updateUser: (u: User) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
+  setAllowDecimalStock: (val: boolean) => void;
+  addProject: (p: Project) => Promise<void>;
+  updateProject: (p: Project) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+  restoreProject: (id: string) => Promise<void>;
+  addVendor: (v: Vendor) => Promise<void>;
+  updateVendor: (v: Vendor) => Promise<void>;
+  deleteVendor: (id: string) => Promise<void>;
+  addMaterial: (m: Material) => Promise<void>;
+  updateMaterial: (m: Material) => Promise<void>;
+  deleteMaterial: (id: string) => Promise<void>;
+  addExpense: (e: Expense) => Promise<void>;
+  updateExpense: (e: Expense) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
+  addPayment: (p: Payment) => Promise<void>;
+  updatePayment: (p: Payment) => Promise<void>;
+  deletePayment: (id: string) => Promise<void>;
+  addIncome: (i: Income) => Promise<void>;
+  updateIncome: (i: Income) => Promise<void>;
+  deleteIncome: (id: string) => Promise<void>;
+  addInvoice: (inv: Invoice) => Promise<void>;
+  updateInvoice: (inv: Invoice) => Promise<void>;
+  deleteInvoice: (id: string) => Promise<void>;
+  addEmployee: (emp: Employee) => Promise<void>;
+  updateEmployee: (emp: Employee) => Promise<void>;
+  deleteEmployee: (id: string) => Promise<void>;
+  addLaborLog: (log: LaborLog) => Promise<void>;
+  updateLaborLog: (log: LaborLog) => Promise<void>;
+  deleteLaborLog: (id: string) => Promise<void>;
+  addLaborPayment: (pay: LaborPayment) => Promise<void>;
+  updateLaborPayment: (pay: LaborPayment) => Promise<void>;
+  deleteLaborPayment: (id: string) => Promise<void>;
+  forceSync: () => Promise<void>;
+  addTradeCategory: (cat: string) => void;
+  removeTradeCategory: (cat: string) => void;
+  addStockingUnit: (unit: string) => void;
+  removeStockingUnit: (unit: string) => void;
+  addSiteStatus: (status: string) => void;
+  removeSiteStatus: (status: string) => void;
+  importState: (newState: AppState) => Promise<void>;
+  isLoading: boolean;
+  isSyncing: boolean;
+  syncError: boolean;
+  lastSynced: Date;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  lastActionName: string;
+  isProjectLocked: (projectId: string) => boolean;
+}
