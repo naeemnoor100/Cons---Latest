@@ -27,8 +27,8 @@ const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ProjectList: React.FC = () => {
   const { 
-    projects, expenses, vendors, materials, incomes, invoices, siteStatuses, stockingUnits, employees, laborLogs,
-    addProject, updateProject, deleteProject, restoreProject,
+    projects, expenses, vendors, materials, incomes, invoices, siteStatuses, stockingUnits, employees, laborLogs, laborPayments,
+    addProject, updateProject, deleteProject, permanentDeleteProject, restoreProject,
     addExpense, updateExpense, deleteExpense,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
@@ -49,6 +49,7 @@ export const ProjectList: React.FC = () => {
   const canDeleteInvoices = currentUser?.permissions?.['invoices']?.includes('delete');
   const canCreateMaterials = currentUser?.permissions?.['materials']?.includes('create');
   
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [filter, setFilter] = useState<string>('Active');
   const [showDeleted, setShowDeleted] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,12 +74,18 @@ export const ProjectList: React.FC = () => {
     isOpen: boolean;
     title: string;
     message: string;
-    onConfirm: () => void;
+    onConfirm: (password?: string) => void;
+    passwordRequired?: boolean;
+    password?: string;
+    error?: string;
   }>({
     isOpen: false,
     title: '',
     message: '',
     onConfirm: () => {},
+    passwordRequired: false,
+    password: '',
+    error: '',
   });
 
   // Edit states for nested items
@@ -324,28 +331,33 @@ export const ProjectList: React.FC = () => {
     const projectExpenses = expenses.filter(e => e.projectId === projectId);
     const projectIncomes = incomes.filter(i => i.projectId === projectId);
     const projectInvoices = invoices.filter(inv => inv.projectId === projectId);
-    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && e.inventoryAction !== 'Transfer');
+    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer');
     
-    const projectLaborLogs = laborLogs.filter(l => l.projectId === projectId);
-    const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+    const projectLaborPayments = laborPayments.filter(p => p.projectId === projectId);
+    const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
 
-    const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
+    const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromPayments;
     const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
     const totalInvoiced = projectInvoices.reduce((sum, inv) => sum + inv.amount, 0);
     
     const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
-    const totalLabor = expenseLabor + laborFromLogs;
+    const totalLabor = expenseLabor + laborFromPayments;
+    
+    const projectPurchases = projectExpenses.filter(e => e.category !== 'Labor' && e.inventoryAction !== 'Transfer' && e.inventoryAction !== 'Usage');
+    const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
+    
+    const remainingBudget = budget - (totalPurchased + totalLabor);
     
     const progress = Math.min(100, Math.round((totalSpent / (budget || 1)) * 100)) || 0;
     
     const categories: Record<string, number> = {};
     actualSiteExpenses.forEach(e => { categories[e.category] = (categories[e.category] || 0) + e.amount; });
-    if (laborFromLogs > 0) {
-      categories['Labor'] = (categories['Labor'] || 0) + laborFromLogs;
+    if (laborFromPayments > 0) {
+      categories['Labor'] = (categories['Labor'] || 0) + laborFromPayments;
     }
 
-    return { totalSpent, totalCollected, totalInvoiced, totalLabor, receivable: totalInvoiced - totalCollected, remainingAmount: budget - totalCollected, progress, categoryBreakdown: categories, allExpenses: projectExpenses, invoices: projectInvoices };
-  }, [expenses, incomes, invoices, laborLogs]);
+    return { totalSpent, totalPurchased, totalCollected, totalInvoiced, totalLabor, receivable: totalInvoiced - totalCollected, remainingAmount: budget - totalCollected, remainingBudget, progress, categoryBreakdown: categories, allExpenses: projectExpenses, invoices: projectInvoices };
+  }, [expenses, incomes, invoices, laborPayments]);
 
   const projectArrivals = useMemo(() => {
     if (!viewingProject) return [];
@@ -621,7 +633,9 @@ export const ProjectList: React.FC = () => {
   };
 
   const viewingProjectMetrics = viewingProject ? calculateProjectMetrics(viewingProject.id, viewingProject.budget) : null;
-  const projectInvoicesForIncomeLink = viewingProject ? invoices.filter(inv => inv.projectId === viewingProject.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+  const projectInvoicesForIncomeLink = useMemo(() => {
+    return viewingProject ? invoices.filter(inv => inv.projectId === viewingProject.id && getInvoiceMetrics(inv).remaining > 0).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+  }, [viewingProject, invoices, getInvoiceMetrics]);
 
   return (
     <>
@@ -646,54 +660,137 @@ export const ProjectList: React.FC = () => {
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest px-1 flex items-center gap-2">
               <Warehouse size={16} /> Central Godowns (Stock Hubs)
             </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {godownProjects.map(godown => (
-              <div key={godown.id} className={`bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] border border-slate-800 overflow-hidden hover:border-emerald-500 transition-all group flex flex-col shadow-xl ${godown.isDeleted ? 'opacity-75 grayscale' : ''}`}>
-                <div className="p-6 flex-1 relative">
-                  {godown.isDeleted && <div className="absolute top-6 right-6 px-3 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full z-10">Deleted</div>}
-                  <div className="flex justify-between mb-4">
-                    <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">Active Hub</span>
-                    <div className="flex gap-2">
-                      {canEditProjects && (
-                        <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(godown); }} className="p-1.5 text-slate-500 hover:text-white transition-colors"><Pencil size={16} /></button>
-                      )}
-                      {canDeleteProjects && (
-                        godown.isDeleted ? (
-                          <button onClick={(e) => { e.stopPropagation(); restoreProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-emerald-500 transition-colors"><Check size={16} /></button>
-                        ) : (
-                          <button 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setConfirmDialog({
-                                isOpen: true,
-                                title: 'Delete Godown',
-                                message: `Are you sure you want to delete Godown "${godown.name}"?`,
-                                onConfirm: () => {
-                                  deleteProject(godown.id);
-                                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-                                }
-                              });
-                            }} 
-                            className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )
-                      )}
+            
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {godownProjects.map(godown => (
+                  <div key={godown.id} onClick={() => { setViewingProject(godown); setActiveDetailTab('arrivals'); }} className={`bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] border border-slate-800 overflow-hidden hover:border-emerald-500 transition-all group flex flex-col shadow-xl cursor-pointer ${godown.isDeleted ? 'opacity-75 grayscale' : ''}`}>
+                    <div className="p-6 flex-1 relative">
+                      {godown.isDeleted && <div className="absolute top-6 right-6 px-3 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full z-10">Deleted</div>}
+                      <div className="flex justify-between mb-4">
+                        <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">Active Hub</span>
+                        <div className="flex gap-2">
+                          {canEditProjects && (
+                            <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(godown); }} className="p-1.5 text-slate-500 hover:text-white transition-colors"><Pencil size={16} /></button>
+                          )}
+                          {godown.isDeleted ? (
+                              <div className="flex gap-2">
+                                <button onClick={(e) => { e.stopPropagation(); restoreProject(godown.id); }} className="p-1.5 text-slate-500 hover:text-emerald-500 transition-colors"><Check size={16} /></button>
+                                <button 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setConfirmDialog({
+                                      isOpen: true,
+                                      title: 'Permanently Delete Godown',
+                                      message: `Are you sure you want to PERMANENTLY delete Godown "${godown.name}"? This action is irreversible and will delete all associated data.`,
+                                      passwordRequired: true,
+                                      password: '',
+                                      onConfirm: (password) => {
+                                        const currentDate = new Date().toLocaleDateString('en-CA');
+                                        const utcDate = new Date().toISOString().split('T')[0];
+                                        if (password === currentDate || password === utcDate) {
+                                          permanentDeleteProject(godown.id);
+                                          setConfirmDialog(prev => ({ ...prev, isOpen: false, password: '', error: '' }));
+                                        } else {
+                                          setConfirmDialog(prev => ({ ...prev, error: 'Incorrect password. Please try again.' }));
+                                        }
+                                      }
+                                    });
+                                  }} 
+                                  className="p-1.5 text-slate-500 hover:text-red-600 transition-colors"
+                                >
+                                  <Trash2 size={16} className="text-red-600" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setConfirmDialog({
+                                    isOpen: true,
+                                    title: 'Delete Godown',
+                                    message: `Are you sure you want to delete Godown "${godown.name}"?`,
+                                    onConfirm: () => {
+                                      deleteProject(godown.id);
+                                      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                    }
+                                  });
+                                }} 
+                                className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                        </div>
+                      </div>
+                      <h3 className="text-xl font-black text-white uppercase tracking-tight">{godown.name}</h3>
+                      <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-1.5 mt-1"><MapPin size={12} /> {godown.location}</p>
+                    </div>
+                    <div className="grid grid-cols-2 border-t border-white/5">
+                      <button onClick={() => { setViewingProject(godown); setActiveDetailTab('arrivals'); }} className="py-5 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60 flex items-center justify-center gap-2 hover:bg-emerald-600 hover:text-white transition-all border-r border-white/5"><Package size={14} /> View Stock</button>
+                      <button onClick={() => { setViewingProject(godown); setActiveDetailTab('arrivals'); setShowRecordArrivalModal(true); }} className="py-5 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60 flex items-center justify-center gap-2 hover:bg-emerald-600 hover:text-white transition-all">Record Inward</button>
                     </div>
                   </div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight">{godown.name}</h3>
-                  <p className="text-slate-500 text-xs font-bold uppercase flex items-center gap-1.5 mt-1"><MapPin size={12} /> {godown.location}</p>
-                </div>
-                <div className="grid grid-cols-2 border-t border-white/5">
-                  <button onClick={() => { setViewingProject(godown); setActiveDetailTab('arrivals'); }} className="py-5 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60 flex items-center justify-center gap-2 hover:bg-emerald-600 hover:text-white transition-all border-r border-white/5"><Package size={14} /> View Stock</button>
-                  <button onClick={() => { setViewingProject(godown); setActiveDetailTab('arrivals'); setShowRecordArrivalModal(true); }} className="py-5 bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60 flex items-center justify-center gap-2 hover:bg-emerald-600 hover:text-white transition-all">Record Inward</button>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-slate-900 dark:bg-slate-800 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-xl">
+                <div className="overflow-x-auto no-scrollbar">
+                  <table className="w-full text-left">
+                    <thead className="bg-white/5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-white/5">
+                      <tr>
+                        <th className="px-6 py-4">Godown Name</th>
+                        <th className="px-6 py-4">Location</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {godownProjects.map((godown) => (
+                        <tr key={godown.id} onClick={() => { setViewingProject(godown); setActiveDetailTab('arrivals'); }} className="hover:bg-white/5 transition-colors cursor-pointer group">
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-black text-white uppercase">{godown.name}</p>
+                            {godown.isDeleted && <span className="text-[8px] font-black bg-red-600 text-white px-1.5 py-0.5 rounded uppercase">Deleted</span>}
+                          </td>
+                          <td className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{godown.location}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 bg-emerald-500/10 text-emerald-400 rounded text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">Active Hub</span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              {canEditProjects && (
+                                <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(godown); }} className="p-1.5 text-slate-500 hover:text-white transition-colors"><Pencil size={16} /></button>
+                              )}
+                              {!godown.isDeleted && canDeleteProjects && (
+                                <button 
+                                  onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setConfirmDialog({
+                                      isOpen: true,
+                                      title: 'Delete Godown',
+                                      message: `Are you sure you want to delete Godown "${godown.name}"?`,
+                                      onConfirm: () => {
+                                        deleteProject(godown.id);
+                                        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                      }
+                                    });
+                                  }} 
+                                  className="p-1.5 text-slate-500 hover:text-red-500 transition-colors"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        )}
 
       <div className="space-y-4">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -726,6 +823,10 @@ export const ProjectList: React.FC = () => {
               )}
             </div>
             <div className="flex bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1 overflow-x-auto no-scrollbar">
+              <button onClick={() => setViewMode('grid')} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${viewMode === 'grid' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>Grid</button>
+              <button onClick={() => setViewMode('table')} className={`px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${viewMode === 'table' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>Table</button>
+            </div>
+            <div className="flex bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1 overflow-x-auto no-scrollbar">
               <button onClick={() => setFilter('All')} className={`px-5 py-2 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${filter === 'All' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>All</button>
               {sortedStatuses.map(tab => (
                 <button key={tab} onClick={() => setFilter(tab)} className={`px-5 py-2 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${filter === tab ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>{tab}</button>
@@ -734,80 +835,190 @@ export const ProjectList: React.FC = () => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {constructionSites.map((project) => {
-            const metrics = calculateProjectMetrics(project.id, project.budget);
-            return (
-              <div key={project.id} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-all group flex flex-col shadow-sm ${project.isDeleted ? 'opacity-75 grayscale' : ''}`}>
-                <div className="p-6 flex-1 relative">
-                  {project.isDeleted && <div className="absolute top-6 right-6 px-3 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full z-10">Deleted</div>}
-                  <div className="flex justify-between mb-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${project.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-slate-100 text-slate-700 dark:bg-slate-900/30'}`}>{project.status}</span>
-                    <div className="flex gap-2">
-                      {canEditProjects && (
-                        <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(project); }} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
-                      )}
-                      {canDeleteProjects && (
-                        project.isDeleted ? (
-                          <button onClick={(e) => { e.stopPropagation(); restoreProject(project.id); }} className="p-1.5 text-slate-400 hover:text-emerald-600 transition-colors"><Check size={16} /></button>
-                        ) : (
-                          <button 
-                            onClick={(e) => { 
-                              e.stopPropagation(); 
-                              setConfirmDialog({
-                                isOpen: true,
-                                title: 'Delete Project',
-                                message: `Are you sure you want to delete project "${project.name}"?`,
-                                onConfirm: () => {
-                                  deleteProject(project.id);
-                                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-                                }
-                              });
-                            }} 
-                            className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )
-                      )}
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {constructionSites.map((project) => {
+              console.log('DEBUG: project:', project.name, 'isDeleted:', project.isDeleted);
+              const metrics = calculateProjectMetrics(project.id, project.budget);
+              return (
+                <div key={project.id} onClick={() => { setViewingProject(project); setActiveDetailTab('breakdown'); }} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-400 dark:hover:border-blue-500 transition-all group flex flex-col shadow-sm cursor-pointer ${project.isDeleted ? 'opacity-75 grayscale' : ''}`}>
+                  <div className="p-6 flex-1 relative">
+                    {project.isDeleted && <div className="absolute top-6 right-6 px-3 py-1 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-full z-10">Deleted</div>}
+                    <div className="flex justify-between mb-4">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${project.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30' : 'bg-slate-100 text-slate-700 dark:bg-slate-900/30'}`}>{project.status}</span>
+                      <div className="flex gap-2">
+                        {canEditProjects && (
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(project); }} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
+                        )}
+                        {canDeleteProjects && (
+                          !project.isDeleted && (
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setConfirmDialog({
+                                  isOpen: true,
+                                  title: 'Delete Project',
+                                  message: `Are you sure you want to delete project "${project.name}"?`,
+                                  onConfirm: () => {
+                                    deleteProject(project.id);
+                                    setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                  }
+                                });
+                              }} 
+                              className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{project.name}</h3>
+                      <div className="flex flex-col items-end shrink-0">
+                        <span className="text-[9px] font-black text-emerald-600 uppercase">Rec: {formatCurrency(metrics.totalCollected)}</span>
+                        <span className="text-[9px] font-black text-slate-500 uppercase">Rem: {formatCurrency(metrics.remainingAmount)}</span>
+                      </div>
+                    </div>
+                    <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1">{project.isGodown ? `Supervisor: ${project.client}` : `Client: ${project.client}`}</p>
+                    <p className="text-slate-400 text-[10px] sm:text-xs font-bold uppercase flex items-center gap-1.5 mt-0.5 sm:mt-1"><MapPin size={12} /> {project.location}</p>
+                    
+                    {project.isDeleted && (
+                      <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+                         <button onClick={(e) => { e.stopPropagation(); restoreProject(project.id); }} className="px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors flex items-center gap-2"><Check size={14} /> Restore</button>
+                         <button 
+                           onClick={(e) => { 
+                             e.stopPropagation(); 
+                             setConfirmDialog({
+                               isOpen: true,
+                               title: 'Permanently Delete Project',
+                               message: `Are you sure you want to PERMANENTLY delete project "${project.name}"? This action is irreversible and will delete all associated data.`,
+                               passwordRequired: true,
+                               password: '',
+                               onConfirm: (password) => {
+                                 const currentDate = new Date().toLocaleDateString('en-CA');
+                                 const utcDate = new Date().toISOString().split('T')[0];
+                                 if (password === currentDate || password === utcDate) {
+                                   permanentDeleteProject(project.id);
+                                   setConfirmDialog(prev => ({ ...prev, isOpen: false, password: '', error: '' }));
+                                 } else {
+                                   setConfirmDialog(prev => ({ ...prev, error: 'Incorrect password. Please try again.' }));
+                                 }
+                               }
+                             });
+                           }} 
+                           className="px-3 py-1.5 text-xs font-bold uppercase tracking-widest text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center gap-2"
+                         >
+                           <Trash2 size={14} /> Permanently Delete
+                         </button>
+                      </div>
+                    )}
+                    
+                    <div className="mt-4 sm:mt-6 flex gap-3 sm:gap-4">
+                       <button onClick={() => { setViewingProject(project); setActiveDetailTab('arrivals'); }} className="p-2.5 sm:p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl sm:rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Material Arrivals">
+                          <Package size={18} />
+                       </button>
+                       <div className="flex-1">
+                          <div className="flex justify-between text-[9px] sm:text-[10px] font-black text-slate-400 mb-1 sm:mb-1.5 uppercase tracking-widest">
+                            <span>Realized ({metrics.progress}%)</span>
+                            <span className="text-slate-900 dark:text-white">{formatCurrency(metrics.totalSpent)}</span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 sm:h-2 rounded-full overflow-hidden mb-2">
+                            <div className={`h-full ${metrics.progress > 100 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${Math.min(metrics.progress, 100)}%` }}></div>
+                          </div>
+                          <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded-lg">
+                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Remaining</span>
+                             <span className={`text-[10px] font-black ${project.budget - metrics.totalSpent < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
+                                 {formatCurrency(project.budget - metrics.totalSpent)}
+                             </span>
+                          </div>
+                       </div>
                     </div>
                   </div>
-                  <div className="flex justify-between items-start gap-2">
-                    <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">{project.name}</h3>
-                    <div className="flex flex-col items-end shrink-0">
-                      <span className="text-[9px] font-black text-emerald-600 uppercase">Rec: {formatCurrency(metrics.totalCollected)}</span>
-                      <span className="text-[9px] font-black text-slate-500 uppercase">Rem: {formatCurrency(metrics.remainingAmount)}</span>
-                    </div>
-                  </div>
-                  <p className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mt-1">{project.isGodown ? `Supervisor: ${project.client}` : `Client: ${project.client}`}</p>
-                  <p className="text-slate-400 text-[10px] sm:text-xs font-bold uppercase flex items-center gap-1.5 mt-0.5 sm:mt-1"><MapPin size={12} /> {project.location}</p>
-                  
-                  <div className="mt-4 sm:mt-6 flex gap-3 sm:gap-4">
-                     <button onClick={() => { setViewingProject(project); setActiveDetailTab('arrivals'); }} className="p-2.5 sm:p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl sm:rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Material Arrivals">
-                        <Package size={18} />
-                     </button>
-                     <div className="flex-1">
-                        <div className="flex justify-between text-[9px] sm:text-[10px] font-black text-slate-400 mb-1 sm:mb-1.5 uppercase tracking-widest">
-                          <span>Realized ({metrics.progress}%)</span>
-                          <span className="text-slate-900 dark:text-white">{formatCurrency(metrics.totalSpent)}</span>
-                        </div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 sm:h-2 rounded-full overflow-hidden mb-2">
-                          <div className={`h-full ${metrics.progress > 100 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${Math.min(metrics.progress, 100)}%` }}></div>
-                        </div>
-                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-700/50 px-2 py-1 rounded-lg">
-                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Remaining</span>
-                           <span className={`text-[10px] font-black ${project.budget - metrics.totalSpent < 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                               {formatCurrency(project.budget - metrics.totalSpent)}
-                           </span>
-                        </div>
-                     </div>
-                  </div>
+                  <button onClick={() => { setViewingProject(project); setActiveDetailTab('breakdown'); }} className="w-full py-5 bg-slate-50 dark:bg-slate-700/30 border-t border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 flex items-center justify-between px-6 hover:bg-blue-600 hover:text-white transition-all">Project Insights <ChevronRight size={18} /></button>
                 </div>
-                <button onClick={() => { setViewingProject(project); setActiveDetailTab('breakdown'); }} className="w-full py-5 bg-slate-50 dark:bg-slate-700/30 border-t border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 flex items-center justify-between px-6 hover:bg-blue-600 hover:text-white transition-all">Project Insights <ChevronRight size={18} /></button>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto no-scrollbar">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
+                  <tr>
+                    <th className="px-6 py-4">Project Name</th>
+                    <th className="px-6 py-4">Client</th>
+                    <th className="px-6 py-4">Location</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Budget</th>
+                    <th className="px-6 py-4 text-right">Spent</th>
+                    <th className="px-6 py-4 text-right">Collected</th>
+                    <th className="px-6 py-4 text-center">Progress</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {constructionSites.map((project) => {
+                    const metrics = calculateProjectMetrics(project.id, project.budget);
+                    return (
+                      <tr key={project.id} onClick={() => { setViewingProject(project); setActiveDetailTab('breakdown'); }} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{project.name}</p>
+                          {project.isDeleted && <span className="text-[8px] font-black bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase">Deleted</span>}
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">{project.client}</td>
+                        <td className="px-6 py-4 text-xs font-bold text-slate-400 uppercase">{project.location}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${project.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{project.status}</span>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-black text-slate-900 dark:text-white text-right">{formatCurrency(project.budget)}</td>
+                        <td className="px-6 py-4 text-sm font-black text-red-600 text-right">{formatCurrency(metrics.totalSpent)}</td>
+                        <td className="px-6 py-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(metrics.totalCollected)}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 justify-center">
+                            <div className="w-16 bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                              <div className={`h-full ${metrics.progress > 100 ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${Math.min(metrics.progress, 100)}%` }}></div>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-400">{metrics.progress}%</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            {canEditProjects && (
+                              <button onClick={(e) => { e.stopPropagation(); handleOpenEditProject(project); }} className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
+                            )}
+                            {canDeleteProjects && !project.isDeleted && (
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  setConfirmDialog({
+                                    isOpen: true,
+                                    title: 'Delete Project',
+                                    message: `Are you sure you want to delete project "${project.name}"?`,
+                                    onConfirm: () => {
+                                      deleteProject(project.id);
+                                      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                                    }
+                                  });
+                                }} 
+                                className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {constructionSites.length === 0 && (
+                    <tr><td colSpan={9} className="px-6 py-12 text-center text-xs font-bold text-slate-400">No projects found matching your criteria.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {showModal && (
@@ -907,16 +1118,21 @@ export const ProjectList: React.FC = () => {
                 {!viewingProject.isGodown && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                      <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Received Amount</p>
-                      <p className="text-xl font-black text-emerald-600">{formatCurrency(viewingProjectMetrics.totalCollected)}</p>
-                    </div>
-                    <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Remaining Amount</p>
                       <p className="text-xl font-black text-slate-900 dark:text-white">{formatCurrency(viewingProjectMetrics.remainingAmount)}</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Received Amount</p>
+                      <p className="text-xl font-black text-emerald-600">{formatCurrency(viewingProjectMetrics.totalCollected)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1.5">Master Budget</p>
                       <p className="text-xl font-black text-slate-900 dark:text-white">{formatCurrency(viewingProject.budget)}</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-1.5">Total Purchased</p>
+                      <p className="text-xl font-black text-purple-600">{formatCurrency(viewingProjectMetrics.totalPurchased)}</p>
+                      <p className="text-[10px] font-bold text-purple-400 mt-1">Remaining Spent : {formatCurrency(viewingProjectMetrics.totalPurchased - viewingProjectMetrics.totalSpent)}</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Spent Budget</p>
@@ -931,12 +1147,16 @@ export const ProjectList: React.FC = () => {
                       <p className="text-xl font-black text-blue-600">{formatCurrency(viewingProjectMetrics.totalInvoiced)}</p>
                     </div>
                     <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                      <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1.5">Total Received</p>
+                      <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1.5">Total Bill Received</p>
                       <p className="text-xl font-black text-emerald-600">{formatCurrency(viewingProjectMetrics.totalCollected)}</p>
                     </div>
                     <div className="bg-blue-600 p-5 rounded-3xl shadow-xl text-white flex flex-col justify-between">
                       <p className="text-[10px] font-black text-white/70 uppercase tracking-widest">Receivable Balance</p>
                       <p className="text-xl font-black mt-2">{formatCurrency(viewingProjectMetrics.receivable)}</p>
+                    </div>
+                    <div className="bg-indigo-600 p-5 rounded-3xl shadow-xl text-white flex flex-col justify-between">
+                      <p className="text-[10px] font-black text-white/70 uppercase tracking-widest">Remaining Budget</p>
+                      <p className="text-xl font-black mt-2">{formatCurrency(viewingProjectMetrics.remainingBudget)}</p>
                     </div>
                   </div>
                 )}
@@ -1227,7 +1447,7 @@ export const ProjectList: React.FC = () => {
                                </td>
                              </tr>
                            ))}
-                           {activeDetailTab === 'expenses' && viewingProjectMetrics.allExpenses.filter(e => e.inventoryAction !== 'Purchase' && e.inventoryAction !== 'Transfer').slice().reverse().filter(e => {
+                           {activeDetailTab === 'expenses' && viewingProjectMetrics.allExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer').slice().reverse().filter(e => {
                              const d = (new Date(e.date).toLocaleDateString() || '').toLowerCase();
                              const det = (e.materialId ? materials.find(m => m.id === e.materialId)?.name : e.category)?.toLowerCase() || '';
                              const q = e.materialQuantity ? Math.abs(e.materialQuantity).toString() : '';
@@ -1724,7 +1944,11 @@ export const ProjectList: React.FC = () => {
       title={confirmDialog.title}
       message={confirmDialog.message}
       onConfirm={confirmDialog.onConfirm}
-      onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+      onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false, password: '', error: '' }))}
+      passwordRequired={confirmDialog.passwordRequired}
+      passwordValue={confirmDialog.password}
+      onPasswordChange={(value) => setConfirmDialog(prev => ({ ...prev, password: value, error: '' }))}
+      error={confirmDialog.error}
     />
   </>
 );

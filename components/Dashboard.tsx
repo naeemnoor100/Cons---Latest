@@ -12,7 +12,8 @@ import {
   Wallet,
   Warehouse,
   LayoutGrid,
-  HardHat
+  HardHat,
+  Target
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -65,6 +66,8 @@ export const Dashboard: React.FC = () => {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
   const totalLaborCosts = expenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
+  const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0);
+  const remainingBudget = totalBudget - totalExpenses;
   const totalIncome = incomes.reduce((sum, i) => sum + i.amount, 0);
   const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.amount, 0);
   const totalReceivables = Math.max(0, totalInvoiced - totalIncome);
@@ -155,7 +158,8 @@ export const Dashboard: React.FC = () => {
         <DashboardCard title="Labor Costs" value={formatCurrency(totalLaborCosts)} icon={<HardHat size={20} />} colorClass="bg-orange-600" />
         <DashboardCard title="Revenue" value={formatCurrency(totalIncome)} icon={<ArrowUpCircle size={20} />} colorClass="bg-emerald-600" />
         <DashboardCard title="Total Costs" value={formatCurrency(totalExpenses)} icon={<TrendingDown size={20} />} colorClass="bg-rose-600" />
-        <DashboardCard title="Receivables" value={formatCurrency(totalReceivables)} icon={<Wallet size={20} />} colorClass="bg-indigo-600" />
+        <DashboardCard title="Receivables" value={formatCurrency(totalReceivables)} icon={<Wallet size={20} />} colorClass="bg-purple-600" />
+        <DashboardCard title="Remaining Budget" value={formatCurrency(remainingBudget)} icon={<Target size={20} />} colorClass="bg-indigo-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

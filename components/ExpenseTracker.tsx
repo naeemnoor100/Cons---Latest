@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-  Plus, Receipt, X, Briefcase, Pencil, Trash2, Package, ShoppingCart, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight
+  Plus, Receipt, X, Briefcase, Pencil, Trash2, Package, ShoppingCart, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight, FileText, Trash, ClipboardPaste
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Expense, PaymentMethod } from '../types';
@@ -9,12 +9,13 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const ExpenseTracker: React.FC = () => {
-  const { expenses, projects, vendors, materials, tradeCategories, addExpense, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked, currentUser } = useApp();
+  const { expenses, projects, vendors, materials, tradeCategories, addExpense, addExpenses, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked, currentUser, addTradeCategory } = useApp();
   
   const canCreateExpenses = currentUser.permissions?.['expenses']?.includes('create');
   const canEditExpenses = currentUser.permissions?.['expenses']?.includes('edit');
   const canDeleteExpenses = currentUser.permissions?.['expenses']?.includes('delete');
   const [showModal, setShowModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [trackStock, setTrackStock] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -46,6 +47,158 @@ export const ExpenseTracker: React.FC = () => {
     materialQuantity: ''
   });
 
+  // Bulk Entry State
+  const [bulkRows, setBulkRows] = useState<{ id: number; date: string; projectId: string; vendorId: string; category: string; amount: string; notes: string; paymentMethod: string }[]>([]);
+  const [bulkDefaults] = useState({
+    date: new Date().toISOString().split('T')[0],
+    projectId: projects.find(p => !p.isDeleted)?.id || '',
+    vendorId: '',
+    category: 'Material',
+    paymentMethod: 'Bank' as PaymentMethod
+  });
+
+  const [showPasteArea, setShowPasteArea] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const processPasteData = () => {
+    if (!pasteText.trim()) return;
+    
+    const lines = pasteText.trim().split('\n');
+    const newRows = lines.map((line, index) => {
+      const cols = line.split('\t');
+      
+      // Expected format: Date, Project, Vendor, Amount, Notes
+      const dateStr = cols[0]?.trim() || bulkDefaults.date;
+      const projectName = cols[1]?.trim() || '';
+      const vendorName = cols[2]?.trim() || '';
+      const amount = cols[3]?.trim() || '';
+      const notes = cols[4]?.trim() || '';
+      
+      // Match project by name or ID
+      const project = projects.find(p => p.name.toLowerCase() === projectName.toLowerCase() || p.id === projectName);
+      const projectId = project ? project.id : bulkDefaults.projectId;
+      
+      // Match vendor by name or ID
+      const vendor = vendors.find(v => v.name.toLowerCase() === vendorName.toLowerCase() || v.id === vendorName);
+      const vendorId = vendor ? vendor.id : bulkDefaults.vendorId;
+      
+      return {
+        id: Date.now() + index,
+        date: dateStr,
+        projectId,
+        vendorId,
+        category: bulkDefaults.category,
+        amount,
+        notes,
+        paymentMethod: bulkDefaults.paymentMethod
+      };
+    });
+    
+    setBulkRows(prev => {
+      const existing = prev.filter(r => r.amount !== '');
+      return [...existing, ...newRows];
+    });
+    setPasteText('');
+    setShowPasteArea(false);
+  };
+
+  useEffect(() => {
+    if (bulkRows.length === 0) {
+      const initialRow = { 
+        id: Date.now(), 
+        date: bulkDefaults.date, 
+        projectId: bulkDefaults.projectId, 
+        vendorId: bulkDefaults.vendorId,
+        category: bulkDefaults.category, 
+        amount: '', 
+        notes: '', 
+        paymentMethod: bulkDefaults.paymentMethod 
+      };
+      const timer = setTimeout(() => {
+        setBulkRows([initialRow]);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [projects, bulkRows.length, bulkDefaults]);
+
+  const addBulkRow = () => {
+    setBulkRows(prev => [...prev, { 
+      id: Date.now(), 
+      date: bulkDefaults.date, 
+      projectId: bulkDefaults.projectId, 
+      vendorId: bulkDefaults.vendorId,
+      category: bulkDefaults.category, 
+      amount: '', 
+      notes: '', 
+      paymentMethod: bulkDefaults.paymentMethod 
+    }]);
+  };
+
+  const removeBulkRow = (id: number) => {
+    if (bulkRows.length > 1) {
+      setBulkRows(prev => prev.filter(r => r.id !== id));
+    }
+  };
+
+  const updateBulkRow = (id: number, field: string, value: string) => {
+    setBulkRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+  };
+
+  const clearAllBulkRows = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Clear All Rows',
+      message: 'Are you sure you want to remove all entered rows? This action cannot be undone.',
+      onConfirm: () => {
+        setBulkRows([]);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleBulkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const invalidRows = bulkRows.filter(r => parseFloat(r.amount) <= 0);
+    if (invalidRows.length > 0) {
+      alert("All expense amounts must be greater than zero. Please check your entries.");
+      return;
+    }
+
+    const newExpenses: Expense[] = bulkRows.map(row => ({
+      id: 'e' + Math.random().toString(36).substring(2, 9),
+      date: row.date,
+      projectId: row.projectId,
+      vendorId: row.vendorId || undefined,
+      amount: parseFloat(row.amount) || 0,
+      paymentMethod: row.paymentMethod as PaymentMethod,
+      notes: row.notes || 'Bulk Entry',
+      category: row.category,
+      inventoryAction: 'Purchase'
+    }));
+    
+    if (newExpenses.length === 0) return;
+    
+    try {
+      await addExpenses(newExpenses);
+      setShowBulkModal(false);
+      setBulkRows([{ 
+        id: Date.now(), 
+        date: bulkDefaults.date, 
+        projectId: bulkDefaults.projectId, 
+        vendorId: bulkDefaults.vendorId,
+        category: bulkDefaults.category, 
+        amount: '', 
+        notes: '', 
+        paymentMethod: bulkDefaults.paymentMethod 
+      }]);
+    } catch (err) {
+      console.error('Bulk entry failed:', err);
+    }
+  };
+
   // Filtered Expenses Logic
   const filteredExpenses = useMemo(() => {
     return expenses.filter(exp => {
@@ -76,12 +229,49 @@ export const ExpenseTracker: React.FC = () => {
   const handleQuantityChange = (qtyStr: string) => {
     setFormData(prev => {
       const newState = { ...prev, materialQuantity: qtyStr };
-      if (editingExpense?.materialId && trackStock) {
-        const mat = materials.find(m => m.id === (prev.materialId.split('|')[0]));
-        if (mat) {
+      if (trackStock && prev.materialId) {
+        const [matId, batchId] = prev.materialId.split('|');
+        const selection = siteSpecificInventory.find(s => s.id === matId && s.batchId === batchId);
+        if (selection) {
           const qty = parseFloat(qtyStr) || 0;
-          const newAmount = qty * (editingExpense.unitPrice || mat.costPerUnit);
+          const unitPrice = selection.price || 0;
+          const newAmount = qty * unitPrice;
           newState.amount = newAmount.toFixed(2);
+        } else {
+          // Fallback to general material price if not found in inventory
+          const mat = materials.find(m => m.id === matId);
+          if (mat) {
+             const qty = parseFloat(qtyStr) || 0;
+             const unitPrice = mat.costPerUnit || 0;
+             const newAmount = qty * unitPrice;
+             newState.amount = newAmount.toFixed(2);
+          }
+        }
+      }
+      return newState;
+    });
+  };
+
+  const handleMaterialChange = (materialId: string) => {
+    setFormData(prev => {
+      const newState = { ...prev, materialId };
+      if (trackStock && materialId) {
+        const [matId, batchId] = materialId.split('|');
+        const selection = siteSpecificInventory.find(s => s.id === matId && s.batchId === batchId);
+        if (selection) {
+          const qty = parseFloat(prev.materialQuantity) || 0;
+          const unitPrice = selection.price || 0;
+          const newAmount = qty * unitPrice;
+          newState.amount = newAmount.toFixed(2);
+        } else {
+          // Fallback to general material price if not found in inventory
+          const mat = materials.find(m => m.id === matId);
+          if (mat) {
+             const qty = parseFloat(prev.materialQuantity) || 0;
+             const unitPrice = mat.costPerUnit || 0;
+             const newAmount = qty * unitPrice;
+             newState.amount = newAmount.toFixed(2);
+          }
         }
       }
       return newState;
@@ -113,6 +303,7 @@ export const ExpenseTracker: React.FC = () => {
     batchId?: string;
     vendorId?: string;
     isLocal?: boolean;
+    price: number;
   }
 
   const siteSpecificInventory = useMemo(() => {
@@ -124,7 +315,7 @@ export const ExpenseTracker: React.FC = () => {
       const purchaseEntries = history.filter(h => h.type === 'Purchase');
       
       if (isPurchase) {
-        results.push({ id: m.id, name: m.name, unit: m.unit, display: m.name });
+        results.push({ id: m.id, name: m.name, unit: m.unit, display: m.name, price: m.costPerUnit });
         return;
       }
 
@@ -146,6 +337,7 @@ export const ExpenseTracker: React.FC = () => {
             batchId: batchId,
             vendorId: purchase.vendorId,
             isLocal: purchase.projectId === formData.projectId,
+            price: price,
             display: `${m.name} / ${vName} / ${formatCurrency(price)} / ${availableInBatch.toLocaleString()} ${m.unit}`
           });
         }
@@ -169,6 +361,8 @@ export const ExpenseTracker: React.FC = () => {
       materialQuantity: ''
     });
     setTrackStock(false);
+    setIsAddingCategory(false);
+    setNewCategoryName('');
   }, [projects]);
 
   const handleCreateOrUpdateExpense = useCallback(async (e: React.FormEvent) => {
@@ -188,14 +382,21 @@ export const ExpenseTracker: React.FC = () => {
 
     const finalMaterialId = trackStock ? formData.materialId.split('|')[0] : undefined;
     const finalQuantity = trackStock ? (formData.materialId ? parseFloat(formData.materialQuantity) || undefined : undefined) : undefined;
+    const amountVal = parseFloat(formData.amount) || 0;
 
     const inventoryAction = editingExpense?.inventoryAction || (trackStock ? (isPurchase ? 'Purchase' : 'Usage') : undefined);
+    
+    if (amountVal <= 0 && inventoryAction !== 'Transfer') {
+      alert("Expense amount must be greater than zero.");
+      return;
+    }
+
     const expData: Expense = {
       id: editingExpense ? editingExpense.id : 'e' + Date.now().toString(),
       date: formData.date,
       projectId: formData.projectId,
       vendorId: formData.vendorId || undefined,
-      amount: inventoryAction === 'Transfer' ? 0 : (parseFloat(formData.amount) || 0),
+      amount: inventoryAction === 'Transfer' ? 0 : amountVal,
       paymentMethod: formData.paymentMethod,
       notes: formData.notes || 'General Expense',
       category: formData.category,
@@ -262,12 +463,20 @@ export const ExpenseTracker: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Record expenditures and trigger stock arrivals.</p>
         </div>
         {canCreateExpenses && (
-          <button 
-            onClick={() => { resetForm(); setShowModal(true); }}
-            className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
-          >
-            <Plus size={20} /> Record Expense
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button 
+              onClick={() => setShowBulkModal(true)}
+              className="flex-1 sm:flex-none bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+            >
+              <FileText size={20} /> Bulk Entry
+            </button>
+            <button 
+              onClick={() => { resetForm(); setShowModal(true); }}
+              className="flex-1 sm:flex-none bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+            >
+              <Plus size={20} /> Record Expense
+            </button>
+          </div>
         )}
       </div>
 
@@ -346,7 +555,7 @@ export const ExpenseTracker: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-center">
                        {exp.materialQuantity ? (
-                         <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${exp.inventoryAction === 'Purchase' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
+                         <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${(exp.inventoryAction === 'Purchase' || (!exp.inventoryAction && !!exp.materialId)) ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
                            {Math.abs(exp.materialQuantity).toLocaleString()} {mat?.unit || ''}
                          </span>
                        ) : <span className="text-slate-300">--</span>}
@@ -396,6 +605,155 @@ export const ExpenseTracker: React.FC = () => {
         </div>
       </div>
 
+      {/* Bulk Entry Modal */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-6xl h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900">
+              <div className="flex gap-4 items-center">
+                <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg">
+                  <FileText size={24} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none">Bulk Expense Entry</h2>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Batch record multiple expenditures • Paste from Excel supported</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <button 
+                  type="button"
+                  onClick={clearAllBulkRows}
+                  className="flex items-center gap-2 px-6 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 dark:hover:bg-red-900/40 transition-all"
+                >
+                  <Trash size={16} />
+                  Clear All
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowPasteArea(!showPasteArea)}
+                  className="flex items-center gap-2 px-6 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  <ClipboardPaste size={16} />
+                  Paste from Excel
+                </button>
+                <button onClick={() => setShowBulkModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                  <X size={32} />
+                </button>
+              </div>
+            </div>
+
+            {showPasteArea && (
+              <div className="p-8 bg-blue-50/50 dark:bg-blue-900/10 border-b border-blue-100 dark:border-blue-900/30 animate-in slide-in-from-top duration-300">
+                <div className="max-w-4xl mx-auto space-y-4">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <h3 className="text-sm font-black text-blue-600 uppercase tracking-tight">Excel Paste Helper</h3>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Format: Date | Project | Vendor | Amount | Notes</p>
+                    </div>
+                    <button 
+                      onClick={processPasteData}
+                      disabled={!pasteText.trim()}
+                      className="px-8 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20 transition-all"
+                    >
+                      Process & Add Rows
+                    </button>
+                  </div>
+                  <textarea 
+                    className="w-full h-32 p-4 bg-white dark:bg-slate-900 border-2 border-dashed border-blue-200 dark:border-blue-800 rounded-2xl text-xs font-mono outline-none focus:border-blue-400 transition-colors"
+                    placeholder="Paste your Excel columns here...&#10;2023-10-01	Site A	Vendor X	5000	Cement Purchase"
+                    value={pasteText}
+                    onChange={e => setPasteText(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <form onSubmit={handleBulkSubmit} className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-8 no-scrollbar">
+                <table className="w-full text-left border-separate border-spacing-y-2">
+                  <thead className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <tr>
+                      <th className="px-4 py-2">Date</th>
+                      <th className="px-4 py-2">Project</th>
+                      <th className="px-4 py-2">Vendor</th>
+                      <th className="px-4 py-2">Category</th>
+                      <th className="px-4 py-2">Amount</th>
+                      <th className="px-4 py-2">Method</th>
+                      <th className="px-4 py-2">Notes</th>
+                      <th className="px-4 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bulkRows.map((row) => (
+                      <tr key={row.id} className="group">
+                        <td className="px-1">
+                          <input type="date" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.date} onChange={e => updateBulkRow(row.id, 'date', e.target.value)} required />
+                        </td>
+                        <td className="px-1">
+                          <select className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.projectId} onChange={e => updateBulkRow(row.id, 'projectId', e.target.value)} required>
+                            {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-1">
+                          <select className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.vendorId} onChange={e => updateBulkRow(row.id, 'vendorId', e.target.value)}>
+                            <option value="">Self / Direct</option>
+                            {vendors.filter(v => v.isActive !== false).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-1">
+                          <select className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.category} onChange={e => updateBulkRow(row.id, 'category', e.target.value)}>
+                            {tradeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-1">
+                          <input type="number" step="0.01" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black dark:text-white outline-none" placeholder="0.00" value={row.amount} onChange={e => updateBulkRow(row.id, 'amount', e.target.value)} required />
+                        </td>
+                        <td className="px-1">
+                          <select className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.paymentMethod} onChange={e => updateBulkRow(row.id, 'paymentMethod', e.target.value)}>
+                            <option value="Bank">Bank</option>
+                            <option value="Cash">Cash</option>
+                            <option value="Online">Online</option>
+                          </select>
+                        </td>
+                        <td className="px-1">
+                          <input type="text" className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" placeholder="Notes..." value={row.notes} onChange={e => updateBulkRow(row.id, 'notes', e.target.value)} />
+                        </td>
+                        <td className="px-1">
+                          <button type="button" onClick={() => removeBulkRow(row.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
+                            <Trash size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                <button 
+                  type="button" 
+                  onClick={addBulkRow}
+                  className="mt-4 flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl text-xs font-bold transition-all"
+                >
+                  <Plus size={16} /> Add Another Row
+                </button>
+              </div>
+              
+              <div className="p-8 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                <div className="text-slate-500">
+                  <p className="text-[10px] font-black uppercase tracking-widest">Total Batch Value</p>
+                  <p className="text-xl font-black text-slate-900 dark:text-white">
+                    {formatCurrency(bulkRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0))}
+                  </p>
+                </div>
+                <div className="flex gap-4">
+                  <button type="button" onClick={() => setShowBulkModal(false)} className="px-8 py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all">Cancel</button>
+                  <button type="submit" className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all">Authorize Batch Entry</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Expense Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
@@ -429,14 +787,58 @@ export const ExpenseTracker: React.FC = () => {
                 </div>
                 <div className="space-y-1.5">
                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Cost Category</label>
-                   <select 
-                    disabled={!!editingExpense?.materialId}
-                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none disabled:opacity-50" 
-                    value={formData.category} 
-                    onChange={(e) => setFormData(p => ({ ...p, category: e.target.value, materialId: '' }))}
-                  >
-                    {tradeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
+                   {!isAddingCategory ? (
+                     <div className="flex gap-2">
+                       <select 
+                        disabled={!!editingExpense?.materialId}
+                        className="flex-1 px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none disabled:opacity-50" 
+                        value={formData.category} 
+                        onChange={(e) => setFormData(p => ({ ...p, category: e.target.value, materialId: '' }))}
+                      >
+                        {tradeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      <button 
+                        type="button"
+                        onClick={() => setIsAddingCategory(true)}
+                        className="p-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                        title="Add New Category"
+                      >
+                        <Plus size={20} />
+                      </button>
+                     </div>
+                   ) : (
+                     <div className="flex gap-2">
+                       <input 
+                        type="text" 
+                        placeholder="New category name..." 
+                        className="flex-1 px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" 
+                        value={newCategoryName}
+                        onChange={e => setNewCategoryName(e.target.value)}
+                        autoFocus
+                       />
+                       <button 
+                        type="button"
+                        onClick={() => {
+                          if (newCategoryName.trim()) {
+                            addTradeCategory(newCategoryName.trim());
+                            setFormData(p => ({ ...p, category: newCategoryName.trim() }));
+                            setNewCategoryName('');
+                            setIsAddingCategory(false);
+                          }
+                        }}
+                        className="px-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all"
+                       >
+                         Save
+                       </button>
+                       <button 
+                        type="button"
+                        onClick={() => setIsAddingCategory(false)}
+                        className="px-4 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                       >
+                         Cancel
+                       </button>
+                     </div>
+                   )}
                 </div>
               </div>
 
@@ -466,7 +868,7 @@ export const ExpenseTracker: React.FC = () => {
                           disabled={!!editingExpense?.materialId}
                           className="w-full px-5 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs dark:text-white outline-none disabled:opacity-50"
                           value={formData.materialId}
-                          onChange={e => setFormData(p => ({ ...p, materialId: e.target.value }))}
+                          onChange={e => handleMaterialChange(e.target.value)}
                           required={trackStock}
                         >
                            <option value="">Choose asset / batch...</option>

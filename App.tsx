@@ -14,9 +14,25 @@ import { Settings } from './components/Settings';
 import { SupplierPayments } from './components/SupplierPayments';
 import { LaborManager } from './components/LaborManager';
 import { SplashScreen } from './components/SplashScreen';
+import { ExportPopup } from './components/ExportPopup';
+import { useEffect } from 'react';
 
 const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showExportPopup, setShowExportPopup] = useState(false);
+
+  useEffect(() => {
+    const lastPopupTime = localStorage.getItem('lastExportPopupTime');
+    const now = Date.now();
+    const twentyFourHours = 24 * 60 * 60 * 1000;
+
+    if (!lastPopupTime || (now - parseInt(lastPopupTime)) > twentyFourHours) {
+      setTimeout(() => {
+        setShowExportPopup(true);
+        localStorage.setItem('lastExportPopupTime', Date.now().toString());
+      }, 1000);
+    }
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -49,6 +65,7 @@ const MainApp: React.FC = () => {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      {showExportPopup && <ExportPopup onClose={() => setShowExportPopup(false)} />}
       {renderContent()}
     </Layout>
   );

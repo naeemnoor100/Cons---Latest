@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  ChevronLeft,
   ArrowUpCircle,
   Cloud,
   RefreshCw,
@@ -23,6 +24,7 @@ import {
   HardHat,
   DollarSign
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useApp } from '../AppContext';
 import { SyncCenter } from './SyncCenter';
 
@@ -38,7 +40,8 @@ const SidebarItem: React.FC<{
   isActive: boolean; 
   onClick: () => void;
   isSpecial?: boolean;
-}> = ({ icon, label, isActive, onClick, isSpecial }) => (
+  isCollapsed?: boolean;
+}> = ({ icon, label, isActive, onClick, isSpecial, isCollapsed }) => (
   <button
     onClick={onClick}
     className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
@@ -47,11 +50,12 @@ const SidebarItem: React.FC<{
         : isSpecial 
           ? 'text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-    }`}
+    } ${isCollapsed ? 'justify-center px-2' : ''}`}
+    title={isCollapsed ? label : ''}
   >
-    <span className={isActive ? 'text-white' : ''}>{icon}</span>
-    <span className="font-bold text-sm">{label}</span>
-    {isActive && <ChevronRight className="ml-auto w-4 h-4 opacity-50" />}
+    <span className={`shrink-0 ${isActive ? 'text-white' : ''}`}>{icon}</span>
+    {!isCollapsed && <span className="font-bold text-sm whitespace-nowrap overflow-hidden">{label}</span>}
+    {isActive && !isCollapsed && <ChevronRight className="ml-auto w-4 h-4 opacity-50 shrink-0" />}
   </button>
 );
 
@@ -81,6 +85,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const [showSyncCenter, setShowSyncCenter] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const primaryMenuItems = [
     { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} strokeWidth={2.5} /> },
@@ -107,16 +112,30 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   return (
     <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} bg-slate-50 dark:bg-slate-950 overflow-hidden`}>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50">
-        <div className="h-20 flex items-center px-6 border-b border-slate-100 dark:border-slate-800">
+      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50 transition-all duration-300 relative`}>
+        <div className="h-20 flex items-center px-6 border-b border-slate-100 dark:border-slate-800 overflow-hidden">
           <div className="flex items-center gap-2.5">
-            <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white shadow-lg shadow-orange-200 dark:shadow-none"><Briefcase size={20} strokeWidth={3} /></div>
-            <h1 className="text-lg font-black text-[#003366] dark:text-white tracking-tighter">BUILDTRACK11<span className="text-[#FF5A00]">PRO</span></h1>
+            <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white shadow-lg shadow-orange-200 dark:shadow-none shrink-0"><Briefcase size={20} strokeWidth={3} /></div>
+            {!isCollapsed && <h1 className="text-lg font-black text-[#003366] dark:text-white tracking-tighter whitespace-nowrap">BUILDTRACK<span className="text-[#FF5A00]">PRO</span></h1>}
           </div>
         </div>
+        
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute -right-3 top-24 w-6 h-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shadow-sm z-10 transition-all"
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
+
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
           {[...filteredPrimaryMenuItems, ...filteredSecondaryMenuItems].map((item) => (
-            <SidebarItem key={item.id} {...item} isActive={activeTab === item.id} onClick={() => setActiveTab(item.id)} />
+            <SidebarItem 
+              key={item.id} 
+              {...item} 
+              isActive={activeTab === item.id} 
+              onClick={() => setActiveTab(item.id)} 
+              isCollapsed={isCollapsed}
+            />
           ))}
         </nav>
       </aside>
@@ -194,69 +213,94 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         </nav>
 
         {/* Mobile Sidebar Drawer */}
-        {showMobileSidebar && (
-          <div className="lg:hidden fixed inset-0 z-[150] animate-in fade-in duration-200">
-            <div 
-              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
-              onClick={() => setShowMobileSidebar(false)}
-            ></div>
-            <div className="absolute top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
-              <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white"><Briefcase size={18} strokeWidth={3} /></div>
-                  <h1 className="text-base font-black text-[#003366] dark:text-white tracking-tighter">BT<span className="text-[#FF5A00]">PRO</span></h1>
+        <AnimatePresence>
+          {showMobileSidebar && (
+            <div className="lg:hidden fixed inset-0 z-[150]">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+                onClick={() => setShowMobileSidebar(false)}
+              />
+              <motion.div 
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="absolute top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 shadow-2xl flex flex-col"
+              >
+                <div className="h-20 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white"><Briefcase size={18} strokeWidth={3} /></div>
+                    <h1 className="text-base font-black text-[#003366] dark:text-white tracking-tighter">BT<span className="text-[#FF5A00]">PRO</span></h1>
+                  </div>
+                  <button 
+                    onClick={() => setShowMobileSidebar(false)}
+                    className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
-                <button 
-                  onClick={() => setShowMobileSidebar(false)}
-                  className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
-                {[...filteredPrimaryMenuItems, ...filteredSecondaryMenuItems].map((item) => (
-                  <SidebarItem 
-                    key={item.id} 
-                    {...item} 
-                    isActive={activeTab === item.id} 
-                    onClick={() => {
-                      setActiveTab(item.id);
-                      setShowMobileSidebar(false);
-                    }} 
-                  />
-                ))}
-              </nav>
+                <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
+                  {[...filteredPrimaryMenuItems, ...filteredSecondaryMenuItems].map((item) => (
+                    <SidebarItem 
+                      key={item.id} 
+                      {...item} 
+                      isActive={activeTab === item.id} 
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setShowMobileSidebar(false);
+                      }} 
+                    />
+                  ))}
+                </nav>
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
 
         {/* Mobile "More" Menu Overlay */}
-        {showMoreMenu && (
-          <div className="lg:hidden fixed inset-0 z-[100] animate-in fade-in duration-200">
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowMoreMenu(false)}></div>
-            <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 rounded-t-[2.5rem] shadow-2xl p-6 pb-12 animate-in slide-in-from-bottom duration-300">
-               <div className="w-10 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-6"></div>
-               <div className="flex justify-between items-center mb-6 px-2">
-                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Business Tools</h3>
-                 <button onClick={() => setShowMoreMenu(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400"><X size={18} /></button>
-               </div>
-               <div className="grid grid-cols-3 gap-y-6 gap-x-2">
-                  {filteredSecondaryMenuItems.map(item => (
-                    <button 
-                      key={item.id} 
-                      onClick={() => { setActiveTab(item.id); setShowMoreMenu(false); }}
-                      className="flex flex-col items-center gap-2 group"
-                    >
-                      <div className={`p-4 rounded-2xl transition-all duration-300 ${activeTab === item.id ? 'bg-[#003366] text-white shadow-xl' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
-                         {item.icon}
-                      </div>
-                      <span className={`text-[9px] font-bold uppercase tracking-tight text-center ${activeTab === item.id ? 'text-[#003366] dark:text-white' : 'text-slate-500'}`}>{item.label}</span>
-                    </button>
-                  ))}
-               </div>
+        <AnimatePresence>
+          {showMoreMenu && (
+            <div className="lg:hidden fixed inset-0 z-[100]">
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+                onClick={() => setShowMoreMenu(false)}
+              />
+              <motion.div 
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-900 rounded-t-[2.5rem] shadow-2xl p-6 pb-12"
+              >
+                 <div className="w-10 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-6"></div>
+                 <div className="flex justify-between items-center mb-6 px-2">
+                   <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Business Tools</h3>
+                   <button onClick={() => setShowMoreMenu(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400"><X size={18} /></button>
+                 </div>
+                 <div className="grid grid-cols-3 gap-y-6 gap-x-2">
+                    {filteredSecondaryMenuItems.map(item => (
+                      <button 
+                        key={item.id} 
+                        onClick={() => { setActiveTab(item.id); setShowMoreMenu(false); }}
+                        className="flex flex-col items-center gap-2 group"
+                      >
+                        <div className={`p-4 rounded-2xl transition-all duration-300 ${activeTab === item.id ? 'bg-[#003366] text-white shadow-xl' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                           {item.icon}
+                        </div>
+                        <span className={`text-[9px] font-bold uppercase tracking-tight text-center ${activeTab === item.id ? 'text-[#003366] dark:text-white' : 'text-slate-500'}`}>{item.label}</span>
+                      </button>
+                    ))}
+                 </div>
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
 
       {showSyncCenter && <SyncCenter onClose={() => setShowSyncCenter(false)} />}

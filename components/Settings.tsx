@@ -27,9 +27,8 @@ export const Settings: React.FC = () => {
     stockingUnits, addStockingUnit, removeStockingUnit,
     siteStatuses, addSiteStatus, removeSiteStatus,
     allowDecimalStock, setAllowDecimalStock,
-    projects, vendors, materials, expenses, incomes, invoices, payments,
-    employees, laborLogs, laborPayments, activityLogs,
-    importState, forceSync, syncId
+    importState, forceSync, syncId,
+    exportData, exportExcel
   } = useApp();
   
   const [activeSection, setActiveSection] = useState<'system' | 'master-lists' | 'database' | 'backup' | 'activity-log'>('system');
@@ -39,37 +38,24 @@ export const Settings: React.FC = () => {
   const [activitySearch, setActivitySearch] = useState('');
   const [isWipePromptOpen, setIsWipePromptOpen] = useState(false);
   const [wipePassword, setWipePassword] = useState('');
+  const [wipeError, setWipeError] = useState('');
   
   // To avoid unused var errors
   console.log(dbInitStatus, testStatus, importStatus);
   
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
 
   const [newTradeCat, setNewTradeCat] = useState('');
   const [newUnit, setNewUnit] = useState('');
   const [newStatus, setNewStatus] = useState('');
 
-  const handleExportData = () => {
-    const fullState: AppState = {
-      projects, vendors, materials, expenses, payments, incomes, invoices,
-      employees, laborLogs, laborPayments,
-      tradeCategories, stockingUnits, siteStatuses, allowDecimalStock,
-      currentUser, theme, syncId: 'BUILDMASTER_PRO_DATABASE_ACTIVE'
-    };
-    
-    const blob = new Blob([JSON.stringify(fullState, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `BuildMasterPro_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   const handleImportClick = () => {
     jsonFileInputRef.current?.click();
+  };
+
+  const handleExcelImportClick = () => {
+    excelFileInputRef.current?.click();
   };
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,12 +87,55 @@ export const Settings: React.FC = () => {
     reader.readAsText(file);
   };
 
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        setImportStatus('loading');
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        const newState: Partial<AppState> = { ...INITIAL_STATE };
+        
+        workbook.SheetNames.forEach(name => {
+          const worksheet = workbook.Sheets[name];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          
+          if (name.toLowerCase() === 'projects') newState.projects = jsonData as unknown as AppState['projects'];
+          if (name.toLowerCase() === 'vendors') newState.vendors = jsonData as unknown as AppState['vendors'];
+          if (name.toLowerCase() === 'materials') newState.materials = jsonData as unknown as AppState['materials'];
+          if (name.toLowerCase() === 'employees') newState.employees = jsonData as unknown as AppState['employees'];
+          if (name.toLowerCase() === 'expenses') newState.expenses = jsonData as unknown as AppState['expenses'];
+          if (name.toLowerCase() === 'incomes') newState.incomes = jsonData as unknown as AppState['incomes'];
+          if (name.toLowerCase() === 'invoices') newState.invoices = jsonData as unknown as AppState['invoices'];
+          if (name.toLowerCase() === 'payments') newState.payments = jsonData as unknown as AppState['payments'];
+        });
+
+        await importState(newState as AppState);
+        setImportStatus('success');
+        alert("Excel Import Successful!");
+      } catch (err) {
+        console.error(err);
+        alert("Excel Import Failed. Ensure sheet names match (Projects, Vendors, etc.)");
+      } finally {
+        setImportStatus('idle');
+        if (excelFileInputRef.current) excelFileInputRef.current.value = '';
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
   const handleResetApp = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    if (wipePassword !== today) {
-      alert('Incorrect password');
+    const todayUTC = new Date().toISOString().split('T')[0];
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+    if (wipePassword !== todayUTC && wipePassword !== todayLocal) {
+      setWipeError('Incorrect password. Please try again.');
       return;
     }
+    setWipeError('');
     try {
       await fetch('/api.php?action=delete_state', {
         method: 'POST',
@@ -118,35 +147,6 @@ export const Settings: React.FC = () => {
     }
     await importState(INITIAL_STATE);
     window.location.reload();
-  };
-
-  const handleExportExcel = () => {
-    const wb = XLSX.utils.book_new();
-
-    const addSheet = (data: unknown[], name: string) => {
-      if (data && data.length > 0) {
-        const ws = XLSX.utils.json_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, name);
-      }
-    };
-
-    addSheet(projects, 'Projects');
-    addSheet(vendors, 'Vendors');
-    addSheet(materials, 'Materials');
-    addSheet(expenses, 'Expenses');
-    addSheet(incomes, 'Incomes');
-    addSheet(invoices, 'Invoices');
-    addSheet(payments, 'Payments');
-    addSheet(employees, 'Employees');
-    addSheet(laborLogs, 'LaborLogs');
-    addSheet(laborPayments, 'LaborPayments');
-
-    if (wb.SheetNames.length === 0) {
-      const ws = XLSX.utils.json_to_sheet([{ Message: "No data available" }]);
-      XLSX.utils.book_append_sheet(wb, ws, 'Empty');
-    }
-
-    XLSX.writeFile(wb, `buildtrack_pro_export_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleTestConnection = async () => {
@@ -321,13 +321,13 @@ export const Settings: React.FC = () => {
             {activeSection === 'backup' && (
               <div className="p-8 space-y-8 animate-in fade-in duration-300">
                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <button onClick={handleExportData} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-blue-500 transition-all">
+                    <button onClick={exportData} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-blue-500 transition-all">
                        <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl"><DownloadCloud size={32} /></div>
                        <div className="text-center">
                           <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Export .JSON</h4>
                        </div>
                     </button>
-                    <button onClick={handleExportExcel} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-emerald-500 transition-all">
+                    <button onClick={exportExcel} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-emerald-500 transition-all">
                        <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><FileSpreadsheet size={32} /></div>
                        <div className="text-center">
                           <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Export .XLSX</h4>
@@ -340,12 +340,26 @@ export const Settings: React.FC = () => {
                        </div>
                        <input type="file" ref={jsonFileInputRef} className="hidden" accept=".json" onChange={handleFileImport} />
                     </button>
+                    <button onClick={handleExcelImportClick} className="group p-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-[2rem] flex flex-col items-center gap-4 hover:border-emerald-500 transition-all">
+                       <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><FileSpreadsheet size={32} /></div>
+                       <div className="text-center">
+                          <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Import .XLSX</h4>
+                       </div>
+                       <input type="file" ref={excelFileInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
+                    </button>
+                 </div>
+                 <div className="p-6 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 rounded-[2rem]">
+                    <h4 className="text-xs font-black uppercase text-blue-600 mb-2">Import Instructions</h4>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                      For Excel imports, ensure your workbook contains sheets named exactly: <span className="font-bold">Projects, Vendors, Materials, Employees, Expenses, Incomes, Invoices, Payments</span>. The column headers should match the system's data structure.
+                    </p>
                  </div>
                  <div className="p-6 bg-rose-50 dark:bg-rose-900/10 border border-rose-100 rounded-[2rem] space-y-4">
                     <h4 className="text-xs font-black uppercase text-rose-600">Danger Zone</h4>
                     {isWipePromptOpen ? (
                       <div className="flex flex-col gap-2">
-                        <input type="text" value={wipePassword} onChange={(e) => setWipePassword(e.target.value)} placeholder="Enter password (YYYY-MM-DD)" className="px-4 py-2 rounded-xl border border-rose-200" />
+                        <input type="text" value={wipePassword} onChange={(e) => { setWipePassword(e.target.value); setWipeError(''); }} onKeyDown={(e) => { if (e.key === 'Enter') handleResetApp(); }} placeholder={`Enter password (${new Date().toISOString().split('T')[0]})`} className={`px-4 py-2 rounded-xl border ${wipeError ? 'border-rose-500' : 'border-rose-200'} outline-none focus:ring-2 focus:ring-rose-500`} />
+                        {wipeError && <p className="text-rose-500 text-xs font-bold">{wipeError}</p>}
                         <button onClick={handleResetApp} className="flex items-center justify-center px-6 py-3 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all">Confirm Wipe</button>
                       </div>
                     ) : (

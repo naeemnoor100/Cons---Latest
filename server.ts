@@ -138,6 +138,12 @@ const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
 async function initDb() {
   try {
     await db.exec(schema);
+    try {
+      await run("ALTER TABLE laborPayments ADD COLUMN projectId VARCHAR(255)");
+      console.log("Added projectId column to laborPayments");
+    } catch {
+      // Column might already exist
+    }
     console.log("Relational database initialized");
   } catch (err) {
     console.error("Database initialization error:", err);
@@ -404,9 +410,9 @@ async function startServer() {
 
         // Labor Payments
         await refillTable("laborPayments", data.laborPayments || [], `
-          INSERT INTO laborPayments (syncId, id, employeeId, date, amount, method, reference, notes)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, lp => [lp.id, lp.employeeId, lp.date, lp.amount, lp.method, lp.reference, lp.notes]);
+          INSERT INTO laborPayments (syncId, id, employeeId, projectId, date, amount, method, reference, notes)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, lp => [lp.id, lp.employeeId, lp.projectId, lp.date, lp.amount, lp.method, lp.reference, lp.notes]);
 
         // Users
         await refillTable("users", data.users || [], `

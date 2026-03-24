@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   ArrowRight,
   ArrowDownCircle,
+  ArrowUpRight,
   Clock,
   Pencil,
   Trash2,
@@ -21,16 +22,18 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const VendorList: React.FC = () => {
-  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor, addPayment, currentUser } = useApp();
+  const { vendors, payments, expenses, projects, materials, tradeCategories, addVendor, updateVendor, deleteVendor, addPayment, updatePayment, deletePayment, currentUser } = useApp();
   
   const canCreateVendors = currentUser.permissions?.['vendors']?.includes('create');
   const canEditVendors = currentUser.permissions?.['vendors']?.includes('edit');
   const canDeleteVendors = currentUser.permissions?.['vendors']?.includes('delete');
+  const canCreatePayments = currentUser.permissions?.['payments']?.includes('create');
   const [searchTerm, setSearchTerm] = useState('');
   const [ledgerSearchTerm, setLedgerSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [payingVendor, setPayingVendor] = useState<Vendor | null>(null);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -118,26 +121,37 @@ export const VendorList: React.FC = () => {
       estimatedValue: number;
       remainingBalance: number;
     }[] = [];
-    materials.forEach(mat => {
-      if (mat.history) {
-        mat.history.forEach(h => {
-          if (h.type === 'Purchase' && h.vendorId === vendorId) {
-            const totalPaidForBatch = payments.filter(p => p.materialBatchId === h.id).reduce((sum, p) => sum + p.amount, 0);
-            const value = h.quantity * (h.unitPrice || mat.costPerUnit);
-            supplyList.push({ 
-              ...h, 
-              materialName: mat.name, 
-              unit: mat.unit,
-              unitPrice: h.unitPrice || mat.costPerUnit,
-              estimatedValue: value,
-              remainingBalance: value - totalPaidForBatch
-            });
-          }
-        });
-      }
+    
+    const purchaseBills = expenses.filter(e => e.vendorId === vendorId && (e.inventoryAction === 'Purchase' || !e.inventoryAction));
+    
+    purchaseBills.forEach(e => {
+      const mat = materials.find(m => m.id === e.materialId);
+      const materialName = mat ? mat.name : e.category;
+      const unit = mat ? mat.unit : 'Unit';
+      const quantity = e.materialQuantity || 1;
+      const unitPrice = e.unitPrice || (e.materialQuantity ? e.amount / e.materialQuantity : e.amount);
+      const value = e.amount;
+      
+      const totalPaidForBatch = payments.filter(p => p.materialBatchId === 'sh-exp-' + e.id).reduce((sum, p) => sum + p.amount, 0);
+      
+      supplyList.push({
+        id: 'sh-exp-' + e.id,
+        date: e.date,
+        type: 'Purchase',
+        quantity,
+        unitPrice,
+        projectId: e.projectId,
+        vendorId: e.vendorId!,
+        note: e.notes,
+        materialName,
+        unit,
+        estimatedValue: value,
+        remainingBalance: value - totalPaidForBatch
+      });
     });
+
     return supplyList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [materials, payments]);
+  }, [materials, payments, expenses]);
 
   const vendorSupplies = useMemo(() => {
     if (!activeVendor) return [];
@@ -187,9 +201,14 @@ export const VendorList: React.FC = () => {
     const vendorPayments = payments
       .filter(p => p.vendorId === activeVendor.id && !p.isAllocation)
       .map(p => {
-        const materialName = materials.find(m => 
-          m.history?.some(h => h.id === p.materialBatchId)
-        )?.name;
+        let materialName = undefined;
+        if (p.materialBatchId) {
+          const exp = expenses.find(e => 'sh-exp-' + e.id === p.materialBatchId);
+          if (exp) {
+            const mat = materials.find(m => m.id === exp.materialId);
+            materialName = mat ? mat.name : exp.category;
+          }
+        }
 
         const allocations = payments.filter(a => a.masterPaymentId === p.id);
         const uniqueProjectIds = Array.from(new Set(allocations.map(a => a.projectId)));
@@ -199,9 +218,16 @@ export const VendorList: React.FC = () => {
 
         const settledBills = allocations.map(a => {
           const exp = expenses.find(e => 'sh-exp-' + e.id === a.materialBatchId);
+          const mat = exp ? materials.find(m => m.id === exp.materialId) : null;
           return {
             amount: a.amount,
-            billName: exp ? (materials.find(m => m.id === exp.materialId)?.name || 'Purchase Bill') : 'Advance/Unallocated'
+            billName: exp ? (mat?.name || exp.category) : 'Advance/Unallocated',
+            stockReference: exp ? `Batch #${exp.id.slice(-6).toUpperCase()}` : 'N/A',
+            purchasedDate: exp ? exp.date : 'N/A',
+            unitPrice: exp?.unitPrice || 0,
+            quantity: exp?.materialQuantity || 0,
+            unit: mat?.unit || '',
+            billId: a.materialBatchId
           };
         });
 
@@ -246,7 +272,17 @@ export const VendorList: React.FC = () => {
     if (!quickPaymentBill || !activeVendor) return;
 
     const amountToPay = parseFloat(quickPaymentFormData.amount) || 0;
-    if (amountToPay <= 0 || amountToPay > activeVendorStats.totalDues) return;
+    if (amountToPay <= 0) return;
+
+    if (amountToPay > quickPaymentBill.remainingBalance) {
+      alert(`Warning: Payment amount exceeds the due amount for this bill (${formatCurrency(quickPaymentBill.remainingBalance)}).`);
+      return;
+    }
+    
+    if (activeVendor.isActive === false) {
+      alert("Cannot record payment for an inactive supplier.");
+      return;
+    }
 
     const payment: Payment = {
       id: 'pay' + Date.now(),
@@ -266,6 +302,32 @@ export const VendorList: React.FC = () => {
       method: 'Bank',
       date: new Date().toISOString().split('T')[0],
       reference: ''
+    });
+  };
+
+  const handleEditPayment = (item: LedgerItem) => {
+    const payment = payments.find(p => p.id === item.id);
+    if (!payment) return;
+    setEditingPayment(payment);
+    setPayingVendor(vendors.find(v => v.id === payment.vendorId) || null);
+    setPaymentFormData({
+      amount: payment.amount.toString(),
+      method: payment.method,
+      date: payment.date,
+      reference: payment.reference || '',
+      projectId: payment.projectId
+    });
+  };
+
+  const handleDeletePayment = (item: LedgerItem) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Payment',
+      message: 'Are you sure you want to delete this payment?',
+      onConfirm: async () => {
+        await deletePayment(item.id);
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      }
     });
   };
 
@@ -291,10 +353,15 @@ export const VendorList: React.FC = () => {
     if (!payingVendor) return;
 
     const amountToPay = parseFloat(paymentFormData.amount) || 0;
-    if (amountToPay <= 0 || amountToPay > payingVendor.balance) return;
+    const maxAllowed = payingVendor.balance + (editingPayment?.amount || 0);
+    if (amountToPay <= 0 || amountToPay > maxAllowed) return;
+    if (payingVendor.isActive === false) {
+      alert("Cannot record payment for an inactive supplier.");
+      return;
+    }
 
     const payment: Payment = {
-      id: 'pay' + Date.now(),
+      id: editingPayment ? editingPayment.id : 'pay' + Date.now(),
       date: paymentFormData.date,
       vendorId: payingVendor.id,
       projectId: paymentFormData.projectId || projects[0]?.id || '',
@@ -303,7 +370,13 @@ export const VendorList: React.FC = () => {
       reference: paymentFormData.reference
     };
 
-    await addPayment(payment);
+    if (editingPayment) {
+      await updatePayment({ ...editingPayment, ...payment });
+      setEditingPayment(null);
+    } else {
+      await addPayment(payment);
+    }
+    
     setPayingVendor(null);
     setPaymentFormData({
       amount: '',
@@ -451,6 +524,34 @@ export const VendorList: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2 transition-opacity">
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handleViewVendor(vendor.id);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1"
+                          title="View Full Ledger"
+                        >
+                          <ArrowUpRight size={14} />
+                          View Full Ledger
+                        </button>
+                        {canCreatePayments && (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              if (vendor.isActive === false) {
+                                alert("Cannot record payment for an inactive supplier.");
+                                return;
+                              }
+                              setPayingVendor(vendor); 
+                              setPaymentFormData(p => ({ ...p, amount: '', projectId: '' }));
+                            }}
+                            className={`p-2 transition-colors ${vendor.isActive === false ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-emerald-600'}`}
+                            title="Record Payment"
+                          >
+                            <DollarSign size={18} />
+                          </button>
+                        )}
                         {canEditVendors && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); setEditingVendor(vendor); setFormData({ name: vendor.name, phone: vendor.phone, email: vendor.email || '', category: vendor.category, address: vendor.address || '', balance: vendor.balance.toString(), isActive: vendor.isActive !== false }); setShowModal(true); }}
@@ -547,110 +648,115 @@ export const VendorList: React.FC = () => {
             setQuickPaymentBill(bill);
             setQuickPaymentFormData(prev => ({ ...prev, amount: bill.remainingBalance.toString() }));
           }}
+          onEditPayment={handleEditPayment}
+          onDeletePayment={handleDeletePayment}
           formatCurrency={formatCurrency}
-          canCreateVendors={canCreateVendors}
+          canCreatePayments={canCreatePayments}
         />
       )}
 
       {/* Generic Payment Modal */}
-      {payingVendor && (
-        <div className="fixed inset-0 z-[210] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-md shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
-            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
-               <div className="flex items-center gap-4">
-                  <div className="p-3 bg-emerald-600 text-white rounded-2xl">
-                     <DollarSign size={24} />
-                  </div>
-                  <div>
-                     <h2 className="text-lg font-black uppercase tracking-tight">Record Payment</h2>
-                     <p className="text-[10px] font-bold text-slate-400 uppercase">To: {payingVendor.name}</p>
-                  </div>
-               </div>
-               <button onClick={() => setPayingVendor(null)} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
-            </div>
-            
-            <form onSubmit={handlePaymentSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
-               <div className="bg-slate-900 p-5 rounded-2xl text-white flex justify-between items-center">
-                  <div>
-                    <p className="text-[8px] font-black text-white/50 uppercase tracking-widest mb-1">Current Balance</p>
-                    <p className="text-lg font-black">{formatCurrency(payingVendor.balance)}</p>
-                  </div>
-                  <ArrowRight className="text-white/20" size={20} />
-                  <div className="text-right">
-                    <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Balance After</p>
-                    <p className="text-lg font-black text-emerald-500">{formatCurrency(payingVendor.balance - (parseFloat(paymentFormData.amount) || 0))}</p>
-                  </div>
-               </div>
+      {payingVendor && (() => {
+        const maxAllowed = payingVendor.balance + (editingPayment?.amount || 0);
+        return (
+          <div className="fixed inset-0 z-[210] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-md">
+            <div className="bg-white dark:bg-slate-800 w-full max-w-md shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
+              <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-emerald-50/30">
+                 <div className="flex items-center gap-4">
+                    <div className="p-3 bg-emerald-600 text-white rounded-2xl">
+                       <DollarSign size={24} />
+                    </div>
+                    <div>
+                       <h2 className="text-lg font-black uppercase tracking-tight">{editingPayment ? 'Modify Payment' : 'Record Payment'}</h2>
+                       <p className="text-[10px] font-bold text-slate-400 uppercase">To: {payingVendor.name}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => { setPayingVendor(null); setEditingPayment(null); }} className="p-2 text-slate-400 hover:text-slate-900"><X size={24} /></button>
+              </div>
+              
+              <form onSubmit={handlePaymentSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
+                 <div className="bg-slate-900 p-5 rounded-2xl text-white flex justify-between items-center">
+                    <div>
+                      <p className="text-[8px] font-black text-white/50 uppercase tracking-widest mb-1">Available Limit</p>
+                      <p className="text-lg font-black">{formatCurrency(maxAllowed)}</p>
+                    </div>
+                    <ArrowRight className="text-white/20" size={20} />
+                    <div className="text-right">
+                      <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Balance After</p>
+                      <p className="text-lg font-black text-emerald-500">{formatCurrency(maxAllowed - (parseFloat(paymentFormData.amount) || 0))}</p>
+                    </div>
+                 </div>
 
-               <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 px-1">Amount</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    max={payingVendor.balance}
-                    min="0"
-                    required 
-                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10" 
-                    value={paymentFormData.amount} 
-                    onChange={e => {
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val)) {
-                        if (val > payingVendor.balance) {
-                          setPaymentFormData(p => ({ ...p, amount: payingVendor.balance.toString() }));
-                          return;
-                        } else if (val < 0) {
-                          setPaymentFormData(p => ({ ...p, amount: '0' }));
-                          return;
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Amount</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      max={maxAllowed}
+                      min="0"
+                      required 
+                      className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none focus:ring-4 focus:ring-emerald-500/10" 
+                      value={paymentFormData.amount} 
+                      onChange={e => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                          if (val > maxAllowed) {
+                            setPaymentFormData(p => ({ ...p, amount: maxAllowed.toString() }));
+                            return;
+                          } else if (val < 0) {
+                            setPaymentFormData(p => ({ ...p, amount: '0' }));
+                            return;
+                          }
                         }
-                      }
-                      setPaymentFormData(p => ({ ...p, amount: e.target.value }));
-                    }} 
-                    placeholder="0.00"
-                  />
-                  {payingVendor.balance >= 0 && (
-                    <p className="text-[10px] text-slate-500 font-bold px-1">
-                      Max allowed: {formatCurrency(payingVendor.balance)}
-                    </p>
-                  )}
-               </div>
+                        setPaymentFormData(p => ({ ...p, amount: e.target.value }));
+                      }} 
+                      placeholder="0.00"
+                    />
+                    {maxAllowed >= 0 && (
+                      <p className="text-[10px] text-slate-500 font-bold px-1">
+                        Max allowed: {formatCurrency(maxAllowed)}
+                      </p>
+                    )}
+                 </div>
 
-               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Date</label>
-                    <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.date} onChange={e => setPaymentFormData(p => ({ ...p, date: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Method</label>
-                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.method} onChange={e => setPaymentFormData(p => ({ ...p, method: e.target.value as PaymentMethod }))}>
-                      <option value="Bank">Bank</option>
-                      <option value="Cash">Cash</option>
-                      <option value="Online">Online</option>
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 px-1">Date</label>
+                      <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.date} onChange={e => setPaymentFormData(p => ({ ...p, date: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-slate-400 px-1">Method</label>
+                      <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.method} onChange={e => setPaymentFormData(p => ({ ...p, method: e.target.value as PaymentMethod }))}>
+                        <option value="Bank">Bank</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Online">Online</option>
+                      </select>
+                    </div>
+                 </div>
+
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Project (Optional)</label>
+                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.projectId} onChange={e => setPaymentFormData(p => ({ ...p, projectId: e.target.value }))}>
+                      <option value="">General / No Specific Project</option>
+                      {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
                     </select>
-                  </div>
-               </div>
+                 </div>
 
-               <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 px-1">Project (Optional)</label>
-                  <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.projectId} onChange={e => setPaymentFormData(p => ({ ...p, projectId: e.target.value }))}>
-                    <option value="">General / No Specific Project</option>
-                    {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-               </div>
+                 <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 px-1">Reference / UTR</label>
+                    <input type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" placeholder="Optional..." value={paymentFormData.reference} onChange={e => setPaymentFormData(p => ({ ...p, reference: e.target.value }))} />
+                 </div>
 
-               <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400 px-1">Reference / UTR</label>
-                  <input type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" placeholder="Optional..." value={paymentFormData.reference} onChange={e => setPaymentFormData(p => ({ ...p, reference: e.target.value }))} />
-               </div>
-
-               <button type="submit" className="w-full bg-emerald-600 text-white py-4 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-all mt-2 shadow-lg shadow-emerald-200 dark:shadow-none">
-                  Record Payment
-               </button>
-            </form>
+                 <button type="submit" className="w-full bg-emerald-600 text-white py-4 rounded-3xl font-black uppercase tracking-widest active:scale-95 transition-all mt-2 shadow-lg shadow-emerald-200 dark:shadow-none">
+                    {editingPayment ? 'Update Payment' : 'Record Payment'}
+                 </button>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Quick Payment Modal */}
       {quickPaymentBill && (
@@ -743,6 +849,7 @@ export const VendorList: React.FC = () => {
           </div>
         </div>
       )}
+
       <ConfirmationDialog 
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}

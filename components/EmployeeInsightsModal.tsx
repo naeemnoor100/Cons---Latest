@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, DollarSign, Clock } from 'lucide-react';
+import { X, DollarSign, Clock, Pencil, Trash2 } from 'lucide-react';
 import { Employee, LaborLog, LaborPayment, Project } from '../types';
 
 interface EmployeeInsightsModalProps {
@@ -8,6 +8,10 @@ interface EmployeeInsightsModalProps {
   payments: LaborPayment[];
   projects: Project[];
   onClose: () => void;
+  onEditPayment?: (payment: LaborPayment) => void;
+  onDeletePayment?: (paymentId: string) => void;
+  canEditLabor?: boolean;
+  canDeleteLabor?: boolean;
 }
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
@@ -17,7 +21,11 @@ export const EmployeeInsightsModal: React.FC<EmployeeInsightsModalProps> = ({
   logs,
   payments,
   projects,
-  onClose
+  onClose,
+  onEditPayment,
+  onDeletePayment,
+  canEditLabor,
+  canDeleteLabor
 }) => {
   const [activeTab, setActiveTab] = useState<'attendance' | 'payments'>('attendance');
 
@@ -174,22 +182,51 @@ export const EmployeeInsightsModal: React.FC<EmployeeInsightsModalProps> = ({
                       <th className="px-6 py-4">Reference</th>
                       <th className="px-6 py-4">Notes</th>
                       <th className="px-6 py-4 text-right">Amount</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {sortedPayments.length > 0 ? (
                       sortedPayments.map(pay => (
-                        <tr key={pay.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <tr key={pay.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
                           <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(pay.date).toLocaleDateString()}</td>
                           <td className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase">{pay.method}</td>
                           <td className="px-6 py-4 text-xs font-bold text-slate-400 font-mono">{pay.reference || '-'}</td>
                           <td className="px-6 py-4 text-xs text-slate-500 max-w-[200px] truncate">{pay.notes || '-'}</td>
                           <td className="px-6 py-4 text-right text-xs font-black text-emerald-600">{formatCurrency(pay.amount)}</td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {canEditLabor && onEditPayment && (
+                                <button 
+                                  onClick={() => {
+                                    onClose();
+                                    onEditPayment(pay);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                  title="Edit Payment"
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                              )}
+                              {canDeleteLabor && onDeletePayment && (
+                                <button 
+                                  onClick={() => {
+                                    onClose();
+                                    onDeletePayment(pay.id);
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                                  title="Delete Payment"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">No payment records found</td>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm font-medium">No payment records found</td>
                       </tr>
                     )}
                   </tbody>

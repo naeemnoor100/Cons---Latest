@@ -31,7 +31,7 @@ import { useApp } from '../AppContext';
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const Reports: React.FC = () => {
-  const { projects, expenses, materials, incomes, vendors, laborLogs, employees, invoices, payments, laborPayments } = useApp();
+  const { projects, expenses, materials, incomes, vendors, employees, invoices, payments, laborPayments } = useApp();
   const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary' | 'sites-summary' | 'material-locator' | 'vendor-supply' | 'stock-report'>('overview');
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
   
@@ -45,6 +45,7 @@ export const Reports: React.FC = () => {
   const [cashFlowPage, setCashFlowPage] = useState(1);
   const [assetDistributionPage, setAssetDistributionPage] = useState(1);
   const [sitesSummaryPage, setSitesSummaryPage] = useState(1);
+  const [sitesSummaryStatusFilter, setSitesSummaryStatusFilter] = useState<string>('All');
   const [expenditurePage] = useState(1);
   const [materialSummaryPage, setMaterialSummaryPage] = useState(1);
   const [supplierSummaryPage, setSupplierSummaryPage] = useState(1);
@@ -334,10 +335,14 @@ export const Reports: React.FC = () => {
     const search = summarySearchTerm.toLowerCase();
 
     const projectExpenses = expenses.filter(e => e.projectId === summaryProjectId);
-    const projectLaborLogs = laborLogs.filter(l => l.projectId === summaryProjectId);
-    const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer' && e.category !== 'Labor');
+    const projectPurchases = projectExpenses.filter(e => e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.materialId));
+    const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
+
+    const projectLaborPayments = laborPayments.filter(p => p.projectId === summaryProjectId);
+    const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
     
-    const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
+    const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromPayments;
     const totalReceived = incomes.filter(i => i.projectId === summaryProjectId).reduce((sum, i) => sum + i.amount, 0);
     const remainingBudget = project.budget - totalSpent;
 
@@ -390,15 +395,13 @@ export const Reports: React.FC = () => {
       .sort((a, b) => b.amount - a.amount);
 
     const laborSummaryMap: Record<string, { name: string; hours: number; amount: number }> = {};
-    // projectLaborLogs is already defined above
-    projectLaborLogs.forEach(log => {
-      const emp = employees.find(e => e.id === log.employeeId);
+    projectLaborPayments.forEach(pay => {
+      const emp = employees.find(e => e.id === pay.employeeId);
       if (emp) {
         if (!laborSummaryMap[emp.id]) {
           laborSummaryMap[emp.id] = { name: emp.name, hours: 0, amount: 0 };
         }
-        laborSummaryMap[emp.id].hours += log.hoursWorked;
-        laborSummaryMap[emp.id].amount += log.wageAmount;
+        laborSummaryMap[emp.id].amount += pay.amount;
       }
     });
     const laborSummary = Object.values(laborSummaryMap)
@@ -420,6 +423,7 @@ export const Reports: React.FC = () => {
     return {
       project,
       totalSpent,
+      totalPurchased,
       totalReceived,
       remainingBudget,
       materialSummary,
@@ -427,7 +431,7 @@ export const Reports: React.FC = () => {
       laborSummary,
       invoiceSummary
     };
-  }, [summaryProjectId, projects, expenses, materials, vendors, laborLogs, employees, invoices, incomes, summarySearchTerm]);
+  }, [summaryProjectId, projects, expenses, materials, vendors, laborPayments, employees, invoices, incomes, summarySearchTerm]);
 
   // Project Drilldown Calculations
   const selectedProjectReport = useMemo(() => {
@@ -438,38 +442,44 @@ export const Reports: React.FC = () => {
     const projectExpenses = expenses.filter(e => e.projectId === selectedProjectId);
     const projectIncomes = incomes.filter(i => i.projectId === selectedProjectId);
     
-    const projectLaborLogs = laborLogs.filter(l => l.projectId === selectedProjectId);
-    const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer' && e.category !== 'Labor');
+    const projectPurchases = projectExpenses.filter(e => e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.materialId));
+    const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
+    
+    const projectLaborPayments = laborPayments.filter(p => p.projectId === selectedProjectId);
+    const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
 
-    const totalSpent = projectExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
+    const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromPayments;
     const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
     const remainingBudget = project.budget - totalSpent;
 
     // Category-wise summary
     const categorySummaryMap: Record<string, number> = {};
-    projectExpenses.forEach(e => {
+    actualSiteExpenses.filter(e => e.category !== 'Labor').forEach(e => {
       categorySummaryMap[e.category] = (categorySummaryMap[e.category] || 0) + e.amount;
     });
-    if (laborFromLogs > 0) {
-      categorySummaryMap['Labor'] = (categorySummaryMap['Labor'] || 0) + laborFromLogs;
+    if (laborFromPayments > 0) {
+      categorySummaryMap['Labor'] = (categorySummaryMap['Labor'] || 0) + laborFromPayments;
     }
     
     const categorySummary = Object.entries(categorySummaryMap)
       .map(([name, amount]) => ({ name, amount, percentage: totalSpent > 0 ? (amount / totalSpent) * 100 : 0 }))
       .sort((a, b) => b.amount - a.amount);
 
-    const allExpenses = [...projectExpenses]
+    const allExpenses = projectExpenses
+      .filter(e => e.category === 'Material' && e.inventoryAction !== 'Usage' && e.inventoryAction !== 'Transfer')
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return {
       project,
       totalSpent,
+      totalPurchased,
       totalCollected,
       remainingBudget,
       categorySummary,
       allExpenses
     };
-  }, [selectedProjectId, projects, expenses, incomes, laborLogs]);
+  }, [selectedProjectId, projects, expenses, incomes, laborPayments]);
 
   // Global Logic for Overview
   const sitesSummaryData = useMemo(() => {
@@ -478,17 +488,21 @@ export const Reports: React.FC = () => {
       const projectIncomes = incomes.filter(i => i.projectId === project.id);
       const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
       
-      const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && e.inventoryAction !== 'Transfer');
-      const projectLaborLogs = laborLogs.filter(l => l.projectId === project.id);
-      const laborFromLogs = projectLaborLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+      const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer' && e.category !== 'Labor');
+      const projectLaborPayments = laborPayments.filter(p => p.projectId === project.id);
+      const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
 
-      const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromLogs;
+      const totalLabor = laborFromPayments;
+      
+      const spentWithoutLabor = actualSiteExpenses.filter(e => e.category !== 'Labor').reduce((sum, e) => sum + e.amount, 0);
+      const totalCost = spentWithoutLabor + totalLabor;
+
       const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
       const totalInvoiced = projectInvoices.reduce((sum, inv) => sum + inv.amount, 0);
       
-      const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
-      const totalLabor = expenseLabor + laborFromLogs;
-      
+      const projectPurchases = projectExpenses.filter(e => e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.materialId));
+      const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
+
       const receivable = totalInvoiced - totalCollected;
 
       return {
@@ -496,29 +510,41 @@ export const Reports: React.FC = () => {
         name: project.name,
         status: project.status,
         budget: project.budget,
-        spent: totalSpent,
+        spent: spentWithoutLabor,
         laborCost: totalLabor,
+        totalCost: totalCost,
+        purchased: totalPurchased,
+        committedSpend: totalPurchased + totalLabor,
         billed: totalInvoiced,
         received: totalCollected,
         receivable: receivable,
         remainingAmount: project.budget - totalCollected,
-        profit: totalCollected - totalSpent
+        remainingBudget: project.budget - (totalPurchased + totalLabor),
+        profit: totalCollected - totalCost,
+        utilization: project.budget > 0 ? ((totalPurchased + totalLabor) / project.budget) * 100 : 0
       };
     }).sort((a, b) => {
       if (a.status === 'Active' && b.status !== 'Active') return -1;
       if (a.status !== 'Active' && b.status === 'Active') return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [projects, expenses, incomes, invoices, laborLogs]);
+  }, [projects, expenses, incomes, invoices, laborPayments]);
+
+  const filteredSitesSummaryData = useMemo(() => {
+    if (sitesSummaryStatusFilter === 'All') return sitesSummaryData;
+    return sitesSummaryData.filter(site => site.status === sitesSummaryStatusFilter);
+  }, [sitesSummaryData, sitesSummaryStatusFilter]);
 
   const paginatedSitesSummaryData = useMemo(() => {
     const startIndex = (sitesSummaryPage - 1) * SITES_SUMMARY_ITEMS_PER_PAGE;
-    return sitesSummaryData.slice(startIndex, startIndex + SITES_SUMMARY_ITEMS_PER_PAGE);
-  }, [sitesSummaryData, sitesSummaryPage]);
+    return filteredSitesSummaryData.slice(startIndex, startIndex + SITES_SUMMARY_ITEMS_PER_PAGE);
+  }, [filteredSitesSummaryData, sitesSummaryPage]);
 
   const financialData = useMemo(() => projects.filter(p => p.status === 'Active').map(p => {
-    const spentExpenses = expenses.filter(e => e.projectId === p.id).reduce((sum, e) => sum + e.amount, 0);
-    const spentLabor = laborLogs.filter(l => l.projectId === p.id).reduce((sum, l) => sum + l.wageAmount, 0);
+    const projectExpenses = expenses.filter(e => e.projectId === p.id);
+    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer');
+    const spentExpenses = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const spentLabor = laborPayments.filter(pay => pay.projectId === p.id).reduce((sum, pay) => sum + pay.amount, 0);
     const spent = spentExpenses + spentLabor;
 
     const collected = incomes.filter(i => i.projectId === p.id).reduce((sum, i) => sum + i.amount, 0);
@@ -531,7 +557,7 @@ export const Reports: React.FC = () => {
       paid: paid,
       profit: collected - spent
     };
-  }), [projects, expenses, incomes, payments, laborLogs]);
+  }), [projects, expenses, incomes, payments, laborPayments]);
 
   const paginatedFinancialData = useMemo(() => {
     const startIndex = (cashFlowPage - 1) * CASH_FLOW_ITEMS_PER_PAGE;
@@ -572,11 +598,11 @@ export const Reports: React.FC = () => {
       combined[key].Expense += exp.amount;
     });
 
-    laborLogs.forEach(log => {
-      const d = new Date(log.date);
+    laborPayments.forEach(pay => {
+      const d = new Date(pay.date);
       const key = `${months[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
       if (!combined[key]) combined[key] = { month: key, Income: 0, Expense: 0, Paid: 0 };
-      combined[key].Expense += log.wageAmount;
+      combined[key].Expense += pay.amount;
     });
 
     payments.forEach(pay => {
@@ -598,7 +624,7 @@ export const Reports: React.FC = () => {
       const [m2, y2] = b.month.split(' ');
       return new Date(`${m1} 20${y1}`).getTime() - new Date(`${m2} 20${y2}`).getTime();
     });
-  }, [incomes, expenses, payments, laborPayments, laborLogs]);
+  }, [incomes, expenses, payments, laborPayments]);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -826,50 +852,59 @@ export const Reports: React.FC = () => {
           {selectedProjectReport ? (
             <div className="space-y-8">
               {/* Financial Pulse Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl">
-                    <Briefcase size={24} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl w-fit">
+                    <Briefcase size={20} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Master Budget</p>
-                    <p className="text-lg font-black text-slate-900 dark:text-white">{formatCurrency(selectedProjectReport.project.budget)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Budget</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white truncate">{formatCurrency(selectedProjectReport.project.budget)}</p>
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-                  <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-2xl">
-                    <TrendingDown size={24} />
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 rounded-xl w-fit">
+                    <Package size={20} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Spent</p>
-                    <p className="text-lg font-black text-red-600">{formatCurrency(selectedProjectReport.totalSpent)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Purchased</p>
+                    <p className="text-lg font-black text-purple-600 truncate">{formatCurrency(selectedProjectReport.totalPurchased)}</p>
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-2xl">
-                    <TrendingUp size={24} />
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl w-fit">
+                    <TrendingDown size={20} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Collected</p>
-                    <p className="text-lg font-black text-emerald-600">{formatCurrency(selectedProjectReport.totalCollected)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Spent</p>
+                    <p className="text-lg font-black text-red-600 truncate">{formatCurrency(selectedProjectReport.totalSpent)}</p>
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-2xl">
-                    <DollarSign size={24} />
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl w-fit">
+                    <TrendingUp size={20} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Remaining Amount</p>
-                    <p className="text-lg font-black text-amber-600">{formatCurrency(selectedProjectReport.project.budget - selectedProjectReport.totalCollected)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Collected</p>
+                    <p className="text-lg font-black text-emerald-600 truncate">{formatCurrency(selectedProjectReport.totalCollected)}</p>
                   </div>
                 </div>
-                <div className="bg-slate-900 dark:bg-slate-950 p-6 rounded-[2rem] text-white shadow-lg flex items-center gap-4">
-                  <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/20">
-                    <DollarSign size={24} />
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl w-fit">
+                    <DollarSign size={20} />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-0.5">Remaining Budget</p>
-                    <p className={`text-lg font-black ${selectedProjectReport.remainingBudget < 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining Amount</p>
+                    <p className="text-lg font-black text-amber-600 truncate">{formatCurrency(selectedProjectReport.project.budget - selectedProjectReport.totalCollected)}</p>
+                  </div>
+                </div>
+                <div className="bg-slate-900 dark:bg-slate-950 p-5 rounded-3xl text-white shadow-lg flex flex-col gap-3">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 w-fit">
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-1">Remaining Budget</p>
+                    <p className={`text-lg font-black truncate ${selectedProjectReport.remainingBudget < 0 ? 'text-red-400' : 'text-blue-400'}`}>
                       {formatCurrency(selectedProjectReport.remainingBudget)}
                     </p>
                   </div>
@@ -919,7 +954,7 @@ export const Reports: React.FC = () => {
                       <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
                         <ClipboardList size={20} />
                       </div>
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">All Expenditure Items</h4>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">Purchased Material</h4>
                     </div>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-900 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">Audit Trail</span>
                   </div>
@@ -942,7 +977,17 @@ export const Reports: React.FC = () => {
                                   <div className="w-8 h-8 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400">#{idx + 1 + (expenditurePage - 1) * EXPENDITURE_ITEMS_PER_PAGE}</div>
                                   <div>
                                     <p className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tighter">{exp.notes}</p>
-                                    <p className="text-[9px] font-black uppercase text-blue-500">{exp.category}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <p className="text-[9px] font-black uppercase text-blue-500">{exp.category}</p>
+                                      {exp.materialId && (
+                                        <>
+                                          <span className="text-[8px] text-slate-300 dark:text-slate-600">•</span>
+                                          <p className="text-[9px] font-black uppercase text-purple-500">
+                                            {materials.find(m => m.id === exp.materialId)?.name || 'Unknown Material'}
+                                          </p>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                </div>
                             </td>
@@ -1016,41 +1061,59 @@ export const Reports: React.FC = () => {
           {projectSummaryData ? (
             <div className="space-y-8">
               {/* Budget Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6">
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl">
-                    <Wallet size={28} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl w-fit">
+                    <Wallet size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Budget</p>
-                    <p className="text-2xl font-black text-blue-600">{formatCurrency(projectSummaryData.project.budget)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Master Budget</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white truncate">{formatCurrency(projectSummaryData.project.budget)}</p>
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6">
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-2xl">
-                    <TrendingDown size={28} />
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-600 rounded-xl w-fit">
+                    <Package size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Spent</p>
-                    <p className="text-2xl font-black text-red-600">{formatCurrency(projectSummaryData.totalSpent)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Purchased</p>
+                    <p className="text-lg font-black text-purple-600 truncate">{formatCurrency(projectSummaryData.totalPurchased)}</p>
                   </div>
                 </div>
-                <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-6">
-                  <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-2xl">
-                    <TrendingUp size={28} />
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-xl w-fit">
+                    <TrendingDown size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining Amount</p>
-                    <p className="text-2xl font-black text-emerald-600">{formatCurrency(projectSummaryData.project.budget - projectSummaryData.totalReceived)}</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Spent</p>
+                    <p className="text-lg font-black text-red-600 truncate">{formatCurrency(projectSummaryData.totalSpent)}</p>
                   </div>
                 </div>
-                <div className="bg-slate-900 dark:bg-slate-950 p-8 rounded-[2rem] text-white shadow-2xl flex items-center gap-6">
-                  <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-500/20">
-                    <DollarSign size={28} />
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 rounded-xl w-fit">
+                    <TrendingUp size={20} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Remaining Budget</p>
-                    <p className={`text-2xl font-black ${projectSummaryData.remainingBudget < 0 ? 'text-red-400' : 'text-blue-400'}`}>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Received</p>
+                    <p className="text-lg font-black text-emerald-600 truncate">{formatCurrency(projectSummaryData.totalReceived)}</p>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
+                  <div className="p-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl w-fit">
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining Amount</p>
+                    <p className="text-lg font-black text-amber-600 truncate">{formatCurrency(projectSummaryData.project.budget - projectSummaryData.totalReceived)}</p>
+                  </div>
+                </div>
+                <div className="bg-slate-900 dark:bg-slate-950 p-5 rounded-3xl text-white shadow-lg flex flex-col gap-3">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20 w-fit">
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black text-white/50 uppercase tracking-widest mb-1">Remaining Budget</p>
+                    <p className={`text-lg font-black truncate ${projectSummaryData.remainingBudget < 0 ? 'text-red-400' : 'text-blue-400'}`}>
                       {formatCurrency(projectSummaryData.remainingBudget)}
                     </p>
                   </div>
@@ -1327,13 +1390,119 @@ export const Reports: React.FC = () => {
 
       {reportActiveTab === 'sites-summary' && (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+          {/* Budget Utilization Chart */}
+          <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm p-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                  <LucideBarChart size={18} className="text-blue-600" />
+                  Budget Utilization
+                </h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Project-wise budget breakdown and utilization</p>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800">
+                {['All', 'Active', 'Completed'].map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setSitesSummaryStatusFilter(status)}
+                    className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                      sitesSummaryStatusFilter === status 
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsBarChart
+                  data={filteredSitesSummaryData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fill: '#94a3b8', fontSize: 10}} 
+                    angle={-45}
+                    textAnchor="end"
+                    interval={0}
+                  />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
+                  <Tooltip 
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-xl">
+                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase mb-2">{label}</p>
+                            <div className="space-y-1">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase flex justify-between gap-4">
+                                Spent: <span className="text-red-500">{formatCurrency(data.committedSpend)}</span>
+                              </p>
+                              <p className="text-[10px] font-bold text-slate-500 uppercase flex justify-between gap-4">
+                                Remaining: <span className="text-emerald-500">{formatCurrency(data.remainingBudget)}</span>
+                              </p>
+                              <p className="text-[10px] font-bold text-slate-500 uppercase flex justify-between gap-4">
+                                Utilization: <span className="text-blue-500">{data.utilization.toFixed(1)}%</span>
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px' }} />
+                  <Bar name="Spent Amount" dataKey="committedSpend" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={30} />
+                  <Bar name="Remaining Budget" dataKey="remainingBudget" fill="#10b981" radius={[4, 4, 0, 0]} barSize={30} />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
           <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
             <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex justify-between items-center">
               <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                 <Briefcase size={18} className="text-blue-600" />
                 All Sites Summary
               </h3>
-              <button className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">
+              <button 
+                onClick={() => {
+                  const headers = ['Project Name', 'Status', 'Master Budget', 'Purchased', 'Spent Budget', 'Labor Costs', 'Remaining Budget', 'Total Cost', 'Total Billed', 'Total Received', 'Receivable', 'Remaining Amount', 'Utilization %'];
+                  const csvData = sitesSummaryData.map(site => [
+                    site.name,
+                    site.status,
+                    site.budget,
+                    site.purchased,
+                    site.spent,
+                    site.laborCost,
+                    site.remainingBudget,
+                    site.totalCost,
+                    site.billed,
+                    site.received,
+                    site.receivable,
+                    site.remainingAmount,
+                    site.utilization.toFixed(2)
+                  ]);
+                  const csvContent = [headers.join(','), ...csvData.map(row => row.join(','))].join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.setAttribute('href', url);
+                  link.setAttribute('download', 'all_sites_summary.csv');
+                  link.style.visibility = 'hidden';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
                  <Download size={14} /> Export
               </button>
             </div>
@@ -1344,12 +1513,16 @@ export const Reports: React.FC = () => {
                     <th className="px-6 py-4">Project Name</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Master Budget</th>
+                    <th className="px-6 py-4 text-right">Purchased</th>
                     <th className="px-6 py-4 text-right">Spent Budget</th>
                     <th className="px-6 py-4 text-right">Labor Costs</th>
+                    <th className="px-6 py-4 text-right">Remaining Budget</th>
+                    <th className="px-6 py-4 text-right">Total Cost</th>
                     <th className="px-6 py-4 text-right">Total Billed</th>
                     <th className="px-6 py-4 text-right">Total Received</th>
                     <th className="px-6 py-4 text-right">Receivable</th>
                     <th className="px-6 py-4 text-right">Remaining Amount</th>
+                    <th className="px-6 py-4 text-right">Utilization</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -1364,17 +1537,40 @@ export const Reports: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right text-xs font-black text-blue-600">{formatCurrency(site.budget)}</td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-purple-600">{formatCurrency(site.purchased)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-red-600">{formatCurrency(site.spent)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-amber-600">{formatCurrency(site.laborCost)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className="text-xs font-black text-emerald-600">{formatCurrency(site.remainingBudget)}</span>
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                            Used: {formatCurrency(site.committedSpend)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right text-xs font-black text-red-600">{formatCurrency(site.totalCost)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(site.billed)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-emerald-600">{formatCurrency(site.received)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-slate-500">{formatCurrency(site.receivable)}</td>
                       <td className="px-6 py-4 text-right text-xs font-black text-slate-900 dark:text-white">{formatCurrency(site.remainingAmount)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-xs font-black ${site.utilization > 90 ? 'text-red-600' : site.utilization > 70 ? 'text-amber-600' : 'text-blue-600'}`}>
+                            {site.utilization.toFixed(1)}%
+                          </span>
+                          <div className="w-16 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full transition-all ${site.utilization > 90 ? 'bg-red-500' : site.utilization > 70 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                              style={{ width: `${Math.min(100, site.utilization)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {paginatedSitesSummaryData.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-6 py-10 text-center text-slate-400 text-xs font-bold uppercase">No active sites found</td>
+                      <td colSpan={13} className="px-6 py-10 text-center text-slate-400 text-xs font-bold uppercase">No active sites found</td>
                     </tr>
                   )}
                 </tbody>

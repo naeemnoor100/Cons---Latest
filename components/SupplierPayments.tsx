@@ -68,6 +68,8 @@ export const SupplierPayments: React.FC = () => {
     return editingPayment ? selectedVendorBalance + editingPayment.amount : selectedVendorBalance;
   }, [selectedVendorId, selectedVendorBalance, editingPayment]);
 
+
+
   const handleCloseModal = useCallback(() => {
     setShowModal(false);
     setEditingPayment(null);
@@ -84,6 +86,12 @@ export const SupplierPayments: React.FC = () => {
     const amount = parseFloat(paymentFormData.amount) || 0;
     if (amount > maxAllowedAmount) {
       return; // Prevent submission if amount exceeds max
+    }
+
+    const vendor = vendors.find(v => v.id === selectedVendorId);
+    if (vendor && vendor.isActive === false) {
+      alert("Cannot record payment for an inactive supplier.");
+      return;
     }
     
     const paymentData: Payment = {
@@ -103,7 +111,7 @@ export const SupplierPayments: React.FC = () => {
     }
     
     handleCloseModal();
-  }, [selectedVendorId, editingPayment, paymentFormData, projects, updatePayment, addPayment, handleCloseModal, maxAllowedAmount]);
+  }, [selectedVendorId, editingPayment, paymentFormData, projects, updatePayment, addPayment, handleCloseModal, maxAllowedAmount, vendors]);
 
   const handleEdit = (payment: Payment) => {
     setEditingPayment(payment);
@@ -262,7 +270,13 @@ export const SupplierPayments: React.FC = () => {
                     onChange={e => setSelectedVendorId(e.target.value)}
                   >
                     <option value="">-- Select Vendor --</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name} (Bal: {formatCurrency(v.balance)})</option>)}
+                    {vendors
+                      .filter(v => v.isActive !== false || v.id === selectedVendorId)
+                      .map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} (Bal: {formatCurrency(v.balance)}) {v.isActive === false ? '[INACTIVE]' : ''}
+                        </option>
+                      ))}
                   </select>
                </div>
 
@@ -356,6 +370,7 @@ export const SupplierPayments: React.FC = () => {
                  <CheckCircle2 size={24} />
                  {editingPayment ? 'Update Settlement' : 'Record Settlement'}
                </button>
+
             </form>
           </div>
         </div>

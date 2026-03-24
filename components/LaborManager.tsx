@@ -10,7 +10,8 @@ import {
   DollarSign, 
   ClipboardList,
   UserPlus,
-  MapPin
+  MapPin,
+  AlertCircle
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Employee, LaborLog, PaymentMethod, LaborPayment } from '../types';
@@ -45,6 +46,13 @@ export const LaborManager: React.FC = () => {
 
   const [activeSubTab, setActiveSubTab] = useState<'employees' | 'logs' | 'payments'>('logs');
   const [searchTerm, setSearchTerm] = useState('');
+  const [projectFilter, setProjectFilter] = useState('All');
+  const [employeeFilter, setEmployeeFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [roleFilter, setRoleFilter] = useState('All');
+  const [methodFilter, setMethodFilter] = useState('All');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [showBulkLogModal, setShowBulkLogModal] = useState(false);
@@ -75,8 +83,9 @@ export const LaborManager: React.FC = () => {
   });
 
   const [paymentFormData, setPaymentFormData] = useState({
-    employeeId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash' as PaymentMethod, reference: '', notes: ''
+    employeeId: '', projectId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash' as PaymentMethod, reference: '', notes: ''
   });
+  const [paymentError, setPaymentError] = useState('');
 
   const calculateWage = (empId: string, hours: string, status: string) => {
     const emp = employees.find(e => e.id === empId);
@@ -89,52 +98,154 @@ export const LaborManager: React.FC = () => {
 
   const employeeSummaries = useMemo(() => {
     return employees.map(emp => {
-      const earned = laborLogs.filter(l => l.employeeId === emp.id).reduce((sum, l) => sum + l.wageAmount, 0);
-      const paid = laborPayments.filter(p => p.employeeId === emp.id).reduce((sum, p) => sum + p.amount, 0);
+      const empLogs = laborLogs.filter(l => l.employeeId === emp.id);
+      const empPayments = laborPayments.filter(p => p.employeeId === emp.id);
+      
+      const earned = empLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+      const paid = empPayments.reduce((sum, p) => sum + p.amount, 0);
+      
+      const projectIds = Array.from(new Set([
+        ...empLogs.map(l => l.projectId),
+        ...empPayments.map(p => p.projectId)
+      ]));
+      
+      const siteBalances = projectIds.map(pid => {
+        const project = projects.find(p => p.id === pid);
+        const pEarned = empLogs.filter(l => l.projectId === pid).reduce((sum, l) => sum + l.wageAmount, 0);
+        const pPaid = empPayments.filter(p => p.projectId === pid).reduce((sum, p) => sum + p.amount, 0);
+        return {
+          projectId: pid,
+          projectName: project?.name || 'Unknown',
+          balance: pEarned - pPaid
+        };
+      }).filter(pb => pb.balance !== 0);
+
       return {
         ...emp,
         earned,
         paid,
-        remaining: earned - paid
+        remaining: earned - paid,
+        siteBalances
       };
     });
-  }, [employees, laborLogs, laborPayments]);
+  }, [employees, laborLogs, laborPayments, projects]);
+
+  const selectedEmployeeBalance = useMemo(() => {
+    if (!paymentFormData.employeeId) return 0;
+    const empSummary = employeeSummaries.find(e => e.id === paymentFormData.employeeId);
+    if (!empSummary) return 0;
+    
+    let balance = empSummary.remaining;
+    if (editingPayment && editingPayment.employeeId === paymentFormData.employeeId) {
+      balance += editingPayment.amount;
+    }
+    return balance;
+  }, [paymentFormData.employeeId, employeeSummaries, editingPayment]);
+
+  const selectedEmployeeProjectBalances = useMemo(() => {
+    if (!paymentFormData.employeeId) return [];
+    
+    const employeeLogs = laborLogs.filter(l => l.employeeId === paymentFormData.employeeId);
+    const employeePayments = laborPayments.filter(p => p.employeeId === paymentFormData.employeeId);
+    
+    const projectIds = Array.from(new Set([
+      ...employeeLogs.map(l => l.projectId),
+      ...employeePayments.map(p => p.projectId)
+    ]));
+    
+    return projectIds.map(pid => {
+      const project = projects.find(p => p.id === pid);
+      const earned = employeeLogs.filter(l => l.projectId === pid).reduce((sum, l) => sum + l.wageAmount, 0);
+      const paid = employeePayments.filter(p => p.projectId === pid).reduce((sum, p) => sum + p.amount, 0);
+      let balance = earned - paid;
+      
+      if (editingPayment && editingPayment.employeeId === paymentFormData.employeeId && editingPayment.projectId === pid) {
+        balance += editingPayment.amount;
+      }
+      
+      return {
+        projectId: pid,
+        projectName: project?.name || 'Unknown Project',
+        balance
+      };
+    }).filter(pb => pb.balance !== 0);
+  }, [paymentFormData.employeeId, laborLogs, laborPayments, projects, editingPayment]);
+
+  const selectedProjectBalance = useMemo(() => {
+    if (!paymentFormData.employeeId || !paymentFormData.projectId) return 0;
+    const projectBalance = selectedEmployeeProjectBalances.find(pb => pb.projectId === paymentFormData.projectId);
+    return projectBalance ? projectBalance.balance : 0;
+  }, [paymentFormData.employeeId, paymentFormData.projectId, selectedEmployeeProjectBalances]);
 
   const filteredEmployees = useMemo(() => {
     return employeeSummaries.filter(e => {
       const siteName = projects.find(p => p.id === e.currentSiteId)?.name || '';
-      return (
+      const matchesSearch = (
         e.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
         e.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
         siteName.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      const matchesProject = projectFilter === 'All' || e.currentSiteId === projectFilter;
+      const matchesStatus = statusFilter === 'All' || e.status === statusFilter;
+      const matchesRole = roleFilter === 'All' || e.role === roleFilter;
+      return matchesSearch && matchesProject && matchesStatus && matchesRole;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [employeeSummaries, searchTerm, projects]);
+  }, [employeeSummaries, searchTerm, projects, projectFilter, statusFilter, roleFilter]);
 
   const filteredLogs = useMemo(() => {
     return laborLogs.filter(l => {
       const emp = employees.find(e => e.id === l.employeeId);
       const proj = projects.find(p => p.id === l.projectId);
       const search = searchTerm.toLowerCase();
-      return (
+      const matchesSearch = (
         emp?.name.toLowerCase().includes(search) || 
         proj?.name.toLowerCase().includes(search) ||
         l.date.includes(search)
       );
+      const matchesProject = projectFilter === 'All' || l.projectId === projectFilter;
+      const matchesEmployee = employeeFilter === 'All' || l.employeeId === employeeFilter;
+      const matchesStatus = statusFilter === 'All' || l.status === statusFilter;
+      
+      const logDate = new Date(l.date);
+      const matchesStart = !startDate || logDate >= new Date(startDate);
+      const matchesEnd = !endDate || logDate <= new Date(endDate);
+      
+      return matchesSearch && matchesProject && matchesEmployee && matchesStatus && matchesStart && matchesEnd;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [laborLogs, employees, projects, searchTerm]);
+  }, [laborLogs, employees, projects, searchTerm, projectFilter, employeeFilter, statusFilter, startDate, endDate]);
 
   const filteredPayments = useMemo(() => {
     return laborPayments.filter(p => {
       const emp = employees.find(e => e.id === p.employeeId);
+      const proj = projects.find(proj => proj.id === p.projectId);
       const search = searchTerm.toLowerCase();
-      return (
+      const matchesSearch = (
         emp?.name.toLowerCase().includes(search) || 
+        proj?.name.toLowerCase().includes(search) ||
         p.date.includes(search) ||
         p.reference?.toLowerCase().includes(search)
       );
+      const matchesProject = projectFilter === 'All' || p.projectId === projectFilter;
+      const matchesEmployee = employeeFilter === 'All' || p.employeeId === employeeFilter;
+      const matchesMethod = methodFilter === 'All' || p.method === methodFilter;
+      
+      const payDate = new Date(p.date);
+      const matchesStart = !startDate || payDate >= new Date(startDate);
+      const matchesEnd = !endDate || payDate <= new Date(endDate);
+      
+      return matchesSearch && matchesProject && matchesEmployee && matchesMethod && matchesStart && matchesEnd;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [laborPayments, employees, searchTerm]);
+  }, [laborPayments, employees, projects, searchTerm, projectFilter, employeeFilter, methodFilter, startDate, endDate]);
+
+  const summaryStats = useMemo(() => {
+    const earned = filteredLogs.reduce((sum, l) => sum + l.wageAmount, 0);
+    const paid = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+    return {
+      earned,
+      paid,
+      balance: earned - paid
+    };
+  }, [filteredLogs, filteredPayments]);
 
   const handleEmployeeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,11 +299,27 @@ export const LaborManager: React.FC = () => {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const amount = parseFloat(paymentFormData.amount) || 0;
+    
+    if (!paymentFormData.projectId) {
+      setPaymentError('Please select a project site.');
+      return;
+    }
+
+    if (amount > selectedProjectBalance) {
+      const proj = projects.find(p => p.id === paymentFormData.projectId);
+      setPaymentError(`Payment amount (${formatCurrency(amount)}) cannot exceed the balance for ${proj?.name || 'this project'} (${formatCurrency(selectedProjectBalance)}).`);
+      return;
+    }
+    
+    setPaymentError('');
+
     const data: LaborPayment = {
       id: editingPayment ? editingPayment.id : 'lpay-' + Date.now(),
       employeeId: paymentFormData.employeeId,
+      projectId: paymentFormData.projectId,
       date: paymentFormData.date,
-      amount: parseFloat(paymentFormData.amount) || 0,
+      amount: amount,
       method: paymentFormData.method,
       reference: paymentFormData.reference,
       notes: paymentFormData.notes
@@ -203,7 +330,7 @@ export const LaborManager: React.FC = () => {
 
     setShowPaymentModal(false);
     setEditingPayment(null);
-    setPaymentFormData({ employeeId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash', reference: '', notes: '' });
+    setPaymentFormData({ employeeId: '', projectId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash', reference: '', notes: '' });
   };
 
   const openEditEmployee = (emp: Employee) => {
@@ -238,6 +365,7 @@ export const LaborManager: React.FC = () => {
     setEditingPayment(pay);
     setPaymentFormData({
       employeeId: pay.employeeId || '',
+      projectId: pay.projectId || '',
       date: pay.date || new Date().toISOString().split('T')[0],
       amount: (pay.amount || 0).toString(),
       method: pay.method || 'Cash',
@@ -287,6 +415,7 @@ export const LaborManager: React.FC = () => {
     setEditingPayment(null);
     setPaymentFormData({
       employeeId: empId,
+      projectId: '',
       date: new Date().toISOString().split('T')[0],
       amount: amount.toString(),
       method: 'Cash',
@@ -319,13 +448,49 @@ export const LaborManager: React.FC = () => {
                 <Plus size={16} /> Log Attendance
               </button>
               <button 
-                onClick={() => { setEditingPayment(null); setPaymentFormData({ employeeId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash', reference: '', notes: '' }); setShowPaymentModal(true); }}
+                onClick={() => setShowBulkLogModal(true)}
+                className="bg-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2"
+              >
+                <ClipboardList size={16} /> Bulk Attendance
+              </button>
+              <button 
+                onClick={() => { setEditingPayment(null); setPaymentFormData({ employeeId: '', projectId: '', date: new Date().toISOString().split('T')[0], amount: '', method: 'Cash', reference: '', notes: '' }); setShowPaymentModal(true); }}
                 className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center gap-2"
               >
                 <Plus size={16} /> Record Payment
               </button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Labor Cost</p>
+          <p className="text-2xl font-black text-slate-900 dark:text-white">{formatCurrency(summaryStats.earned)}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">Based on filtered logs</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Paid</p>
+          <p className="text-2xl font-black text-emerald-600">{formatCurrency(summaryStats.paid)}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">Based on filtered payments</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Remaining Balance</p>
+          <p className={`text-2xl font-black ${summaryStats.balance > 0 ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
+            {formatCurrency(summaryStats.balance)}
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">Net outstanding</p>
+          </div>
         </div>
       </div>
 
@@ -364,6 +529,78 @@ export const LaborManager: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+        <div className="flex flex-wrap gap-4 mt-4">
+          <select className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold dark:text-white outline-none" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+            <option value="All">All Projects</option>
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+
+          {(activeSubTab === 'logs' || activeSubTab === 'payments') && (
+            <select className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold dark:text-white outline-none" value={employeeFilter} onChange={e => setEmployeeFilter(e.target.value)}>
+              <option value="All">All Employees</option>
+              {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+            </select>
+          )}
+
+          {(activeSubTab === 'logs' || activeSubTab === 'employees') && (
+            <select className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold dark:text-white outline-none" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="All">{activeSubTab === 'employees' ? 'All Statuses' : 'All Attendance'}</option>
+              {activeSubTab === 'employees' ? (
+                <>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </>
+              ) : (
+                <>
+                  <option value="Present">Present</option>
+                  <option value="Half-day">Half-day</option>
+                  <option value="Absent">Absent</option>
+                </>
+              )}
+            </select>
+          )}
+
+          {activeSubTab === 'employees' && (
+            <select className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold dark:text-white outline-none" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
+              <option value="All">All Roles</option>
+              {Array.from(new Set(employees.map(e => e.role))).map(role => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
+          )}
+
+          {activeSubTab === 'payments' && (
+            <select className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold dark:text-white outline-none" value={methodFilter} onChange={e => setMethodFilter(e.target.value)}>
+              <option value="All">All Methods</option>
+              <option value="Cash">Cash</option>
+              <option value="Bank">Bank Transfer</option>
+              <option value="Online">Online / Wallet</option>
+            </select>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input type="date" className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold dark:text-white outline-none" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">to</span>
+            <input type="date" className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold dark:text-white outline-none" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          </div>
+
+          {(startDate || endDate || projectFilter !== 'All' || employeeFilter !== 'All' || statusFilter !== 'All' || methodFilter !== 'All' || roleFilter !== 'All') && (
+            <button 
+              onClick={() => {
+                setProjectFilter('All');
+                setEmployeeFilter('All');
+                setStatusFilter('All');
+                setMethodFilter('All');
+                setRoleFilter('All');
+                setStartDate('');
+                setEndDate('');
+              }} 
+              className="text-xs font-bold text-red-500 hover:underline"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -407,6 +644,16 @@ export const LaborManager: React.FC = () => {
                   <p className="text-blue-500 text-[10px] font-black uppercase flex items-center gap-1.5 mt-1">
                     <MapPin size={12} /> {projects.find(p => p.id === emp.currentSiteId)?.name || 'Unknown Site'}
                   </p>
+                )}
+
+                {emp.siteBalances && emp.siteBalances.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {emp.siteBalances.map((sb, idx) => (
+                      <span key={idx} className="text-[8px] font-black px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded uppercase tracking-tighter">
+                        {sb.projectName}: {formatCurrency(sb.balance)}
+                      </span>
+                    ))}
+                  </div>
                 )}
                 
                 <div className="mt-4 sm:mt-6 grid grid-cols-3 gap-1.5 sm:gap-2">
@@ -618,9 +865,9 @@ export const LaborManager: React.FC = () => {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Assigned Site (Optional)</label>
-                <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.currentSiteId} onChange={e => setEmployeeFormData(p => ({ ...p, currentSiteId: e.target.value }))}>
-                  <option value="">No specific site assigned</option>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Assigned Site</label>
+                <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.currentSiteId} onChange={e => setEmployeeFormData(p => ({ ...p, currentSiteId: e.target.value }))}>
+                  <option value="">Select a site</option>
                   {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
@@ -652,6 +899,10 @@ export const LaborManager: React.FC = () => {
           payments={laborPayments.filter(p => p.employeeId === selectedEmployeeForInsights.id)}
           projects={projects}
           onClose={() => setSelectedEmployeeForInsights(null)}
+          onEditPayment={openEditPayment}
+          onDeletePayment={handleDeletePayment}
+          canEditLabor={canEditLabor}
+          canDeleteLabor={canDeleteLabor}
         />
       )}
 
@@ -761,28 +1012,70 @@ export const LaborManager: React.FC = () => {
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Workforce Wage Disbursement</p>
                 </div>
               </div>
-              <button onClick={() => setShowPaymentModal(false)} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
+              <button onClick={() => { setShowPaymentModal(false); setPaymentError(''); }} className="p-2 text-slate-400 hover:text-slate-900 transition-colors"><X size={32} /></button>
             </div>
             <form onSubmit={handlePaymentSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
+              {paymentError && (
+                <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-sm font-bold flex items-center gap-2">
+                  <AlertCircle size={18} />
+                  {paymentError}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Date</label>
-                  <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.date} onChange={e => setPaymentFormData(p => ({ ...p, date: e.target.value }))} />
+                  <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.date} onChange={e => { setPaymentFormData(p => ({ ...p, date: e.target.value })); setPaymentError(''); }} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project</label>
+                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.projectId} onChange={e => { setPaymentFormData(p => ({ ...p, projectId: e.target.value })); setPaymentError(''); }}>
+                    <option value="">Select Project...</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {paymentFormData.projectId && paymentFormData.employeeId && (
+                    <p className="text-[10px] font-bold text-slate-500 px-1 pt-1">
+                      Site Balance: <span className={selectedProjectBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}>{formatCurrency(selectedProjectBalance)}</span>
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Employee</label>
-                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.employeeId} onChange={e => setPaymentFormData(p => ({ ...p, employeeId: e.target.value }))}>
+                  <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.employeeId} onChange={e => { setPaymentFormData(p => ({ ...p, employeeId: e.target.value })); setPaymentError(''); }}>
                     <option value="">Select Employee...</option>
                     {employees.map(e => (
                       <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
                     ))}
                   </select>
+                  {paymentFormData.employeeId && (
+                    <div className="space-y-1 px-1 pt-1">
+                      <p className="text-xs font-bold text-slate-500">
+                        Total Balance: <span className={selectedEmployeeBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}>{formatCurrency(selectedEmployeeBalance)}</span>
+                      </p>
+                      {selectedEmployeeProjectBalances.length > 0 && (
+                        <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 mt-1">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Site-wise Balances:</p>
+                          <div className="space-y-1">
+                            {selectedEmployeeProjectBalances.map(pb => (
+                              <div key={pb.projectId} className="flex justify-between items-center text-[10px]">
+                                <span className="font-bold text-slate-500 truncate mr-2">{pb.projectName}</span>
+                                <span className={`font-black ${pb.balance > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {formatCurrency(pb.balance)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Amount (Rs.)</label>
-                  <input type="number" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none" value={paymentFormData.amount} onChange={e => setPaymentFormData(p => ({ ...p, amount: e.target.value }))} />
+                  <input type="number" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-black text-lg dark:text-white outline-none" value={paymentFormData.amount} onChange={e => { setPaymentFormData(p => ({ ...p, amount: e.target.value })); setPaymentError(''); }} />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Method</label>
@@ -802,12 +1095,21 @@ export const LaborManager: React.FC = () => {
                 <textarea rows={2} className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={paymentFormData.notes} onChange={e => setPaymentFormData(p => ({ ...p, notes: e.target.value }))} placeholder="Payment details..." />
               </div>
               <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setShowPaymentModal(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 py-4 rounded-[1.5rem] font-bold text-sm uppercase tracking-widest text-slate-500">Cancel</button>
+                <button type="button" onClick={() => { setShowPaymentModal(false); setPaymentError(''); }} className="flex-1 bg-slate-100 dark:bg-slate-700 py-4 rounded-[1.5rem] font-bold text-sm uppercase tracking-widest text-slate-500">Cancel</button>
                 <button type="submit" className="flex-1 bg-emerald-600 text-white py-4 rounded-[1.5rem] font-black shadow-2xl active:scale-95 transition-all text-sm uppercase tracking-widest">Confirm Payment</button>
               </div>
             </form>
           </div>
         </div>
+      )}
+      {showBulkLogModal && (
+        <BulkLaborLogModal 
+          employees={employees}
+          projects={projects}
+          isProjectLocked={isProjectLocked}
+          addLaborLog={addLaborLog}
+          onClose={() => setShowBulkLogModal(false)}
+        />
       )}
       <ConfirmationDialog 
         isOpen={confirmDialog.isOpen}

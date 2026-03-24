@@ -150,6 +150,7 @@ export interface LaborLog {
 export interface LaborPayment {
   id: string;
   employeeId: string;
+  projectId: string;
   date: string;
   amount: number;
   method: PaymentMethod;
@@ -198,6 +199,7 @@ export interface AppContextType extends AppState {
   addProject: (p: Project) => Promise<void>;
   updateProject: (p: Project) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  permanentDeleteProject: (id: string) => Promise<void>;
   restoreProject: (id: string) => Promise<void>;
   addVendor: (v: Vendor) => Promise<void>;
   updateVendor: (v: Vendor) => Promise<void>;
@@ -206,6 +208,7 @@ export interface AppContextType extends AppState {
   updateMaterial: (m: Material) => Promise<void>;
   deleteMaterial: (id: string) => Promise<void>;
   addExpense: (e: Expense) => Promise<void>;
+  addExpenses: (e: Expense[]) => Promise<void>;
   updateExpense: (e: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   addPayment: (p: Payment) => Promise<void>;
@@ -234,6 +237,8 @@ export interface AppContextType extends AppState {
   addSiteStatus: (status: string) => void;
   removeSiteStatus: (status: string) => void;
   importState: (newState: AppState) => Promise<void>;
+  exportData: () => void;
+  exportExcel: () => void;
   isLoading: boolean;
   isSyncing: boolean;
   syncError: boolean;

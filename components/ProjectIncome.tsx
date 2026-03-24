@@ -274,7 +274,10 @@ export const ProjectIncome: React.FC = () => {
                   }
                 }}>
                   <option value="">Choose target invoice...</option>
-                  {invoices.filter(inv => inv.projectId === formData.projectId).map(inv => {
+                  {invoices.filter(inv => {
+                    const { remaining } = getInvoiceMetrics(inv);
+                    return inv.projectId === formData.projectId && remaining > 0;
+                  }).map(inv => {
                     const { remaining } = getInvoiceMetrics(inv);
                     const limit = remaining + (editingIncome?.amount || 0);
                     return <option key={inv.id} value={inv.id}>{inv.description} | Balance: {formatCurrency(limit)} | #{inv.id.slice(-6).toUpperCase()}</option>;

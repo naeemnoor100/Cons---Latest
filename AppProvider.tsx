@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { AppState, Project, Vendor, Material, Expense, Payment, Income, User, StockHistoryEntry, Invoice, Employee, LaborLog, LaborPayment, ActivityLog } from './types';
 import { INITIAL_STATE } from './constants';
 import { AppContext } from './AppContext';
+import * as XLSX from 'xlsx';
 
 const API_PATH = '/api.php';
 
@@ -194,6 +195,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }), 'Delete', 'Project', id, `Deleted project`);
   }, [dispatchUpdate]);
 
+  const permanentDeleteProject = useCallback(async (id: string) => {
+    return dispatchUpdate(prev => {
+      // Remove project
+      const nextProjects = prev.projects.filter(p => p.id !== id);
+      
+      // Cascading delete
+      const nextExpenses = prev.expenses.filter(e => e.projectId !== id);
+      const nextIncomes = prev.incomes.filter(i => i.projectId !== id);
+      const nextInvoices = prev.invoices.filter(inv => inv.projectId !== id);
+      const nextLaborLogs = prev.laborLogs.filter(l => l.projectId !== id);
+      
+      // For payments and laborPayments, they might not have projectId directly.
+      // Need to check if they are linked to expenses or laborLogs that were deleted.
+      // Or if they are linked to the project.
+      // Looking at the types, payments have vendorId, not projectId.
+      // LaborPayments have employeeId, not projectId.
+      
+      // Let's assume for now we only delete things directly linked to projectId.
+      // If there are other links, we might need a more complex approach.
+      
+      return { 
+        ...prev, 
+        projects: nextProjects,
+        expenses: nextExpenses,
+        incomes: nextIncomes,
+        invoices: nextInvoices,
+        laborLogs: nextLaborLogs
+      };
+    }, 'PermanentDelete', 'Project', id, `Permanently deleted project and associated data`);
+  }, [dispatchUpdate]);
+
   const restoreProject = useCallback(async (id: string) => {
     return dispatchUpdate(prev => ({ 
       ...prev, 
@@ -215,7 +247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addExpense = useCallback(async (e: Expense) => dispatchUpdate(prev => {
     let nextVendors = [...prev.vendors];
-    if (e.vendorId && e.inventoryAction === 'Purchase') {
+    if (e.vendorId && (e.inventoryAction === 'Purchase' || !e.inventoryAction)) {
       nextVendors = nextVendors.map(v => v.id === e.vendorId ? { ...v, balance: v.balance + e.amount } : v);
     }
     let nextMaterials = [...prev.materials];
@@ -238,18 +270,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { ...prev, expenses: [...prev.expenses, e], vendors: nextVendors, materials: nextMaterials };
   }, 'Create', 'Expense', e.id, `Recorded expense of ${e.amount} for ${e.category}`), [dispatchUpdate]);
 
+  const addExpenses = useCallback(async (newExpenses: Expense[]) => dispatchUpdate(prev => {
+    let nextVendors = [...prev.vendors];
+    let nextMaterials = [...prev.materials];
+    const nextExpenses = [...prev.expenses];
+
+    newExpenses.forEach(e => {
+      if (e.vendorId && (e.inventoryAction === 'Purchase' || !e.inventoryAction)) {
+        nextVendors = nextVendors.map(v => v.id === e.vendorId ? { ...v, balance: v.balance + e.amount } : v);
+      }
+      if (e.materialId && e.materialQuantity) {
+        const type: 'Purchase' | 'Usage' | 'Transfer' = e.inventoryAction === 'Transfer' ? 'Transfer' : 
+                     (e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.vendorId) ? 'Purchase' : 'Usage');
+        nextMaterials = nextMaterials.map(m => {
+          if (m.id === e.materialId) {
+            const hist: StockHistoryEntry = { 
+              id: 'sh-exp-' + e.id, date: e.date, type: type, quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: type === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: type !== 'Purchase' ? e.parentPurchaseId : undefined
+            };
+            const newHistory = [...(m.history || []), hist];
+            const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
+            const totalUsed = Math.abs(newHistory.filter(h => h.type === 'Usage' && h.quantity < 0).reduce((sum, h) => sum + h.quantity, 0));
+            return { ...m, totalPurchased, totalUsed, history: newHistory };
+          }
+          return m;
+        });
+      }
+      nextExpenses.push(e);
+    });
+
+    return { ...prev, expenses: nextExpenses, vendors: nextVendors, materials: nextMaterials };
+  }, 'BulkCreate', 'Expense', 'multiple', `Recorded ${newExpenses.length} expenses in bulk`), [dispatchUpdate]);
+
   const updateExpense = useCallback(async (e: Expense) => dispatchUpdate(prev => {
     const oldExp = prev.expenses.find(x => x.id === e.id);
     let nextVendors = [...prev.vendors];
 
-    if (oldExp && oldExp.vendorId && oldExp.inventoryAction === 'Purchase') {
+    if (oldExp && oldExp.vendorId && (oldExp.inventoryAction === 'Purchase' || !oldExp.inventoryAction)) {
       nextVendors = nextVendors.map(v => v.id === oldExp.vendorId ? { ...v, balance: v.balance - oldExp.amount } : v);
     }
-    if (e.vendorId && e.inventoryAction === 'Purchase') {
+    if (e.vendorId && (e.inventoryAction === 'Purchase' || !e.inventoryAction)) {
       nextVendors = nextVendors.map(v => v.id === e.vendorId ? { ...v, balance: v.balance + e.amount } : v);
     }
 
-    let expensesToUpdate = [e];
+    const expensesToUpdate = [e];
     
     if (e.inventoryAction === 'Purchase' && e.materialQuantity) {
       const newUnitPrice = e.amount / e.materialQuantity;
@@ -287,7 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (existing) {
               newHistory = currentHistory.map(h => {
                 if (h.id === historyId) {
-                  const type: 'Purchase' | 'Usage' | 'Transfer' = exp.inventoryAction === 'Transfer' ? 'Transfer' : (exp.inventoryAction === 'Purchase' ? 'Purchase' : 'Usage');
+                  const type: 'Purchase' | 'Usage' | 'Transfer' = exp.inventoryAction === 'Transfer' ? 'Transfer' : (exp.inventoryAction === 'Purchase' || (!exp.inventoryAction && !!exp.vendorId) ? 'Purchase' : 'Usage');
                   return {
                     ...h,
                     type: type,
@@ -302,7 +365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 return h;
               });
             } else {
-               const type: 'Purchase' | 'Usage' | 'Transfer' = exp.inventoryAction === 'Transfer' ? 'Transfer' : (exp.inventoryAction === 'Purchase' ? 'Purchase' : 'Usage');
+               const type: 'Purchase' | 'Usage' | 'Transfer' = exp.inventoryAction === 'Transfer' ? 'Transfer' : (exp.inventoryAction === 'Purchase' || (!exp.inventoryAction && !!exp.vendorId) ? 'Purchase' : 'Usage');
                const hist: StockHistoryEntry = { 
                   id: historyId, date: exp.date, type: type, quantity: exp.materialQuantity!, projectId: exp.projectId, vendorId: exp.vendorId, note: exp.notes, unitPrice: type === 'Purchase' ? (exp.amount / exp.materialQuantity!) : (exp.unitPrice || m.costPerUnit), parentPurchaseId: type !== 'Purchase' ? exp.parentPurchaseId : undefined
                };
@@ -354,7 +417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     let nextVendors = [...prev.vendors];
-    if (expToDelete.vendorId && expToDelete.inventoryAction === 'Purchase') {
+    if (expToDelete.vendorId && (expToDelete.inventoryAction === 'Purchase' || !expToDelete.inventoryAction)) {
       nextVendors = nextVendors.map(v => v.id === expToDelete.vendorId ? { ...v, balance: v.balance - expToDelete.amount } : v);
     }
 
@@ -375,7 +438,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const allocatedPayments: Payment[] = [];
       const masterPaymentId = p.id;
       
-      const purchaseBills = prev.expenses.filter(e => e.vendorId === p.vendorId && e.inventoryAction === 'Purchase');
+      const purchaseBills = prev.expenses.filter(e => e.vendorId === p.vendorId && (e.inventoryAction === 'Purchase' || !e.inventoryAction));
       
       const billBalances = purchaseBills.map(bill => {
         const paidForBill = prev.payments
@@ -461,7 +524,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let remainingToAlloc = p.amount;
       const masterPaymentId = p.id;
       
-      const purchaseBills = prev.expenses.filter(e => e.vendorId === p.vendorId && e.inventoryAction === 'Purchase');
+      const purchaseBills = prev.expenses.filter(e => e.vendorId === p.vendorId && (e.inventoryAction === 'Purchase' || !e.inventoryAction));
       const billBalances = purchaseBills.map(bill => {
         // Find existing payments for this bill, excluding the ones we just removed from state conceptually
         const paidForBill = paymentsWithoutOldAllocations
@@ -628,6 +691,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  const exportData = useCallback(() => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `BuildMasterPro_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [state]);
+
+  const exportExcel = useCallback(() => {
+    const wb = XLSX.utils.book_new();
+    const addSheet = (data: unknown[], name: string) => {
+      if (data && data.length > 0) {
+        const ws = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      }
+    };
+
+    addSheet(state.projects, 'Projects');
+    addSheet(state.vendors, 'Vendors');
+    addSheet(state.materials, 'Materials');
+    addSheet(state.expenses, 'Expenses');
+    addSheet(state.incomes, 'Incomes');
+    addSheet(state.invoices, 'Invoices');
+    addSheet(state.payments, 'Payments');
+    addSheet(state.employees, 'Employees');
+    addSheet(state.laborLogs, 'LaborLogs');
+    addSheet(state.laborPayments, 'LaborPayments');
+
+    if (wb.SheetNames.length === 0) {
+      const ws = XLSX.utils.json_to_sheet([{ Message: "No data available" }]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Empty');
+    }
+
+    XLSX.writeFile(wb, `buildtrack_pro_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [state]);
+
   const isProjectLocked = useCallback((projectId: string) => {
     const project = state.projects.find(p => p.id === projectId);
     return project?.status === 'Completed';
@@ -636,10 +739,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const value = useMemo(() => ({
     ...state,
     updateUser, setTheme, setAllowDecimalStock,
-    addProject, updateProject, deleteProject, restoreProject,
+    addProject, updateProject, deleteProject, permanentDeleteProject, restoreProject,
     addVendor, updateVendor, deleteVendor,
     addMaterial, updateMaterial, deleteMaterial,
-    addExpense, updateExpense, deleteExpense,
+    addExpense, addExpenses, updateExpense, deleteExpense,
     addPayment, updatePayment, deletePayment,
     addIncome, updateIncome, deleteIncome,
     addInvoice, updateInvoice, deleteInvoice,
@@ -651,15 +754,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addStockingUnit, removeStockingUnit,
     addSiteStatus, removeSiteStatus,
     importState,
+    exportData, exportExcel,
     isProjectLocked,
     isLoading, isSyncing, syncError, lastSynced,
     undo, redo, canUndo: past.length > 0, canRedo: future.length > 0, lastActionName: ''
   }), [state, isLoading, isSyncing, syncError, lastSynced, past.length, future.length, undo, redo, isProjectLocked, 
-      updateUser, setTheme, setAllowDecimalStock, addProject, updateProject, deleteProject, restoreProject, addVendor, updateVendor, deleteVendor, 
-      addMaterial, updateMaterial, deleteMaterial, addExpense, updateExpense, deleteExpense, addPayment, updatePayment, deletePayment, 
+      updateUser, setTheme, setAllowDecimalStock, addProject, updateProject, deleteProject, permanentDeleteProject, restoreProject, addVendor, updateVendor, deleteVendor, 
+      addMaterial, updateMaterial, deleteMaterial, addExpense, addExpenses, updateExpense, deleteExpense, addPayment, updatePayment, deletePayment, 
       addIncome, updateIncome, deleteIncome, addInvoice, updateInvoice, deleteInvoice, addEmployee, updateEmployee, deleteEmployee, 
       addLaborLog, updateLaborLog, deleteLaborLog, addLaborPayment, updateLaborPayment, deleteLaborPayment, forceSync, 
-      addTradeCategory, removeTradeCategory, addStockingUnit, removeStockingUnit, addSiteStatus, removeSiteStatus, importState]);
+      addTradeCategory, removeTradeCategory, addStockingUnit, removeStockingUnit, addSiteStatus, removeSiteStatus, importState,
+      exportData, exportExcel]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

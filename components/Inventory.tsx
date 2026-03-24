@@ -13,7 +13,6 @@ import {
   Scale,
   Lock,
   Warehouse,
-  Link,
   MoveHorizontal,
   Pencil,
   Trash2
@@ -645,6 +644,19 @@ export const Inventory: React.FC = () => {
     if (expenseId) {
       const oldExp = expenses.find(x => x.id === expenseId);
       if (oldExp) {
+        if (oldExp.inventoryAction === 'Usage' && oldExp.parentPurchaseId) {
+          const parentPurchase = expenses.find(x => x.id === oldExp.parentPurchaseId);
+          if (parentPurchase) {
+            await updateExpense({
+              ...parentPurchase,
+              unitPrice: newPrice,
+              amount: newPrice * (parentPurchase.materialQuantity || 0)
+            });
+            setShowEditHistoryModal(false);
+            setEditingHistoryEntry(null);
+            return;
+          }
+        }
         await updateExpense({ 
           ...oldExp, 
           date: historyEditFormData.date, 
@@ -1122,18 +1134,18 @@ export const Inventory: React.FC = () => {
                         {paginatedHistory.map((entry) => {
                           const project = projects.find(p => p.id === entry.projectId);
                           const vendor = vendors.find(v => v.id === entry.vendorId);
-                          const isLinkedExpense = entry.id.startsWith('sh-exp-');
                           const activeUnitPrice = entry.unitPrice || historyMaterial!.costPerUnit;
                           return (
                             <tr key={entry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
                               <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(entry.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                               <td className="px-8 py-5">
+                                <p className="text-[11px] text-slate-700 dark:text-slate-300 font-black mb-1 uppercase">
+                                  {entry.type === 'Purchase' ? historyMaterial!.name : entry.note}
+                                </p>
                                 <div className="flex items-center gap-2">
                                   {entry.type === 'Purchase' ? (<div className="p-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-emerald-600"><ShoppingCart size={12} /></div>) : entry.type === 'Transfer' ? (<div className="p-1.5 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-amber-600"><ArrowRightLeft size={12} /></div>) : (<div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600"><TrendingDown size={12} /></div>)}
-                                  <span className={`text-[10px] font-black uppercase tracking-widest ${entry.type === 'Purchase' ? 'text-emerald-600' : entry.type === 'Transfer' ? 'text-amber-600' : 'text-blue-600'}`}>{entry.type === 'Transfer' ? (entry.quantity < 0 ? 'Dispatch Out' : 'Hub Transfer In') : entry.type}</span>
-                                  {isLinkedExpense && <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter text-slate-400 border border-slate-200 dark:border-slate-600 flex items-center gap-1"><Link size={8} /> Hub Sync</span>}
+                                  <span className={`text-[10px] font-black uppercase tracking-widest ${entry.type === 'Purchase' ? 'text-emerald-600' : entry.type === 'Transfer' ? 'text-amber-600' : 'text-blue-600'}`}>{entry.type === 'Transfer' ? (entry.quantity < 0 ? 'Dispatch Out' : 'Hub Transfer In') : (entry.type === 'Usage' ? 'Consume' : entry.type)}</span>
                                 </div>
-                                <p className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold mt-1">{entry.note}</p>
                               </td>
                               <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{vendor?.name || 'N/A'}</td>
                               <td className="px-8 py-5"><span className={`text-sm font-black ${entry.quantity > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{entry.quantity > 0 ? '+' : ''}{entry.quantity.toLocaleString()} {historyMaterial!.unit}</span></td>

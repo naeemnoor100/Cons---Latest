@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowUpRight,
-  ChevronDown
+  ChevronDown,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { Vendor, Project } from '../types';
 
@@ -19,7 +21,7 @@ export interface LedgerItem {
   remainingBalance: number;
   projectId?: string;
   siteDisplay?: string;
-  settledBills?: { billName: string; amount: number }[];
+  settledBills?: { billName: string; amount: number; stockReference: string; purchasedDate: string; unitPrice: number; quantity: number; unit: string; billId?: string }[];
   [key: string]: unknown;
 }
 
@@ -37,8 +39,10 @@ interface VendorLedgerModalProps {
   projects: Project[];
   onClose: () => void;
   onPayBill?: (bill: LedgerItem) => void;
+  onEditPayment?: (payment: LedgerItem) => void;
+  onDeletePayment?: (payment: LedgerItem) => void;
   formatCurrency: (val: number) => string;
-  canCreateVendors?: boolean;
+  canCreatePayments?: boolean;
 }
 
 export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
@@ -50,14 +54,33 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   projects,
   onClose,
   onPayBill,
+  onEditPayment,
+  onDeletePayment,
   formatCurrency,
-  canCreateVendors = true
+  canCreatePayments = true
 }) => {
   const [activeTab, setActiveTab] = useState<'statement' | 'settlements' | 'stock'>('statement');
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [highlightedBillId, setHighlightedBillId] = useState<string | null>(null);
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleBillClick = (billId?: string) => {
+    if (!billId) return;
+    setHighlightedBillId(billId);
+    
+    // Clear highlight after 3 seconds
+    setTimeout(() => {
+      setHighlightedBillId(null);
+    }, 3000);
+
+    // Scroll to the highlighted row if possible
+    const element = document.getElementById(`ledger-row-${billId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   };
 
   const filteredData = filteredCombinedLedger.filter(item => {
@@ -172,14 +195,16 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                         <th className="px-8 py-6">Debit (Bill)</th>
                         <th className="px-8 py-6">Credit (Paid)</th>
                         <th className="px-8 py-6 text-right">Ledger Balance</th>
+                        <th className="px-8 py-6 text-right">Actions</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                      {filteredData.length > 0 ? filteredData.map((item, idx) => (
                         <React.Fragment key={`${item.id}-${idx}`}>
                           <tr 
+                            id={`ledger-row-${item.id}`}
                             onClick={() => item.type === 'PAYMENT' && toggleRow(item.id)}
-                            className={`transition-colors ${item.type === 'PAYMENT' ? 'cursor-pointer hover:bg-slate-50/50' : 'hover:bg-slate-50/30'}`}
+                            className={`transition-all duration-500 ${item.type === 'PAYMENT' ? 'cursor-pointer hover:bg-slate-50/50' : 'hover:bg-slate-50/30'} ${highlightedBillId === item.id ? 'bg-amber-50 ring-2 ring-amber-500 ring-inset scale-[1.01] shadow-lg z-10' : ''}`}
                           >
                              <td className="px-8 py-6 text-xs font-black text-slate-900">
                                 {new Date(item.date).toLocaleDateString('en-GB')}
@@ -234,27 +259,48 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                                    <button 
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      if (item.remainingBalance > 0 && onPayBill && canCreateVendors) onPayBill(item);
+                                      if (activeVendor.isActive === false) {
+                                        alert("Cannot record payment for an inactive supplier.");
+                                        return;
+                                      }
+                                      if (item.remainingBalance > 0 && onPayBill && canCreatePayments) onPayBill(item);
                                     }}
-                                    disabled={!canCreateVendors && item.remainingBalance > 0}
-                                    className={`text-xs font-black transition-all ${item.remainingBalance > 0 ? (canCreateVendors ? 'text-amber-600 hover:scale-110 active:scale-95 cursor-pointer' : 'text-slate-400 cursor-not-allowed') : 'text-emerald-600'}`}
+                                    disabled={item.remainingBalance <= 0 || !canCreatePayments || activeVendor.isActive === false}
+                                    className={`text-xs font-black transition-all ${item.remainingBalance > 0 ? (canCreatePayments && activeVendor.isActive !== false ? 'text-amber-600 hover:scale-110 active:scale-95 cursor-pointer' : 'text-slate-400 cursor-not-allowed') : 'text-emerald-600 cursor-default'}`}
                                    >
-                                      {item.remainingBalance > 0 ? `Due: ${formatCurrency(item.remainingBalance)}` : 'Settle'}
+                                      {item.remainingBalance > 0 ? `Due: ${formatCurrency(item.remainingBalance)}` : 'Settled'}
                                    </button>
                                 ) : (
                                    <span className="text-slate-200 font-black">--</span>
                                 )}
                              </td>
+                             <td className="px-8 py-6 text-right">
+                                {item.type === 'PAYMENT' && (
+                                   <div className="flex items-center justify-end gap-2">
+                                      <button onClick={(e) => { e.stopPropagation(); onEditPayment?.(item); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={16} /></button>
+                                      <button onClick={(e) => { e.stopPropagation(); onDeletePayment?.(item); }} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
+                                   </div>
+                                )}
+                             </td>
                           </tr>
                           {item.type === 'PAYMENT' && expandedRows[item.id] && item.settledBills?.length > 0 && (
                             <tr className="bg-slate-50/30 border-l-4 border-emerald-500 animate-in slide-in-from-top-1 duration-200">
-                               <td colSpan={6} className="px-8 py-4">
+                               <td colSpan={7} className="px-8 py-4">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                     {item.settledBills.map((bill: { billName: string; amount: number }, bIdx: number) => (
-                                        <div key={bIdx} className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex justify-between items-center">
+                                     {item.settledBills.map((bill: { billName: string; amount: number; stockReference: string; purchasedDate: string; unitPrice: number; quantity: number; unit: string; billId?: string }, bIdx: number) => (
+                                        <div 
+                                          key={bIdx} 
+                                          onClick={() => handleBillClick(bill.billId)}
+                                          className={`bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex justify-between items-center transition-all ${bill.billId ? 'cursor-pointer hover:border-amber-500 hover:shadow-md' : ''}`}
+                                        >
                                            <div>
                                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Settled Bill</p>
                                               <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{bill.billName}</p>
+                                              <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">
+                                                  {bill.quantity > 0 && `${bill.quantity} ${bill.unit} • `}
+                                                  {bill.unitPrice > 0 && `Price: ${formatCurrency(bill.unitPrice)} • `}
+                                                  {bill.purchasedDate !== 'N/A' ? new Date(bill.purchasedDate).toLocaleDateString('en-GB') : 'N/A'}
+                                               </p>
                                            </div>
                                            <div className="text-right">
                                               <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Allocated</p>

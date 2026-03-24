@@ -39,7 +39,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
     >
       <div className="text-center space-y-6 p-8">
         <h1 className="text-4xl font-black uppercase tracking-widest">BuildMaster Pro</h1>
-        <p className="text-lg opacity-80">Please enter today's date (YYYY-MM-DD) to continue:</p>
         <input
           type="password"
           value={inputDate}
@@ -48,7 +47,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
             setError(false);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="YYYY-MM-DD"
           className="w-full max-w-xs px-4 py-3 text-center text-slate-900 rounded-xl border-2 border-white/20 focus:border-white outline-none"
         />
         {error && <p className="text-rose-300 text-sm">Incorrect date. Please try again.</p>}

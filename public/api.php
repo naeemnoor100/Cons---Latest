@@ -170,6 +170,7 @@ $tablesSchema = [
         'id' => 'VARCHAR(255) PRIMARY KEY',
         'syncId' => 'VARCHAR(255)',
         'employeeId' => 'VARCHAR(255)',
+        'projectId' => 'VARCHAR(255)',
         'date' => 'VARCHAR(50)',
         'amount' => 'DECIMAL(15,2)',
         'method' => 'VARCHAR(50)',
