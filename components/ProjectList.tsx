@@ -200,6 +200,14 @@ export const ProjectList: React.FC = () => {
     return batches.sort((a, b) => a.name.localeCompare(b.name));
   }, [materials, viewingProject, vendors]);
 
+  const selectedTransferBatchForTotal = useMemo(() => {
+    return transferSourceMaterials.find(b => 
+      b.id === transferFormData.materialId && b.batchId === transferFormData.batchId
+    );
+  }, [transferSourceMaterials, transferFormData.materialId, transferFormData.batchId]);
+
+  const currentTransferTotalValue = (selectedTransferBatchForTotal?.unitPrice || 0) * (parseFloat(transferFormData.quantity) || 0);
+
   const handleTransferSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!viewingProject) return;
@@ -961,7 +969,7 @@ export const ProjectList: React.FC = () => {
                   {constructionSites.map((project) => {
                     const metrics = calculateProjectMetrics(project.id, project.budget);
                     return (
-                      <tr key={project.id} onClick={() => { setViewingProject(project); setActiveDetailTab('breakdown'); }} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
+                      <tr key={project.id} onClick={() => { setViewingProject(project); setActiveDetailTab('breakdown'); }} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors cursor-pointer group">
                         <td className="px-6 py-4">
                           <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{project.name}</p>
                           {project.isDeleted && <span className="text-[8px] font-black bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase">Deleted</span>}
@@ -1213,7 +1221,7 @@ export const ProjectList: React.FC = () => {
                               {viewingProjectMetrics.invoices.map(inv => {
                                 const { remaining, isPaid } = getInvoiceMetrics(inv);
                                 return (
-                                  <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                  <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
                                     <td className="px-6 py-4 text-[10px] font-bold text-slate-400">#{inv.id.slice(-6).toUpperCase()}</td>
                                     <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(inv.date).toLocaleDateString()}</td>
                                     <td className="px-6 py-4 text-sm font-black text-slate-900 dark:text-white text-right">{formatCurrency(inv.amount)}</td>
@@ -1242,7 +1250,7 @@ export const ProjectList: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                               {incomes.filter(i => i.projectId === viewingProject.id).map(inc => (
-                                <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
                                   <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(inc.date).toLocaleDateString()}</td>
                                   <td className="px-6 py-4 text-sm font-black text-slate-800 dark:text-slate-200 uppercase">{inc.description}</td>
                                   <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase">{inc.method}</td>
@@ -1267,7 +1275,7 @@ export const ProjectList: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                               {projectArrivals.map((arrival, idx) => (
-                                <tr key={`${arrival.material.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                <tr key={`${arrival.material.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
                                   <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(arrival.entry.date).toLocaleDateString()}</td>
                                   <td className="px-6 py-4 text-sm font-black text-slate-800 dark:text-slate-200 uppercase">{arrival.material.name}</td>
                                   <td className="px-6 py-4 text-center"><span className="text-xs font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">{arrival.arrived.toLocaleString()} {arrival.material.unit}</span></td>
@@ -1391,7 +1399,7 @@ export const ProjectList: React.FC = () => {
                                     arr.includes(arrivalsFilters.arrived || '') &&
                                     rem.includes(arrivalsFilters.inHand || '');
                            }).map((arrival, idx) => (
-                             <tr key={`${arrival.material.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                             <tr key={`${arrival.material.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
                                <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(arrival.entry.date).toLocaleDateString()}</td>
                                <td className="px-8 py-5">
                                   <button onClick={() => setLogMaterial(arrival.material)} className="text-left group/mat">
@@ -1457,7 +1465,7 @@ export const ProjectList: React.FC = () => {
                                     q.includes(expensesFilters.quantity || '') &&
                                     a.includes(expensesFilters.amount || '');
                            }).map(e => (
-                             <tr key={e.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group/row">
+                             <tr key={e.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group/row">
                                <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(e.date).toLocaleDateString()}</td>
                                <td className="px-8 py-5">
                                  <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{e.materialId ? materials.find(m => m.id === e.materialId)?.name : e.category}</p>
@@ -1504,7 +1512,7 @@ export const ProjectList: React.FC = () => {
                                     m.includes((incomeFilters.method || '').toLowerCase()) &&
                                     a.includes(incomeFilters.amount || '');
                            }).map(inc => (
-                             <tr key={inc.id} className="hover:bg-slate-50/50 transition-colors group">
+                             <tr key={inc.id} className="hover:bg-slate-50/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                                 <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(inc.date).toLocaleDateString()}</td>
                                 <td className="px-8 py-5">
                                    <p className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase">{inc.description}</p>
@@ -1535,7 +1543,7 @@ export const ProjectList: React.FC = () => {
                              const { remaining, isPaid } = getInvoiceMetrics(inv);
                              const isPartial = !isPaid && remaining < inv.amount && remaining > 0;
                              return (
-                               <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : isPartial ? 'bg-amber-50/40 dark:bg-amber-900/5 hover:bg-amber-50/60' : 'hover:bg-slate-50/50'}`}>
+                               <tr key={inv.id} className={`transition-colors group even:bg-slate-50/30 dark:even:bg-slate-800/20 ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : isPartial ? 'bg-amber-50/40 dark:bg-amber-900/5 hover:bg-amber-50/60' : 'hover:bg-slate-50/50'}`}>
                                  <td className="px-8 py-5 text-[10px] font-bold text-slate-400">#{inv.id.slice(-6).toUpperCase()}</td>
                                  <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(inv.date).toLocaleDateString()}</td>
                                  <td className="px-8 py-5">
@@ -1581,7 +1589,7 @@ export const ProjectList: React.FC = () => {
                              const emp = employees.find(e => e.id === log.employeeId);
                              if (!emp) return null;
                              return (
-                               <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                               <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
                                  <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(log.date).toLocaleDateString()}</td>
                                  <td className="px-8 py-5 text-sm font-black text-slate-900 dark:text-white">{emp.name}</td>
                                  <td className="px-8 py-5 text-xs font-bold text-slate-500">{emp.role}</td>
@@ -1835,6 +1843,11 @@ export const ProjectList: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Transfer Quantity</label>
                     <input type="number" step={allowDecimalStock ? "0.01" : "1"} required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none" value={transferFormData.quantity} onChange={e => setTransferFormData(p => ({ ...p, quantity: e.target.value }))} placeholder="0.00" />
+                    {currentTransferTotalValue > 0 && (
+                      <p className="text-[10px] font-bold text-slate-400 px-2 mt-1">
+                        Total Value: {formatCurrency(currentTransferTotalValue)}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Effective Date</label>
@@ -1907,7 +1920,7 @@ export const ProjectList: React.FC = () => {
                    </thead>
                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                       {logMaterialHistory.length > 0 ? logMaterialHistory.map((h, i) => (
-                        <tr key={`${h.id}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                        <tr key={`${h.id}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                            <td className="px-6 py-4 text-xs font-bold text-slate-500 whitespace-nowrap">{new Date(h.date).toLocaleDateString()}</td>
                            <td className="px-6 py-4">
                               <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${

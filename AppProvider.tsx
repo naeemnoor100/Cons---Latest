@@ -257,7 +257,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       nextMaterials = nextMaterials.map(m => {
         if (m.id === e.materialId) {
           const hist: StockHistoryEntry = { 
-            id: 'sh-exp-' + e.id, date: e.date, type: type, quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: type === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: type !== 'Purchase' ? e.parentPurchaseId : undefined
+            id: 'sh-exp-' + e.id, 
+            date: e.date, 
+            type: type, 
+            quantity: e.materialQuantity!, 
+            projectId: e.projectId, 
+            vendorId: e.vendorId, 
+            employeeId: e.employeeId,
+            note: e.notes, 
+            unitPrice: type === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), 
+            parentPurchaseId: type !== 'Purchase' ? e.parentPurchaseId : undefined
           };
           const newHistory = [...(m.history || []), hist];
           const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
@@ -285,7 +294,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         nextMaterials = nextMaterials.map(m => {
           if (m.id === e.materialId) {
             const hist: StockHistoryEntry = { 
-              id: 'sh-exp-' + e.id, date: e.date, type: type, quantity: e.materialQuantity!, projectId: e.projectId, vendorId: e.vendorId, note: e.notes, unitPrice: type === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), parentPurchaseId: type !== 'Purchase' ? e.parentPurchaseId : undefined
+              id: 'sh-exp-' + e.id, 
+              date: e.date, 
+              type: type, 
+              quantity: e.materialQuantity!, 
+              projectId: e.projectId, 
+              vendorId: e.vendorId, 
+              employeeId: e.employeeId,
+              note: e.notes, 
+              unitPrice: type === 'Purchase' ? (e.amount / e.materialQuantity!) : (e.unitPrice || m.costPerUnit), 
+              parentPurchaseId: type !== 'Purchase' ? e.parentPurchaseId : undefined
             };
             const newHistory = [...(m.history || []), hist];
             const totalPurchased = newHistory.filter(h => h.type === 'Purchase' && h.quantity > 0).reduce((sum, h) => sum + h.quantity, 0);
@@ -358,6 +376,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                     quantity: exp.materialQuantity || 0,
                     projectId: exp.projectId,
                     vendorId: exp.vendorId,
+                    employeeId: exp.employeeId,
                     note: exp.notes,
                     unitPrice: exp.unitPrice || (type === 'Purchase' && exp.materialQuantity ? exp.amount / exp.materialQuantity : m.costPerUnit)
                   };
@@ -367,7 +386,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             } else {
                const type: 'Purchase' | 'Usage' | 'Transfer' = exp.inventoryAction === 'Transfer' ? 'Transfer' : (exp.inventoryAction === 'Purchase' || (!exp.inventoryAction && !!exp.vendorId) ? 'Purchase' : 'Usage');
                const hist: StockHistoryEntry = { 
-                  id: historyId, date: exp.date, type: type, quantity: exp.materialQuantity!, projectId: exp.projectId, vendorId: exp.vendorId, note: exp.notes, unitPrice: type === 'Purchase' ? (exp.amount / exp.materialQuantity!) : (exp.unitPrice || m.costPerUnit), parentPurchaseId: type !== 'Purchase' ? exp.parentPurchaseId : undefined
+                  id: historyId, 
+                  date: exp.date, 
+                  type: type, 
+                  quantity: exp.materialQuantity!, 
+                  projectId: exp.projectId, 
+                  vendorId: exp.vendorId, 
+                  employeeId: exp.employeeId,
+                  note: exp.notes, 
+                  unitPrice: type === 'Purchase' ? (exp.amount / exp.materialQuantity!) : (exp.unitPrice || m.costPerUnit), 
+                  parentPurchaseId: type !== 'Purchase' ? exp.parentPurchaseId : undefined
                };
                newHistory = [...currentHistory, hist];
             }

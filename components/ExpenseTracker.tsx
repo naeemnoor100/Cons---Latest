@@ -306,7 +306,7 @@ export const ExpenseTracker: React.FC = () => {
     price: number;
   }
 
-  const siteSpecificInventory = useMemo(() => {
+  const siteSpecificInventory = (() => {
     if (!formData.projectId) return [];
     const results: InventorySelectionItem[] = [];
 
@@ -344,9 +344,11 @@ export const ExpenseTracker: React.FC = () => {
       });
     });
 
-    if (isPurchase) return results.sort((a, b) => a.name.localeCompare(b.name));
-    return results.sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
-  }, [materials, formData.projectId, isPurchase, vendors]);
+    const finalResults = isPurchase 
+      ? [...results].sort((a, b) => a.name.localeCompare(b.name))
+      : [...results].sort((a, b) => (a.isLocal === b.isLocal ? 0 : a.isLocal ? -1 : 1));
+    return finalResults;
+  })();
 
   const resetForm = useCallback(() => {
     setFormData({ 
@@ -504,7 +506,7 @@ export const ExpenseTracker: React.FC = () => {
                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                <select className="w-full pl-9 pr-4 py-3.5 sm:py-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl sm:rounded-[1.2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
                   <option value="All">All Sites</option>
-                  {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{p.isDeleted ? ' (Deleted)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                  {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                </select>
             </div>
          </div>
@@ -535,7 +537,7 @@ export const ExpenseTracker: React.FC = () => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
                 return (
-                  <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                  <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                     <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(exp.date).toLocaleDateString()}</td>
                     <td className="px-8 py-5">
                       <div className="flex flex-col">
@@ -691,6 +693,7 @@ export const ExpenseTracker: React.FC = () => {
                         </td>
                         <td className="px-1">
                           <select className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.projectId} onChange={e => updateBulkRow(row.id, 'projectId', e.target.value)} required>
+                            <option value="" disabled>Select Project...</option>
                             {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}</option>)}
                           </select>
                         </td>
@@ -702,6 +705,7 @@ export const ExpenseTracker: React.FC = () => {
                         </td>
                         <td className="px-1">
                           <select className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.category} onChange={e => updateBulkRow(row.id, 'category', e.target.value)}>
+                            <option value="" disabled>Select Category...</option>
                             {tradeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                           </select>
                         </td>
@@ -710,6 +714,7 @@ export const ExpenseTracker: React.FC = () => {
                         </td>
                         <td className="px-1">
                           <select className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none" value={row.paymentMethod} onChange={e => updateBulkRow(row.id, 'paymentMethod', e.target.value)}>
+                            <option value="" disabled>Select Method...</option>
                             <option value="Bank">Bank</option>
                             <option value="Cash">Cash</option>
                             <option value="Online">Online</option>
@@ -795,6 +800,7 @@ export const ExpenseTracker: React.FC = () => {
                         value={formData.category} 
                         onChange={(e) => setFormData(p => ({ ...p, category: e.target.value, materialId: '' }))}
                       >
+                        <option value="" disabled>Select Category...</option>
                         {tradeCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                       </select>
                       <button 

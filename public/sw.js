@@ -1,8 +1,9 @@
 const CACHE_NAME = 'buildtrack-pro-v1';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
+  './',
+  'index.html',
+  'manifest.json',
+  'USER_GUIDE.html',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap',
   'https://cdn.tailwindcss.com'
 ];

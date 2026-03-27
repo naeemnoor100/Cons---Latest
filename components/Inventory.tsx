@@ -15,7 +15,8 @@ import {
   Warehouse,
   MoveHorizontal,
   Pencil,
-  Trash2
+  Trash2,
+  MapPin
 } from 'lucide-react';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { useApp } from '../AppContext';
@@ -37,11 +38,12 @@ interface BulkRow {
 }
 
 export const Inventory: React.FC = () => {
-  const { materials, projects, vendors, stockingUnits, payments, expenses, updateMaterial, addMaterial, deleteMaterial, addExpense, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked, currentUser } = useApp();
+  const { materials, projects, vendors, stockingUnits, payments, expenses, employees, updateMaterial, addMaterial, deleteMaterial, addExpense, updateExpense, deleteExpense, allowDecimalStock, isProjectLocked, currentUser } = useApp();
   
   const canCreateMaterials = currentUser.permissions?.['materials']?.includes('create');
   const canEditMaterials = currentUser.permissions?.['materials']?.includes('edit');
   const canDeleteMaterials = currentUser.permissions?.['materials']?.includes('delete');
+  const [activeTab, setActiveTab] = useState<'stock' | 'usage-reports'>('stock');
   const [searchTerm, setSearchTerm] = useState('');
   const [projectFilter, setProjectFilter] = useState('All');
   const [inventorySort, setInventorySort] = useState<InventorySortOption>('name');
@@ -139,6 +141,7 @@ export const Inventory: React.FC = () => {
     vendorId: '', 
     batchId: '', 
     projectId: '', 
+    employeeId: '',
     quantity: '', 
     date: new Date().toISOString().split('T')[0], 
     notes: '',
@@ -257,12 +260,20 @@ export const Inventory: React.FC = () => {
 
   const currentTotalValue = (selectedBatchForTotal?.unitPrice || 0) * (parseFloat(usageData.quantity) || 0);
 
+  const selectedTransferBatchForTotal = useMemo(() => {
+    return transferSourceMaterials.find(b => 
+      b.id === transferData.materialId && b.batchId === transferData.batchId
+    );
+  }, [transferSourceMaterials, transferData.materialId, transferData.batchId]);
+
+  const currentTransferTotalValue = (selectedTransferBatchForTotal?.unitPrice || 0) * (parseFloat(transferData.quantity) || 0);
+
   const handleOpenProcureModal = () => {
     setProcureData({
       materialId: '',
       newName: '',
-      vendorId: vendors[0]?.id || '',
-      projectId: projects.find(p => !p.isDeleted && p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '',
+      vendorId: '',
+      projectId: '',
       quantity: '',
       unit: stockingUnits[0] || 'Bag',
       costPerUnit: '',
@@ -273,21 +284,21 @@ export const Inventory: React.FC = () => {
   };
 
   const handleOpenBulkModal = () => {
-    setBulkGlobalVendor(vendors[0]?.id || '');
-    setBulkGlobalProject(projects.find(p => !p.isDeleted && p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '',);
+    setBulkGlobalVendor('');
+    setBulkGlobalProject('');
     setBulkDate(new Date().toISOString().split('T')[0]);
     setBulkRows([{ id: '1', materialId: '', quantity: '', unitPrice: '', vendorId: '', projectId: '' }]);
     setShowBulkModal(true);
   };
 
   const handleOpenUsageModal = (materialId?: string, projectId?: string) => {
-    setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || projects.find(p => !p.isDeleted && !p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '', filterMaterialId: materialId || '' });
+    setUsageData({ materialId: materialId || '', vendorId: '', batchId: '', projectId: projectId || '', employeeId: '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '', filterMaterialId: materialId || '' });
     setShowUsageModal(true);
   };
 
   const handleOpenTransferModal = () => {
     setTransferData({
-      sourceProjectId: projects.find(p => !p.isDeleted && p.isGodown)?.id || projects.find(p => !p.isDeleted)?.id || '',
+      sourceProjectId: '',
       destProjectId: '',
       materialId: '',
       batchId: '',
@@ -375,6 +386,73 @@ export const Inventory: React.FC = () => {
     setShowEditModal(false);
     setEditingMaterial(null);
   };
+
+  const usageReports = useMemo(() => {
+    const usageExpenses = expenses.filter(e => e.inventoryAction === 'Usage');
+    
+    return projects.filter(p => !p.isDeleted).map(project => {
+      const projectUsage = usageExpenses.filter(e => e.projectId === project.id);
+      
+      // Group by employee, including "Unassigned"
+      const employeeMap: Record<string, { 
+        employeeId: string; 
+        employeeName: string; 
+        role: string; 
+        totalValue: number; 
+        materials: { materialName: string; unit: string; quantity: number; value: number }[] 
+      }> = {};
+
+      projectUsage.forEach(e => {
+        const empId = e.employeeId || 'unassigned';
+        const emp = employees.find(emp => emp.id === empId);
+        
+        if (!employeeMap[empId]) {
+          employeeMap[empId] = {
+            employeeId: empId,
+            employeeName: emp?.name || 'Unassigned / General',
+            role: emp?.role || 'N/A',
+            totalValue: 0,
+            materials: []
+          };
+        }
+
+        const mat = materials.find(m => m.id === e.materialId);
+        if (!mat) return;
+
+        let matUsage = employeeMap[empId].materials.find(m => m.materialName === mat.name);
+        
+        if (!matUsage) {
+          matUsage = {
+            materialName: mat.name,
+            unit: mat.unit,
+            quantity: 0,
+            value: 0
+          };
+          employeeMap[empId].materials.push(matUsage);
+        }
+
+        const qty = Math.abs(e.materialQuantity || 0);
+        const val = e.amount || 0;
+        
+        matUsage.quantity += qty;
+        matUsage.value += val;
+        employeeMap[empId].totalValue += val;
+      });
+
+      const employeeBreakdown = Object.values(employeeMap).sort((a, b) => {
+        if (a.employeeId === 'unassigned') return 1;
+        if (b.employeeId === 'unassigned') return -1;
+        return b.totalValue - a.totalValue;
+      });
+
+      return {
+        projectId: project.id,
+        projectName: project.name,
+        totalValue: employeeBreakdown.reduce((sum, eb) => sum + eb.totalValue, 0),
+        employees: employeeBreakdown
+      };
+    }).filter(pr => pr.totalValue > 0);
+  }, [projects, expenses, employees, materials]);
 
   const filteredMaterials = useMemo(() => {
     let result = materials.map(mat => {
@@ -510,7 +588,7 @@ export const Inventory: React.FC = () => {
       await addExpense({ id: expenseId, date: procureData.date, projectId: procureData.projectId, vendorId: procureData.vendorId, amount: totalAmount, paymentMethod: 'Bank', category: 'Material', notes: procureData.note || `Restock Procurement: ${qty} units`, materialId: procureData.materialId, materialQuantity: qty, inventoryAction: 'Purchase' });
     }
     setShowProcureModal(false);
-    setProcureData({ materialId: '', newName: '', vendorId: vendors[0]?.id || '', projectId: projects.find(p => p.isGodown)?.id || projects[0]?.id || '', quantity: '', unit: stockingUnits[0] || 'Bag', costPerUnit: '', date: new Date().toISOString().split('T')[0], note: '' });
+    setProcureData({ materialId: '', newName: '', vendorId: '', projectId: '', quantity: '', unit: stockingUnits[0] || 'Bag', costPerUnit: '', date: new Date().toISOString().split('T')[0], note: '' });
   };
 
   const addBulkRow = () => setBulkRows([...bulkRows, { id: Date.now().toString(), materialId: '', quantity: '', unitPrice: '', vendorId: bulkGlobalVendor, projectId: bulkGlobalProject }]);
@@ -581,6 +659,7 @@ export const Inventory: React.FC = () => {
         id: 'e-usage-' + Date.now(), 
         date: usageData.date, 
         projectId: usageData.projectId, 
+        employeeId: usageData.employeeId || undefined,
         amount: consumptionValue, 
         paymentMethod: 'Bank', 
         category: 'Material', 
@@ -701,7 +780,24 @@ export const Inventory: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row gap-4">
+      <div className="flex bg-white dark:bg-slate-800 p-1 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit overflow-x-auto no-scrollbar">
+        <button 
+          onClick={() => setActiveTab('stock')}
+          className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'stock' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500'}`}
+        >
+          Stock Ledger
+        </button>
+        <button 
+          onClick={() => setActiveTab('usage-reports')}
+          className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'usage-reports' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500'}`}
+        >
+          Usage Reports
+        </button>
+      </div>
+
+      {activeTab === 'stock' ? (
+        <>
+          <div className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input type="text" placeholder="Search by asset name..." className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white font-bold" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -727,7 +823,7 @@ export const Inventory: React.FC = () => {
              <Warehouse className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
              <select className="pl-10 pr-8 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none appearance-none dark:text-white" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
                 <option value="All">Hub Filter: All</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{p.isDeleted ? ' (Deleted)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
              </select>
           </div>
           <div className="relative">
@@ -781,7 +877,7 @@ export const Inventory: React.FC = () => {
                 const isLowStock = remaining < threshold;
                 
                 return (
-                  <tr key={mat.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                  <tr key={mat.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg group-hover:scale-110 transition-transform ${isProjectFiltered && filterProj?.isGodown ? 'bg-slate-900 text-white' : 'bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-300'}`}>
@@ -873,6 +969,77 @@ export const Inventory: React.FC = () => {
           </table>
         </div>
       </div>
+        </>
+      ) : (
+        <div className="space-y-6">
+          {usageReports.length === 0 ? (
+            <div className="bg-white dark:bg-slate-800 p-12 rounded-[2rem] border border-slate-200 dark:border-slate-700 text-center">
+              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <TrendingDown size={32} />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">No Usage Data</h3>
+              <p className="text-slate-500 text-sm font-medium mt-1">Start recording material usage to see consumption reports.</p>
+            </div>
+          ) : (
+            usageReports.map(project => (
+              <div key={project.projectId} className="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                      <MapPin size={18} className="text-blue-600" />
+                      {project.projectName}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Project Consumption Summary</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Consumption Value</p>
+                    <p className="text-lg font-black text-slate-900 dark:text-white">{formatCurrency(project.totalValue)}</p>
+                  </div>
+                </div>
+                
+                <div className="p-6 space-y-6">
+                  {project.employees.map(emp => (
+                    <div key={emp.employeeId} className="space-y-3">
+                      <div className="flex items-center justify-between px-4 py-2 bg-slate-100 dark:bg-slate-900 rounded-xl">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-black">
+                            {emp.employeeName.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-sm font-black text-slate-900 dark:text-white">{emp.employeeName}</p>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">{emp.role}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Usage Value</p>
+                          <p className="text-sm font-black text-slate-900 dark:text-white">{formatCurrency(emp.totalValue)}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pl-4">
+                        {emp.materials.map((mu, idx) => (
+                          <div key={idx} className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm flex justify-between items-center">
+                            <div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{mu.materialName}</p>
+                              <p className="text-sm font-black text-slate-900 dark:text-white">
+                                {mu.quantity} <span className="text-[10px] text-slate-500">{mu.unit}</span>
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Value</p>
+                              <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{formatCurrency(mu.value)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* Internal Transfer Modal */}
       {showTransferModal && (
@@ -893,6 +1060,7 @@ export const Inventory: React.FC = () => {
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Source Hub (From)</label>
                       <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.sourceProjectId} onChange={e => setTransferData(p => ({ ...p, sourceProjectId: e.target.value, materialId: '', batchId: '' }))}>
+                         <option value="">Select Site/Hub</option>
                          {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                       </select>
                    </div>
@@ -900,7 +1068,7 @@ export const Inventory: React.FC = () => {
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Destination Hub (To)</label>
                       <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={transferData.destProjectId} onChange={e => setTransferData(p => ({ ...p, destProjectId: e.target.value }))}>
                          <option value="">Select Target...</option>
-                         {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                         {projects.filter(p => !p.isDeleted && p.id !== transferData.sourceProjectId).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                       </select>
                    </div>
                 </div>
@@ -929,6 +1097,11 @@ export const Inventory: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Transfer Quantity</label>
                     <input type="number" step={allowDecimalStock ? "0.01" : "1"} required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg dark:text-white outline-none" value={transferData.quantity} onChange={e => setTransferData(p => ({ ...p, quantity: e.target.value }))} placeholder="0.00" />
+                    {currentTransferTotalValue > 0 && (
+                      <p className="text-[10px] font-bold text-slate-400 px-2 mt-1">
+                        Total Value: {formatCurrency(currentTransferTotalValue)}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Effective Date</label>
@@ -1021,14 +1194,15 @@ export const Inventory: React.FC = () => {
                   <div className="space-y-1.5">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Target Hub (Godown or Site)</label>
                      <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={procureData.projectId} onChange={e => setProcureData(p => ({ ...p, projectId: e.target.value }))} required>
-                        {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown Hub)' : ''}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                        <option value="">Select Site / Hub</option>
+                        {projects.filter(p => !p.isDeleted && p.status !== 'Completed').map(p => <option key={p.id} value={p.id}>{p.name} {p.isGodown ? '(Godown Hub)' : ''}</option>)}
                      </select>
                   </div>
                   <div className="space-y-1.5">
                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Billing Supplier</label>
                      <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={procureData.vendorId} onChange={e => setProcureData(p => ({ ...p, vendorId: e.target.value }))} required>
-                        <option value="">Select Vendor...</option>
-                        {vendors.filter(v => v.isActive !== false || v.id === procureData.vendorId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        <option value="">Select Vendor</option>
+                        {vendors.filter(v => v.isActive !== false).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                      </select>
                   </div>
                 </div>
@@ -1045,6 +1219,13 @@ export const Inventory: React.FC = () => {
                    <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Arrival Date</label>
                       <input type="date" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none" value={procureData.date} onChange={e => setProcureData(p => ({ ...p, date: e.target.value }))} />
+                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                   <label className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest px-1">Procure Total Price (Rs.)</label>
+                   <div className="w-full px-5 py-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-2xl font-black text-blue-700 dark:text-blue-300 shadow-inner">
+                      {((parseFloat(procureData.quantity) || 0) * (parseFloat(procureData.costPerUnit) || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                    </div>
                 </div>
 
@@ -1136,7 +1317,7 @@ export const Inventory: React.FC = () => {
                           const vendor = vendors.find(v => v.id === entry.vendorId);
                           const activeUnitPrice = entry.unitPrice || historyMaterial!.costPerUnit;
                           return (
-                            <tr key={entry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                            <tr key={entry.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                               <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(entry.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                               <td className="px-8 py-5">
                                 <p className="text-[11px] text-slate-700 dark:text-slate-300 font-black mb-1 uppercase">
@@ -1280,13 +1461,33 @@ export const Inventory: React.FC = () => {
                  <button onClick={() => setShowUsageModal(false)} className="p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"><X size={32} /></button>
               </div>
               <form onSubmit={handleRecordUsage} className="p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
-                 <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Operational Allocation (Hub/Site)</label><select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={usageData.projectId} onChange={e => setUsageData(p => ({ ...p, projectId: e.target.value, materialId: '', batchId: '' }))} required><option value="">Select Project Site or Godown Hub...</option>{projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Warehouse)' : '(Active Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}</select>
+                 <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Operational Allocation (Hub/Site)</label>
+                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={usageData.projectId} onChange={e => setUsageData(p => ({ ...p, projectId: e.target.value, materialId: '', batchId: '' }))} required>
+                      <option value="">Select Project Site of Hub</option>
+                      {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Warehouse)' : '(Active Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                    </select>
                     {projects.find(p => p.id === usageData.projectId)?.isGodown && (
                       <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-2">
                         <AlertCircle size={14} className="text-amber-600" />
                         <p className="text-[9px] font-black text-amber-700 uppercase tracking-tight">Godown materials can only be transferred, not consumed.</p>
                       </div>
-                    )}</div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Responsible Employee (Optional)</label>
+                    <select 
+                      className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" 
+                      value={usageData.employeeId} 
+                      onChange={e => setUsageData(p => ({ ...p, employeeId: e.target.value }))}
+                    >
+                      <option value="">Select Employee...</option>
+                      {employees.filter(emp => emp.status === 'Active').map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
+                      ))}
+                    </select>
+                  </div>
                  
                  <div className="space-y-1.5">
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Material Pool (Category / Hub / Price / Remaining)</label>

@@ -151,8 +151,9 @@ export const BulkLaborLogModal: React.FC<BulkLaborLogModalProps> = ({
                         <select 
                           className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-xs dark:text-white outline-none"
                           value={row.status}
-                          onChange={e => updateRow(emp.id, 'status', e.target.value)}
+                          onChange={e => updateRow(emp.id, 'status', e.target.value as 'Present' | 'Half-day' | 'Absent')}
                         >
+                          <option value="" disabled>Select Status...</option>
                           <option value="Present">Present</option>
                           <option value="Half-day">Half-day</option>
                           <option value="Absent">Absent</option>

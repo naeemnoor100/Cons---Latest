@@ -81,15 +81,15 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
            <div className="space-y-1.5 flex-1 min-w-[200px]">
               <label className="text-[9px] font-black text-slate-400 uppercase px-1">Primary Vendor (Auto-Fill)</label>
               <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white" value={bulkGlobalVendor} onChange={e => setBulkGlobalVendor(e.target.value)}>
-                <option value="">Manual Selection</option>
+                <option value="">Select</option>
                 {vendors.filter(v => v.isActive !== false || v.id === bulkGlobalVendor).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
            </div>
            <div className="space-y-1.5 flex-1 min-w-[200px]">
               <label className="text-[9px] font-black text-slate-400 uppercase px-1">Primary Godown (Auto-Fill)</label>
               <select className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold dark:text-white" value={bulkGlobalProject} onChange={e => setBulkGlobalProject(e.target.value)}>
-                <option value="">Manual Selection</option>
-                {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : '(Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
+                <option value="" disabled>Select</option>
+                {projects.filter(p => !p.isDeleted && p.status === 'Active').map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(Godown)' : '(Site)'}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
               </select>
            </div>
         </div>
@@ -104,7 +104,7 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
                    <div className="md:col-span-3 space-y-1">
                       <label className="text-[8px] font-black text-slate-400 uppercase px-1">Material Asset</label>
                       <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.materialId} onChange={e => updateBulkRow(row.id, 'materialId', e.target.value)}>
-                         <option value="">Choose asset...</option>
+                        <option value="" disabled>Select</option>
                          {materials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
                       </select>
                    </div>
@@ -120,7 +120,7 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
                       <div className="md:col-span-2 space-y-1">
                         <label className="text-[8px] font-black text-slate-400 uppercase px-1">Vendor</label>
                         <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.vendorId} onChange={e => updateBulkRow(row.id, 'vendorId', e.target.value)}>
-                           <option value="">Select Vendor...</option>
+                           <option value="" disabled>Select</option>
                            {vendors.filter(v => v.isActive !== false || v.id === row.vendorId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                         </select>
                       </div>
@@ -129,8 +129,8 @@ export const BulkStockInwardModal: React.FC<BulkStockInwardModalProps> = ({
                       <div className="md:col-span-2 space-y-1">
                         <label className="text-[8px] font-black text-slate-400 uppercase px-1">Target Hub</label>
                         <select className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 rounded-lg text-xs font-bold dark:text-white" value={row.projectId} onChange={e => updateBulkRow(row.id, 'projectId', e.target.value)}>
-                           <option value="">Select Hub...</option>
-                           {projects.map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(G)' : '(S)'}{isProjectLocked(p.id) ? ' (L)' : ''}</option>)}
+                           <option value="" disabled>Select</option>
+                           {projects.filter(p => !p.isDeleted && p.status === 'Active').map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name} {p.isGodown ? '(G)' : '(S)'}{isProjectLocked(p.id) ? ' (L)' : ''}</option>)}
                         </select>
                       </div>
                    )}

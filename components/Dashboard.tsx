@@ -36,12 +36,14 @@ const DashboardCard: React.FC<{
   trend?: string;
   isPositive?: boolean;
   colorClass: string;
-}> = ({ title, value, icon, trend, isPositive, colorClass }) => (
+  subText?: string;
+}> = ({ title, value, icon, trend, isPositive, colorClass, subText }) => (
   <div className="bg-white dark:bg-slate-800 p-3 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all hover:shadow-md">
     <div className="flex justify-between items-start">
       <div className="flex-1 min-w-0">
         <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-0.5 sm:mb-1 truncate">{title}</p>
         <h3 className="text-lg sm:text-2xl font-black text-slate-900 dark:text-white truncate">{value}</h3>
+        {subText && <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1 truncate">{subText}</p>}
       </div>
       <div className={`p-2 sm:p-3 rounded-xl ${colorClass} text-white shrink-0 ml-1.5 sm:ml-2`}>
         {React.cloneElement(icon as React.ReactElement, { size: 16 })}
@@ -159,7 +161,7 @@ export const Dashboard: React.FC = () => {
         <DashboardCard title="Revenue" value={formatCurrency(totalIncome)} icon={<ArrowUpCircle size={20} />} colorClass="bg-emerald-600" />
         <DashboardCard title="Total Costs" value={formatCurrency(totalExpenses)} icon={<TrendingDown size={20} />} colorClass="bg-rose-600" />
         <DashboardCard title="Receivables" value={formatCurrency(totalReceivables)} icon={<Wallet size={20} />} colorClass="bg-purple-600" />
-        <DashboardCard title="Remaining Budget" value={formatCurrency(remainingBudget)} icon={<Target size={20} />} colorClass="bg-indigo-600" />
+        <DashboardCard title="Remaining Budget" value={formatCurrency(remainingBudget)} icon={<Target size={20} />} colorClass="bg-indigo-600" subText={`Total Budget: ${formatCurrency(totalBudget)}`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

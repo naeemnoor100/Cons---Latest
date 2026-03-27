@@ -2,7 +2,7 @@
   "name": "BuildTrack Pro - Construction PM",
   "short_name": "BuildTrack",
   "description": "Professional construction project management application for tracking projects, vendors, materials, and finances.",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#F4F6F8",
   "theme_color": "#003366",

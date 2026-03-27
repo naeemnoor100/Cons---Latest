@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon, 
   Menu,
   X,
+  HelpCircle,
   ChevronRight,
   ChevronLeft,
   ArrowUpCircle,
@@ -80,6 +81,14 @@ const MobileTabItem: React.FC<{
   </button>
 );
 
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  isExternal?: boolean;
+  url?: string;
+}
+
 export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab }) => {
   const { syncId, isSyncing, syncError, undo, redo, canUndo, canRedo, theme } = useApp();
   const [showSyncCenter, setShowSyncCenter] = useState(false);
@@ -87,7 +96,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const primaryMenuItems = [
+  const primaryMenuItems: MenuItem[] = [
     { id: 'dashboard', label: 'Home', icon: <LayoutDashboard size={18} strokeWidth={2.5} /> },
     { id: 'projects', label: 'Sites', icon: <Briefcase size={18} strokeWidth={2.5} /> },
     { id: 'labor', label: 'Labor', icon: <HardHat size={18} strokeWidth={2.5} /> },
@@ -95,12 +104,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
     { id: 'expenses', label: 'Finance', icon: <Receipt size={18} strokeWidth={2.5} /> },
   ];
 
-  const secondaryMenuItems = [
+  const secondaryMenuItems: MenuItem[] = [
     { id: 'invoices', label: 'Invoices', icon: <FileText size={18} /> },
     { id: 'income', label: 'Revenue', icon: <ArrowUpCircle size={18} /> },
     { id: 'vendors', label: 'Suppliers', icon: <Users size={18} /> },
     { id: 'payments', label: 'Payments', icon: <DollarSign size={18} /> },
     { id: 'reports', label: 'Analytics', icon: <BarChart3 size={18} /> },
+    { id: 'help', label: 'Help Guide', icon: <HelpCircle size={18} />, isExternal: true, url: 'USER_GUIDE.html' },
     { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
   ];
 
@@ -133,7 +143,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
               key={item.id} 
               {...item} 
               isActive={activeTab === item.id} 
-              onClick={() => setActiveTab(item.id)} 
+              onClick={() => {
+                if (item.isExternal) {
+                  window.open(item.url, '_blank');
+                } else {
+                  setActiveTab(item.id);
+                }
+              }} 
               isCollapsed={isCollapsed}
             />
           ))}
@@ -249,7 +265,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                       {...item} 
                       isActive={activeTab === item.id} 
                       onClick={() => {
-                        setActiveTab(item.id);
+                        if (item.isExternal) {
+                          window.open(item.url, '_blank');
+                        } else {
+                          setActiveTab(item.id);
+                        }
                         setShowMobileSidebar(false);
                       }} 
                     />
@@ -284,10 +304,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
                    <button onClick={() => setShowMoreMenu(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400"><X size={18} /></button>
                  </div>
                  <div className="grid grid-cols-3 gap-y-6 gap-x-2">
-                    {filteredSecondaryMenuItems.map(item => (
+                    {filteredSecondaryMenuItems.map((item) => (
                       <button 
                         key={item.id} 
-                        onClick={() => { setActiveTab(item.id); setShowMoreMenu(false); }}
+                        onClick={() => { 
+                          if (item.isExternal) {
+                            window.open(item.url, '_blank');
+                          } else {
+                            setActiveTab(item.id);
+                          }
+                          setShowMoreMenu(false); 
+                        }}
                         className="flex flex-col items-center gap-2 group"
                       >
                         <div className={`p-4 rounded-2xl transition-all duration-300 ${activeTab === item.id ? 'bg-[#003366] text-white shadow-xl' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>

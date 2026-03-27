@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuildTrack Pro - User Guide</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            background-color: #f4f7f6;
+        }
+        .container {
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #2980b9;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            margin-top: 40px;
+        }
+        h3 {
+            color: #34495e;
+            margin-top: 25px;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        .highlight {
+            background-color: #e8f4fd;
+            padding: 15px;
+            border-left: 5px solid #3498db;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .screenshot {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin: 15px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        /* Workflow Diagram Styles */
+        .workflow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            margin: 40px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 12px;
+        }
+        .flow-step {
+            background: #3498db;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 50px;
+            font-weight: bold;
+            text-align: center;
+            min-width: 200px;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .flow-arrow {
+            color: #bdc3c7;
+            font-size: 24px;
+        }
+        @media print {
+            body {
+                background-color: #fff;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                padding: 0;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+        .btn-print {
+            display: block;
+            width: 200px;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: #fff;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .btn-print:hover {
+            background-color: #2980b9;
+        }
+        /* Form Mockup Styles */
+        .form-mockup {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            font-family: 'Inter', sans-serif;
+        }
+        .form-header {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+        .form-input {
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #f8fafc;
+            font-size: 14px;
+            color: #334155;
+        }
+        .form-button {
+            grid-column: span 2;
+            background: #003366;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            margin-top: 10px;
+            cursor: default;
+        }
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1.5em 1.5em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="#" class="btn-print no-print" onclick="window.print(); return false;">Print to PDF</a>
+        
+        <h1>BuildTrack Pro - User Guide</h1>
+        
+        <p>Welcome to <strong>BuildTrack Pro</strong>, your comprehensive solution for managing construction projects, inventory, labor, and finances. This guide will help you navigate and use the application effectively.</p>
+
+        <h2>1. System Workflow Diagram</h2>
+        <p>Follow this logical flow to ensure all data is correctly linked and balances are accurate:</p>
+        
+        <div class="workflow">
+            <div class="flow-step">1. Register Projects & Sites</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step">2. Register Suppliers & Workers</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step">3. Record Purchases (Stock Up)</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step">4. Log Daily Labor Attendance</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step">5. Record Client Income</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step">6. Settle Supplier & Labor Bills</div>
+            <div class="flow-arrow">↓</div>
+            <div class="flow-step">7. Generate Reports & Analytics</div>
+        </div>
+
+        <h2>2. Dashboard</h2>
+        <div class="highlight">
+            <p>The Dashboard provides real-time summaries of your business health, including Total Income, Total Expenses, and Outstanding Balances.</p>
+        </div>
+        <ul>
+            <li><strong>Key Metrics:</strong> View total outstanding balances, active projects, and recent financial activity.</li>
+            <li><strong>Quick Links:</strong> Access frequently used modules directly.</li>
+            <li><strong>Visual Summaries:</strong> Charts and graphs showing your income vs. expenses.</li>
+        </ul>
+
+        <h2>3. Data Entry & System Impact (How it Works)</h2>
+        <div class="highlight">
+            <p>Every entry you make in BuildTrack Pro triggers specific updates across the system. Here is how different entries "hit" your records:</p>
+        </div>
+
+        <h3>A. Project Registration</h3>
+        <ul>
+            <li><strong>How to enter:</strong> Go to "Sites" &gt; "Register Project". Enter Name, Budget, and Client info.</li>
+            <li><strong>System Impact:</strong> Creates a dedicated ledger for that site. All future labor, materials, and expenses assigned to this project will be tracked against its budget.</li>
+        </ul>
+
+        <h3>B. Material Purchases (Expenses)</h3>
+        <ul>
+            <li><strong>How to enter:</strong> Go to "Finance" &gt; "Record Expense". Select "Purchase", choose a Supplier, Material, and Quantity.</li>
+            <li><strong>System Impact:</strong>
+                <ol>
+                    <li><strong>Supplier Balance:</strong> Increases the amount you owe to the vendor.</li>
+                    <li><strong>Inventory:</strong> Automatically adds the quantity to your stock (Godown or Site).</li>
+                    <li><strong>Project Cost:</strong> If assigned to a site, it immediately updates the site's "Material Cost" metric.</li>
+                </ol>
+            </li>
+        </ul>
+
+        <h3>C. Labor Logs (Attendance)</h3>
+        <ul>
+            <li><strong>How to enter:</strong> Go to "Labor" &gt; "Log Work". Select the worker, project, and date.</li>
+            <li><strong>System Impact:</strong>
+                <ol>
+                    <li><strong>Worker Balance:</strong> Increases the worker's "Earned" amount based on their daily rate.</li>
+                    <li><strong>Project Cost:</strong> Updates the site's "Labor Cost" in real-time.</li>
+                </ol>
+            </li>
+        </ul>
+
+        <h3>D. Material Usage & Transfers</h3>
+        <ul>
+            <li><strong>How to enter:</strong> Go to "Stock" &gt; "Transfer Material". Select source (e.g., Godown) and destination (Project Site).</li>
+            <li><strong>System Impact:</strong> Deducts stock from the source and adds it to the destination. This helps you track exactly how much material is actually consumed at each site versus what is sitting in the warehouse.</li>
+        </ul>
+
+        <h3>E. Client Income</h3>
+        <ul>
+            <li><strong>How to enter:</strong> Go to "Revenue" &gt; "Record Income". Select the project and enter the amount received.</li>
+            <li><strong>System Impact:</strong> Increases your "Total Income" and improves the project's profit margin. It helps you see if you are spending more than you are receiving from the client.</li>
+        </ul>
+
+        <h3>F. Supplier Payments</h3>
+        <ul>
+            <li><strong>How to enter:</strong> Go to "Suppliers" &gt; "Record Payment" or use the "Settle Bill" button in the ledger.</li>
+            <li><strong>System Impact:</strong> Deducts the amount from your outstanding balance with that supplier. It records a financial outflow from your bank or cash account.</li>
+        </ul>
+
+        <h2>4. Prerequisites & Dependencies (What to add first?)</h2>
+        <p>To ensure data integrity, some entries cannot be made until their "parent" records are registered. Follow this order for a smooth setup:</p>
+        
+        <div class="highlight">
+            <h3>A. Inventory (Stock) Entries</h3>
+            <p><strong>Prerequisite:</strong> You MUST add a <strong>Supplier (Vendor)</strong> before recording a material purchase.</p>
+            <ul>
+                <li>You cannot "Purchase" cement if the Cement Supplier is not in the system.</li>
+                <li>Go to <strong>Suppliers > Register Supplier</strong> first.</li>
+            </ul>
+        </div>
+
+        <div class="highlight">
+            <h3>B. Labor & Attendance Logs</h3>
+            <p><strong>Prerequisite:</strong> You MUST add an <strong>Employee</strong> and a <strong>Project Site</strong> first.</p>
+            <ul>
+                <li>You cannot log work for "John" if John is not registered in the workforce.</li>
+                <li>You cannot assign work to "Site A" if Site A is not registered.</li>
+            </ul>
+        </div>
+
+        <div class="highlight">
+            <h3>C. Financial Payments (Supplier/Labor)</h3>
+            <p><strong>Prerequisite:</strong> There must be an <strong>Outstanding Balance</strong> or a <strong>Bill</strong> to settle.</p>
+            <ul>
+                <li><strong>Supplier Payments:</strong> Work best when you use the "Settle Bill" button inside the Supplier Ledger. This links the payment directly to a specific material batch.</li>
+                <li><strong>Labor Payments:</strong> Require the worker to have "Earned" some amount through work logs first.</li>
+            </ul>
+        </div>
+
+        <div class="highlight">
+            <h3>D. Invoices & Income</h3>
+            <p><strong>Prerequisite:</strong> A <strong>Project Site</strong> must exist.</p>
+            <ul>
+                <li>All revenue is linked to a site. Register the site under <strong>Sites</strong> before logging any client payments.</li>
+            </ul>
+        </div>
+
+        <h3>Summary of Entry Flow:</h3>
+        <ol>
+            <li><strong>Step 1:</strong> Register your <strong>Projects</strong> and <strong>Suppliers</strong>.</li>
+            <li><strong>Step 2:</strong> Register your <strong>Workforce (Employees)</strong>.</li>
+            <li><strong>Step 3:</strong> Record <strong>Expenses/Purchases</strong> (linked to Suppliers).</li>
+            <li><strong>Step 4:</strong> Log <strong>Labor Work</strong> (linked to Employees & Projects).</li>
+            <li><strong>Step 5:</strong> Record <strong>Payments</strong> to clear balances.</li>
+        </ol>
+
+        <h2>5. Project Management</h2>
+        <div class="form-mockup">
+            <div class="form-header">Register New Project</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Project Name</label>
+                    <div class="form-input">e.g. City Mall Phase 1</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Client Name</label>
+                    <div class="form-input">e.g. ABC Developers</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Total Budget (PKR)</label>
+                    <div class="form-input">5,000,000</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Start Date</label>
+                    <div class="form-input">2026-03-24</div>
+                </div>
+                <div class="form-button">Register Project</div>
+            </div>
+        </div>
+        <p>Manage all your construction sites in one place:</p>
+        <ul>
+            <li><strong>Register Project:</strong> Click "Register Project" to add a new site. Provide the name, client details, and budget.</li>
+            <li><strong>Project Details:</strong> Click on any project to view its specific ledger, material arrivals, labor logs, and invoices.</li>
+            <li><strong>Status Tracking:</strong> Update project status (Active, Completed, On Hold) to keep your list organized.</li>
+        </ul>
+
+        <h2>6. Labor & Workforce</h2>
+        <div class="form-mockup">
+            <div class="form-header">Log Daily Work</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Select Worker</label>
+                    <div class="form-input form-select">Ahmed Ali (Mason)</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Select Project</label>
+                    <div class="form-input form-select">City Mall Phase 1</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Work Date</label>
+                    <div class="form-input">2026-03-24</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Daily Rate (PKR)</label>
+                    <div class="form-input">1,500</div>
+                </div>
+                <div class="form-button">Submit Log</div>
+            </div>
+        </div>
+        <p>Keep track of your workers and their payments:</p>
+        <ul>
+            <li><strong>Worker Registry:</strong> Add workers with their trade (Mason, Laborer, etc.) and daily rates.</li>
+            <li><strong>Attendance/Work Logs:</strong> Record daily work for each project.</li>
+            <li><strong>Payment Management:</strong> Track advances and final payments made to workers.</li>
+        </ul>
+
+        <h2>7. Inventory & Materials</h2>
+        <div class="form-mockup">
+            <div class="form-header">Transfer Material</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Material</label>
+                    <div class="form-input form-select">Cement (Bags)</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Quantity</label>
+                    <div class="form-input">50</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">From Source</label>
+                    <div class="form-input form-select">Main Godown</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">To Destination</label>
+                    <div class="form-input form-select">City Mall Phase 1</div>
+                </div>
+                <div class="form-button">Confirm Transfer</div>
+            </div>
+        </div>
+        <p>Monitor your stock levels and material movements:</p>
+        <ul>
+            <li><strong>Stock Overview:</strong> View current quantities of materials (Cement, Bricks, Steel, etc.) across all sites.</li>
+            <li><strong>Purchase Materials:</strong> Record new purchases to update inventory levels.</li>
+            <li><strong>Material Usage:</strong> Track when materials are moved from the godown (warehouse) to specific project sites.</li>
+        </ul>
+
+        <h2>8. Supplier (Vendor) Management</h2>
+        <p>Manage your relationships with material suppliers:</p>
+        <ul>
+            <li><strong>Supplier Registry:</strong> Register suppliers and categorize them (e.g., Hardware, Sand, Bricks).</li>
+            <li><strong>Outstanding Balances:</strong> Monitor how much you owe to each supplier.</li>
+            <li><strong>Supplier Ledger:</strong> View a detailed history of all purchases and payments for a specific supplier.</li>
+        </ul>
+
+        <h2>9. Financial Tracking (Income & Expenses)</h2>
+        <div class="form-mockup">
+            <div class="form-header">Record Expense</div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label class="form-label">Expense Type</label>
+                    <div class="form-input form-select">Material Purchase</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Supplier</label>
+                    <div class="form-input form-select">Lucky Cement Ltd</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Amount (PKR)</label>
+                    <div class="form-input">75,000</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Project (Optional)</label>
+                    <div class="form-input form-select">City Mall Phase 1</div>
+                </div>
+                <div class="form-button">Save Expense</div>
+            </div>
+        </div>
+        <p>Stay on top of your cash flow:</p>
+        <ul>
+            <li><strong>Expense Tracker:</strong> Record every expense, from material purchases to site overheads.</li>
+            <li><strong>Project Income:</strong> Log payments received from clients.</li>
+            <li><strong>Zebra Striping:</strong> Tables are designed with alternating row colors for better readability of long financial lists.</li>
+        </ul>
+
+        <h2>10. Invoicing</h2>
+        <p>Professional billing for your clients:</p>
+        <ul>
+            <li><strong>Create Invoices:</strong> Generate invoices for projects based on work completed or milestones.</li>
+            <li><strong>Payment Status:</strong> Track which invoices are Paid, Partially Paid, or Pending.</li>
+        </ul>
+
+        <h2>11. Reports & Analytics</h2>
+        <p>Data-driven insights for your business:</p>
+        <ul>
+            <li><strong>Financial Reports:</strong> View profit/loss summaries by project or time period.</li>
+            <li><strong>Material Consumption:</strong> Analyze material usage patterns to optimize future purchases.</li>
+        </ul>
+
+        <div class="highlight">
+            <h3>Tips for Success:</h3>
+            <ul>
+                <li><strong>Regular Updates:</strong> Update your labor logs and expenses daily for the most accurate dashboard metrics.</li>
+                <li><strong>Search & Filter:</strong> Use the search bars at the top of each list to quickly find specific projects, vendors, or transactions.</li>
+                <li><strong>Dark Mode:</strong> Toggle between light and dark themes in the settings for comfortable viewing in any environment.</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>&copy; 2026 BuildTrack Pro. All rights reserved.</p>
+            <p>Generated by BuildTrack Pro Support</p>
+        </div>
+    </div>
+</body>
+</html>

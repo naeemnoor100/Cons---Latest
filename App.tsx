@@ -72,10 +72,19 @@ const MainApp: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    // Check if splash was already completed in this session
+    return sessionStorage.getItem('splashCompleted') !== 'true';
+  });
+
+  const handleSplashComplete = () => {
+    // Mark splash as completed for this session
+    sessionStorage.setItem('splashCompleted', 'true');
+    setShowSplash(false);
+  };
 
   if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
+    return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   return (

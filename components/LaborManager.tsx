@@ -44,7 +44,7 @@ export const LaborManager: React.FC = () => {
   const canEditLabor = currentUser.permissions?.['labor']?.includes('edit');
   const canDeleteLabor = currentUser.permissions?.['labor']?.includes('delete');
 
-  const [activeSubTab, setActiveSubTab] = useState<'employees' | 'logs' | 'payments'>('logs');
+  const [activeSubTab, setActiveSubTab] = useState<'employees' | 'logs' | 'payments' | 'breakdown'>('logs');
   const [searchTerm, setSearchTerm] = useState('');
   const [projectFilter, setProjectFilter] = useState('All');
   const [employeeFilter, setEmployeeFilter] = useState('All');
@@ -95,6 +95,49 @@ export const LaborManager: React.FC = () => {
     const wage = (emp.dailyWage / 8) * h;
     return Math.round(wage).toString();
   };
+
+  const projectLaborBreakdown = useMemo(() => {
+    return projects.filter(p => !p.isDeleted).map(project => {
+      const projectLogs = laborLogs.filter(l => l.projectId === project.id);
+      const projectPayments = laborPayments.filter(p => p.projectId === project.id);
+      
+      const totalHours = projectLogs.reduce((sum, l) => sum + (l.hoursWorked || 0), 0);
+      const totalWages = projectLogs.reduce((sum, l) => sum + (l.wageAmount || 0), 0);
+      const totalPaid = projectPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      
+      const employeeBreakdown = employees.filter(emp => 
+        projectLogs.some(l => l.employeeId === emp.id) || 
+        projectPayments.some(p => p.employeeId === emp.id)
+      ).map(emp => {
+        const empLogs = projectLogs.filter(l => l.employeeId === emp.id);
+        const empPayments = projectPayments.filter(p => p.employeeId === emp.id);
+        
+        const empHours = empLogs.reduce((sum, l) => sum + (l.hoursWorked || 0), 0);
+        const empWages = empLogs.reduce((sum, l) => sum + (l.wageAmount || 0), 0);
+        const empPaid = empPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        
+        return {
+          employeeId: emp.id,
+          employeeName: emp.name,
+          role: emp.role,
+          hours: empHours,
+          wages: empWages,
+          paid: empPaid,
+          balance: empWages - empPaid
+        };
+      }).filter(eb => eb.hours > 0 || eb.wages > 0 || eb.paid > 0);
+
+      return {
+        projectId: project.id,
+        projectName: project.name,
+        totalHours,
+        totalWages,
+        totalPaid,
+        balance: totalWages - totalPaid,
+        employees: employeeBreakdown
+      };
+    }).filter(pb => pb.totalHours > 0 || pb.totalWages > 0 || pb.totalPaid > 0);
+  }, [projects, laborLogs, laborPayments, employees]);
 
   const employeeSummaries = useMemo(() => {
     return employees.map(emp => {
@@ -513,6 +556,12 @@ export const LaborManager: React.FC = () => {
         >
           Employee Roster
         </button>
+        <button 
+          onClick={() => setActiveSubTab('breakdown')}
+          className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeSubTab === 'breakdown' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500'}`}
+        >
+          Cost Breakdown
+        </button>
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -710,7 +759,7 @@ export const LaborManager: React.FC = () => {
                   const proj = projects.find(p => p.id === log.projectId);
                   const isCompleted = isProjectLocked(log.projectId);
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                    <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                       <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(log.date).toLocaleDateString()}</td>
                       <td className="px-8 py-5">
                         <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{emp?.name || 'Unknown'}</p>
@@ -774,7 +823,7 @@ export const LaborManager: React.FC = () => {
                 {filteredPayments.map(pay => {
                   const emp = employees.find(e => e.id === pay.employeeId);
                   return (
-                    <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                    <tr key={pay.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                       <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(pay.date).toLocaleDateString()}</td>
                       <td className="px-8 py-5">
                         <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{emp?.name || 'Unknown'}</p>
@@ -811,6 +860,94 @@ export const LaborManager: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {activeSubTab === 'breakdown' && (
+        <div className="space-y-6">
+          {projectLaborBreakdown.length === 0 ? (
+            <div className="bg-white dark:bg-slate-800 p-12 rounded-[2rem] border border-slate-200 dark:border-slate-700 text-center">
+              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <ClipboardList size={32} />
+              </div>
+              <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">No Labor Data</h3>
+              <p className="text-slate-500 text-sm font-medium mt-1">Start logging attendance to see cost breakdowns.</p>
+            </div>
+          ) : (
+            projectLaborBreakdown.map(project => (
+              <div key={project.projectId} className="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                      <MapPin size={18} className="text-blue-600" />
+                      {project.projectName}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Project Labor Summary</p>
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="text-right">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Hours</p>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">{project.totalHours} hrs</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Wages</p>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">{formatCurrency(project.totalWages)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Paid</p>
+                      <p className="text-sm font-black text-emerald-600">{formatCurrency(project.totalPaid)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Balance</p>
+                      <p className={`text-sm font-black ${project.balance > 0 ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>{formatCurrency(project.balance)}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto no-scrollbar">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 dark:border-slate-700">
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Role</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Hours</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Wages Earned</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total Paid</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                      {project.employees.map(emp => (
+                        <tr key={emp.employeeId} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">{emp.employeeName}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 rounded-lg text-[10px] font-bold uppercase tracking-widest">
+                              {emp.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{emp.hours} hrs</p>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">{formatCurrency(emp.wages)}</p>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <p className="text-sm font-bold text-emerald-600">{formatCurrency(emp.paid)}</p>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <p className={`text-sm font-black ${emp.balance > 0 ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
+                              {formatCurrency(emp.balance)}
+                            </p>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
@@ -859,6 +996,7 @@ export const LaborManager: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Status</label>
                   <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.status} onChange={e => setEmployeeFormData(p => ({ ...p, status: e.target.value as 'Active' | 'Inactive' }))}>
+                    <option value="" disabled>Select Status...</option>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                   </select>
@@ -867,8 +1005,8 @@ export const LaborManager: React.FC = () => {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Assigned Site</label>
                 <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={employeeFormData.currentSiteId} onChange={e => setEmployeeFormData(p => ({ ...p, currentSiteId: e.target.value }))}>
-                  <option value="">Select a site</option>
-                  {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
+                  <option value="" disabled>Select a site...</option>
+                  {projects.filter(p => !p.isGodown && !p.isDeleted && p.status === 'Active').map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
@@ -931,8 +1069,8 @@ export const LaborManager: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project Site</label>
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={logFormData.projectId} onChange={e => setLogFormData(p => ({ ...p, projectId: e.target.value, employeeId: '', wageAmount: '' }))}>
-                    <option value="">Select Site...</option>
-                    {projects.filter(p => !p.isGodown && !p.isDeleted).map(p => (
+                    <option value="" disabled>Select Site...</option>
+                    {projects.filter(p => !p.isGodown && !p.isDeleted && p.status === 'Active').map(p => (
                       <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' Completed (Locked)' : ''}</option>
                     ))}
                   </select>
@@ -946,7 +1084,7 @@ export const LaborManager: React.FC = () => {
                     const wage = calculateWage(empId, logFormData.hoursWorked, logFormData.status);
                     setLogFormData(p => ({ ...p, employeeId: empId, wageAmount: wage }));
                   }}>
-                    <option value="">Select Employee...</option>
+                    <option value="" disabled>Select Employee...</option>
                     {employees.filter(e => e.status === 'Active' && (!logFormData.projectId || e.currentSiteId === logFormData.projectId)).map(e => (
                       <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
                     ))}
@@ -965,6 +1103,7 @@ export const LaborManager: React.FC = () => {
                       wageAmount: wage
                     }));
                   }}>
+                    <option value="" disabled>Select Attendance...</option>
                     <option value="Present">Present (Full Day)</option>
                     <option value="Half-day">Half-day</option>
                     <option value="Absent">Absent</option>
@@ -1029,8 +1168,8 @@ export const LaborManager: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Project</label>
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.projectId} onChange={e => { setPaymentFormData(p => ({ ...p, projectId: e.target.value })); setPaymentError(''); }}>
-                    <option value="">Select Project...</option>
-                    {projects.map(p => (
+                    <option value="" disabled>Select Project...</option>
+                    {projects.filter(p => !p.isDeleted && p.status === 'Active').map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
@@ -1043,7 +1182,7 @@ export const LaborManager: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Employee</label>
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.employeeId} onChange={e => { setPaymentFormData(p => ({ ...p, employeeId: e.target.value })); setPaymentError(''); }}>
-                    <option value="">Select Employee...</option>
+                    <option value="" disabled>Select Employee...</option>
                     {employees.map(e => (
                       <option key={e.id} value={e.id}>{e.name} ({e.role})</option>
                     ))}
@@ -1080,6 +1219,7 @@ export const LaborManager: React.FC = () => {
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Method</label>
                   <select required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={paymentFormData.method} onChange={e => setPaymentFormData(p => ({ ...p, method: e.target.value as PaymentMethod }))}>
+                    <option value="" disabled>Select Method...</option>
                     <option value="Cash">Cash</option>
                     <option value="Bank">Bank Transfer</option>
                     <option value="Online">Online / Wallet</option>

@@ -133,7 +133,7 @@ class Lock {
 const saveLock = new Lock();
 
 // Initialize Relational DB
-const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
+const schema = fs.readFileSync(path.join(__dirname, "public", "schema.sql"), "utf-8");
 
 async function initDb() {
   try {

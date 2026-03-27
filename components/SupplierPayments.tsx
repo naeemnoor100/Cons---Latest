@@ -186,7 +186,7 @@ export const SupplierPayments: React.FC = () => {
               {filteredPayments.map((payment) => {
                 const vendor = vendors.find(v => v.id === payment.vendorId);
                 return (
-                  <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                  <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                     <td className="px-8 py-5 text-sm font-bold text-slate-900 dark:text-white">
                       {new Date(payment.date).toLocaleDateString('en-IN')}
                     </td>
@@ -269,7 +269,7 @@ export const SupplierPayments: React.FC = () => {
                     value={selectedVendorId}
                     onChange={e => setSelectedVendorId(e.target.value)}
                   >
-                    <option value="">-- Select Vendor --</option>
+                    <option value="" disabled>-- Select Vendor --</option>
                     {vendors
                       .filter(v => v.isActive !== false || v.id === selectedVendorId)
                       .map(v => (

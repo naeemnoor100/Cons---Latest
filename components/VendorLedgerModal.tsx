@@ -204,7 +204,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                           <tr 
                             id={`ledger-row-${item.id}`}
                             onClick={() => item.type === 'PAYMENT' && toggleRow(item.id)}
-                            className={`transition-all duration-500 ${item.type === 'PAYMENT' ? 'cursor-pointer hover:bg-slate-50/50' : 'hover:bg-slate-50/30'} ${highlightedBillId === item.id ? 'bg-amber-50 ring-2 ring-amber-500 ring-inset scale-[1.01] shadow-lg z-10' : ''}`}
+                            className={`transition-all duration-500 even:bg-slate-50/30 dark:even:bg-slate-800/20 ${item.type === 'PAYMENT' ? 'cursor-pointer hover:bg-slate-50/50' : 'hover:bg-slate-50/30'} ${highlightedBillId === item.id ? 'bg-amber-50 ring-2 ring-amber-500 ring-inset scale-[1.01] shadow-lg z-10' : ''}`}
                           >
                              <td className="px-8 py-6 text-xs font-black text-slate-900">
                                 {new Date(item.date).toLocaleDateString('en-GB')}

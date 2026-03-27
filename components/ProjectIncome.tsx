@@ -197,7 +197,7 @@ export const ProjectIncome: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                 {group.items.map((inc) => (
-                  <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group">
+                  <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                     <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(inc.date).toLocaleDateString()}</td>
                     <td className="px-8 py-5">
                        <p className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase">{inc.description}</p>
@@ -250,7 +250,7 @@ export const ProjectIncome: React.FC = () => {
                  <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase text-slate-400">Project Site</label>
                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.projectId} onChange={e => setFormData(p => ({ ...p, projectId: e.target.value, invoiceId: '' }))} required>
-                     <option value="">Select site...</option>
+                     <option value="" disabled>Select site...</option>
                      {projects.filter(p => !p.isGodown).map(p => <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>{p.name}{isProjectLocked(p.id) ? ' (Locked)' : ''}</option>)}
                    </select>
                  </div>
@@ -273,7 +273,7 @@ export const ProjectIncome: React.FC = () => {
                     setFormData(p => ({ ...p, invoiceId: '' }));
                   }
                 }}>
-                  <option value="">Choose target invoice...</option>
+                  <option value="" disabled>Choose target invoice...</option>
                   {invoices.filter(inv => {
                     const { remaining } = getInvoiceMetrics(inv);
                     return inv.projectId === formData.projectId && remaining > 0;
@@ -295,6 +295,7 @@ export const ProjectIncome: React.FC = () => {
                 <div className="space-y-1">
                    <label className="text-[10px] font-black uppercase text-slate-400">Payment Channel</label>
                    <select className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none appearance-none" value={formData.method} onChange={e => setFormData(p => ({ ...p, method: e.target.value as PaymentMethod }))}>
+                      <option value="" disabled>Select Method...</option>
                       <option value="Bank">Bank Transfer</option>
                       <option value="Cash">Cash Settlement</option>
                       <option value="Online">Online / Card</option>

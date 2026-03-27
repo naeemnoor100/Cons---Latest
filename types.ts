@@ -57,6 +57,7 @@ export interface StockHistoryEntry {
   quantity: number;
   projectId?: string;
   vendorId?: string;
+  employeeId?: string;
   note?: string;
   unitPrice?: number;
   parentPurchaseId?: string;
@@ -93,6 +94,7 @@ export interface Expense {
   date: string;
   projectId: string;
   vendorId?: string;
+  employeeId?: string;
   materialId?: string;
   materialQuantity?: number;
   unitPrice?: number;

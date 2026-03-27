@@ -66,6 +66,7 @@ export const VendorList: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '', phone: '', email: '', category: tradeCategories[0] || 'Material', address: '', balance: '', isActive: true
   });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -331,21 +332,68 @@ export const VendorList: React.FC = () => {
     });
   };
 
+  const validateVendorForm = () => {
+    const errors: Record<string, string> = {};
+    
+    if (!formData.name.trim()) {
+      errors.name = 'Supplier name is required';
+    } else if (formData.name.trim().length < 3) {
+      errors.name = 'Name must be at least 3 characters';
+    }
+
+    const phoneRegex = /^\+?[0-9]{10,15}$/;
+    if (!formData.phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!phoneRegex.test(formData.phone.trim().replace(/[\s-]/g, ''))) {
+      errors.phone = 'Invalid phone format (10-15 digits)';
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Invalid email address';
+    }
+
+    if (!formData.category) {
+      errors.category = 'Category is required';
+    }
+
+    if (formData.balance && isNaN(parseFloat(formData.balance))) {
+      errors.balance = 'Invalid balance amount';
+    } else if (parseFloat(formData.balance) < 0) {
+      errors.balance = 'Opening balance cannot be negative';
+    }
+
+    // Check for duplicate phone number
+    const isDuplicatePhone = vendors.some(v => 
+      v.phone.replace(/[\s-]/g, '') === formData.phone.replace(/[\s-]/g, '') && 
+      (!editingVendor || v.id !== editingVendor.id)
+    );
+    if (isDuplicatePhone) {
+      errors.phone = 'A supplier with this phone number already exists';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleVendorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateVendorForm()) return;
+
     const vendorData: Vendor = {
       id: editingVendor ? editingVendor.id : 'v' + Date.now(),
-      name: formData.name,
-      phone: formData.phone,
-      email: formData.email,
+      name: formData.name.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim(),
       category: formData.category,
-      address: formData.address,
+      address: formData.address.trim(),
       balance: editingVendor ? editingVendor.balance : (parseFloat(formData.balance) || 0),
       isActive: formData.isActive
     };
     if (editingVendor) await updateVendor(vendorData);
     else await addVendor(vendorData);
     setShowModal(false);
+    setFormErrors({});
   };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
@@ -396,7 +444,12 @@ export const VendorList: React.FC = () => {
         </div>
         {canCreateVendors && (
           <button 
-            onClick={() => { setEditingVendor(null); setFormData({ name: '', phone: '', email: '', category: 'Material', address: '', balance: '', isActive: true }); setShowModal(true); }}
+            onClick={() => { 
+              setEditingVendor(null); 
+              setFormData({ name: '', phone: '', email: '', category: 'Material', address: '', balance: '', isActive: true }); 
+              setFormErrors({});
+              setShowModal(true); 
+            }}
             className="w-full sm:w-auto bg-blue-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
           >
             <Plus size={20} /> Register Supplier
@@ -454,7 +507,7 @@ export const VendorList: React.FC = () => {
                 const activeSitesCount = projects.filter(p => associatedProjectIds.has(p.id) && p.status === 'Active').length;
 
                 return (
-                  <tr key={vendor.id} onClick={() => handleViewVendor(vendor.id)} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer">
+                  <tr key={vendor.id} onClick={() => handleViewVendor(vendor.id)} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group cursor-pointer">
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
                          <div className="w-12 h-12 bg-slate-900 dark:bg-slate-700 text-white rounded-2xl flex items-center justify-center font-black text-lg shrink-0 shadow-sm group-hover:scale-110 transition-transform">
@@ -554,7 +607,13 @@ export const VendorList: React.FC = () => {
                         )}
                         {canEditVendors && (
                           <button 
-                            onClick={(e) => { e.stopPropagation(); setEditingVendor(vendor); setFormData({ name: vendor.name, phone: vendor.phone, email: vendor.email || '', category: vendor.category, address: vendor.address || '', balance: vendor.balance.toString(), isActive: vendor.isActive !== false }); setShowModal(true); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setEditingVendor(vendor); 
+                              setFormData({ name: vendor.name, phone: vendor.phone, email: vendor.email || '', category: vendor.category, address: vendor.address || '', balance: vendor.balance.toString(), isActive: vendor.isActive !== false }); 
+                              setFormErrors({});
+                              setShowModal(true); 
+                            }}
                             className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
                             title="Edit Supplier"
                           >
@@ -586,21 +645,61 @@ export const VendorList: React.FC = () => {
            <div className="bg-white dark:bg-slate-800 w-full max-w-lg shadow-2xl overflow-hidden mobile-sheet animate-in slide-in-from-bottom duration-500">
               <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/30">
                  <h2 className="text-lg sm:text-xl font-black uppercase">{editingVendor ? 'Modify Supplier' : 'Register Supplier'}</h2>
-                 <button onClick={() => setShowModal(false)} className="p-2 text-slate-400 hover:text-slate-900"><X size={32} /></button>
+                 <button onClick={() => { setShowModal(false); setFormErrors({}); }} className="p-2 text-slate-400 hover:text-slate-900"><X size={32} /></button>
               </div>
               <form onSubmit={handleVendorSubmit} className="p-6 sm:p-8 space-y-5 overflow-y-auto no-scrollbar max-h-[75vh] pb-safe">
                  <div className="space-y-1">
                     <label className="text-[10px] font-black uppercase text-slate-400 px-1">Supplier Name</label>
-                    <input type="text" required className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white outline-none" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
+                    <input 
+                      type="text" 
+                      className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border ${formErrors.name ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-200 focus:ring-blue-500/20'} rounded-2xl font-bold dark:text-white outline-none transition-all`} 
+                      value={formData.name} 
+                      onChange={e => {
+                        setFormData(p => ({ ...p, name: e.target.value }));
+                        if (formErrors.name) setFormErrors(p => {
+                          const newErrors = { ...p };
+                          delete newErrors.name;
+                          return newErrors;
+                        });
+                      }} 
+                    />
+                    {formErrors.name && <p className="text-[10px] font-bold text-red-500 px-1">{formErrors.name}</p>}
                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                        <label className="text-[10px] font-black uppercase text-slate-400 px-1">Phone</label>
-                       <input type="tel" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
+                       <input 
+                        type="tel" 
+                        className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border ${formErrors.phone ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-200 focus:ring-blue-500/20'} rounded-2xl font-bold dark:text-white outline-none transition-all`} 
+                        value={formData.phone} 
+                        onChange={e => {
+                          setFormData(p => ({ ...p, phone: e.target.value }));
+                          if (formErrors.phone) setFormErrors(p => {
+                            const newErrors = { ...p };
+                            delete newErrors.phone;
+                            return newErrors;
+                          });
+                        }} 
+                      />
+                      {formErrors.phone && <p className="text-[10px] font-bold text-red-500 px-1">{formErrors.phone}</p>}
                     </div>
                     <div className="space-y-1">
                        <label className="text-[10px] font-black uppercase text-slate-400 px-1">Email Address</label>
-                       <input type="email" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-bold dark:text-white" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="supplier@example.com" />
+                       <input 
+                        type="email" 
+                        className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border ${formErrors.email ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-200 focus:ring-blue-500/20'} rounded-2xl font-bold dark:text-white outline-none transition-all`} 
+                        value={formData.email} 
+                        onChange={e => {
+                          setFormData(p => ({ ...p, email: e.target.value }));
+                          if (formErrors.email) setFormErrors(p => {
+                            const newErrors = { ...p };
+                            delete newErrors.email;
+                            return newErrors;
+                          });
+                        }} 
+                        placeholder="supplier@example.com" 
+                      />
+                      {formErrors.email && <p className="text-[10px] font-bold text-red-500 px-1">{formErrors.email}</p>}
                     </div>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
@@ -621,7 +720,21 @@ export const VendorList: React.FC = () => {
                  {!editingVendor && (
                    <div className="space-y-1">
                       <label className="text-[10px] font-black uppercase text-slate-400 px-1">Opening Balance (Rs.)</label>
-                      <input type="number" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-2xl font-black text-lg text-red-600" value={formData.balance} onChange={e => setFormData(p => ({ ...p, balance: e.target.value }))} placeholder="0.00" />
+                      <input 
+                        type="number" 
+                        className={`w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border ${formErrors.balance ? 'border-red-500 focus:ring-red-500/20' : 'border-slate-200 focus:ring-blue-500/20'} rounded-2xl font-black text-lg text-red-600 outline-none transition-all`} 
+                        value={formData.balance} 
+                        onChange={e => {
+                          setFormData(p => ({ ...p, balance: e.target.value }));
+                          if (formErrors.balance) setFormErrors(p => {
+                            const newErrors = { ...p };
+                            delete newErrors.balance;
+                            return newErrors;
+                          });
+                        }} 
+                        placeholder="0.00" 
+                      />
+                      {formErrors.balance && <p className="text-[10px] font-bold text-red-500 px-1">{formErrors.balance}</p>}
                    </div>
                  )}
                  <div className="space-y-1">

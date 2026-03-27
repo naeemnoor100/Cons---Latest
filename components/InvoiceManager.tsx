@@ -281,7 +281,7 @@ export const InvoiceManager: React.FC = () => {
                 const { isPaid, remaining } = getInvoiceMetrics(inv);
                 const isPartial = !isPaid && remaining < inv.amount && remaining > 0;
                 return (
-                  <tr key={inv.id} className={`transition-colors group ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : isPartial ? 'bg-amber-50/40 dark:bg-amber-900/5 hover:bg-amber-50/60' : 'hover:bg-slate-50/50'}`}>
+                  <tr key={inv.id} className={`transition-colors group even:bg-slate-50/30 dark:even:bg-slate-800/20 ${isPaid ? 'bg-emerald-50/40 dark:bg-emerald-900/5 hover:bg-emerald-50/60' : isPartial ? 'bg-amber-50/40 dark:bg-amber-900/5 hover:bg-amber-50/60' : 'hover:bg-slate-50/50'}`}>
                     <td className="px-8 py-5 font-bold text-slate-400 text-xs">#{inv.id.slice(-6).toUpperCase()}</td>
                     <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(inv.date).toLocaleDateString()}</td>
                     <td className="px-8 py-5">
