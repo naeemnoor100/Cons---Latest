@@ -71,6 +71,7 @@ export const Dashboard: React.FC = () => {
   const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0);
   const remainingBudget = totalBudget - totalExpenses;
   const totalIncome = incomes.reduce((sum, i) => sum + i.amount, 0);
+  const netRemainingBudget = totalBudget - totalIncome;
   const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.amount, 0);
   const totalReceivables = Math.max(0, totalInvoiced - totalIncome);
   
@@ -162,6 +163,7 @@ export const Dashboard: React.FC = () => {
         <DashboardCard title="Total Costs" value={formatCurrency(totalExpenses)} icon={<TrendingDown size={20} />} colorClass="bg-rose-600" />
         <DashboardCard title="Receivables" value={formatCurrency(totalReceivables)} icon={<Wallet size={20} />} colorClass="bg-purple-600" />
         <DashboardCard title="Remaining Budget" value={formatCurrency(remainingBudget)} icon={<Target size={20} />} colorClass="bg-indigo-600" subText={`Total Budget: ${formatCurrency(totalBudget)}`} />
+        <DashboardCard title="Net Remaining Budget" value={formatCurrency(netRemainingBudget)} icon={<Activity size={20} />} colorClass="bg-pink-600" subText={`Total Budget - Received`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
