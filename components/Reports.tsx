@@ -181,10 +181,10 @@ export const Reports: React.FC = () => {
     });
 
     return report.filter(item => {
-      const matchSite = item.projectName.toLowerCase().includes(stockReportFilters.site.toLowerCase());
-      const matchMaterial = item.materialName.toLowerCase().includes(stockReportFilters.material.toLowerCase());
-      const matchQty = item.quantity.toString().includes(stockReportFilters.quantity);
-      const matchValue = item.value.toString().includes(stockReportFilters.value);
+      const matchSite = (item.projectName || '').toLowerCase().includes((stockReportFilters.site || '').toLowerCase());
+      const matchMaterial = (item.materialName || '').toLowerCase().includes((stockReportFilters.material || '').toLowerCase());
+      const matchQty = (item.quantity || 0).toString().includes(stockReportFilters.quantity || '');
+      const matchValue = (item.value || 0).toString().includes(stockReportFilters.value || '');
       return matchSite && matchMaterial && matchQty && matchValue;
     }).sort((a, b) => {
       const field = stockReportSort.field as keyof typeof a;
@@ -283,14 +283,14 @@ export const Reports: React.FC = () => {
   const filteredMaterialStocks = useMemo(() => {
     if (!materialLocatorData?.stocks) return [];
     const filtered = materialLocatorData.stocks.filter(stock => {
-      const price = stock.unitPrice;
-      const matchMaterial = stock.materialName.toLowerCase().includes(materialFilters.material.toLowerCase());
-      const matchSite = stock.projectName.toLowerCase().includes(materialFilters.site.toLowerCase());
-      const matchVendor = stock.vendorName.toLowerCase().includes(materialFilters.vendor.toLowerCase());
-      const matchDate = new Date(stock.lastUpdated).toLocaleDateString().toLowerCase().includes(materialFilters.lastUpdated.toLowerCase());
-      const matchAvailable = stock.quantity.toString().includes(materialFilters.available);
-      const matchValue = stock.value.toString().includes(materialFilters.totalValue);
-      const matchPrice = price.toFixed(2).includes(materialFilters.price);
+      const price = stock.unitPrice || 0;
+      const matchMaterial = (stock.materialName || '').toLowerCase().includes((materialFilters.material || '').toLowerCase());
+      const matchSite = (stock.projectName || '').toLowerCase().includes((materialFilters.site || '').toLowerCase());
+      const matchVendor = (stock.vendorName || '').toLowerCase().includes((materialFilters.vendor || '').toLowerCase());
+      const matchDate = new Date(stock.lastUpdated).toLocaleDateString().toLowerCase().includes((materialFilters.lastUpdated || '').toLowerCase());
+      const matchAvailable = (stock.quantity || 0).toString().includes(materialFilters.available || '');
+      const matchValue = (stock.value || 0).toString().includes(materialFilters.totalValue || '');
+      const matchPrice = price.toFixed(2).includes(materialFilters.price || '');
       return matchMaterial && matchSite && matchVendor && matchDate && matchAvailable && matchValue && matchPrice;
     });
     filtered.sort((a, b) => {
@@ -326,13 +326,13 @@ export const Reports: React.FC = () => {
   const filteredVendorDistributions = useMemo(() => {
     if (!vendorDistributionData?.distributions) return [];
     const filtered = vendorDistributionData.distributions.filter(dist => {
-      const price = dist.unitPrice;
-      const matchSite = dist.projectName.toLowerCase().includes(vendorFilters.site.toLowerCase());
-      const matchMaterial = dist.matName.toLowerCase().includes(vendorFilters.material.toLowerCase());
-      const matchDate = new Date(dist.lastSupplied).toLocaleDateString().toLowerCase().includes(vendorFilters.lastUpdated.toLowerCase());
-      const matchQuantity = dist.quantity.toString().includes(vendorFilters.quantity);
-      const matchValue = dist.value.toString().includes(vendorFilters.totalValue);
-      const matchPrice = price.toFixed(2).includes(vendorFilters.price);
+      const price = dist.unitPrice || 0;
+      const matchSite = (dist.projectName || '').toLowerCase().includes((vendorFilters.site || '').toLowerCase());
+      const matchMaterial = (dist.matName || '').toLowerCase().includes((vendorFilters.material || '').toLowerCase());
+      const matchDate = new Date(dist.lastSupplied).toLocaleDateString().toLowerCase().includes((vendorFilters.lastUpdated || '').toLowerCase());
+      const matchQuantity = (dist.quantity || 0).toString().includes(vendorFilters.quantity || '');
+      const matchValue = (dist.value || 0).toString().includes(vendorFilters.totalValue || '');
+      const matchPrice = price.toFixed(2).includes(vendorFilters.price || '');
       return matchSite && matchMaterial && matchDate && matchQuantity && matchValue && matchPrice;
     });
     filtered.sort((a, b) => {
@@ -418,7 +418,7 @@ export const Reports: React.FC = () => {
 
     const materialSummary = Object.values(materialSummaryMap)
       .filter(m => m.inward > 0 || m.used > 0)
-      .filter(m => m.name.toLowerCase().includes(summaryMaterialSearch.toLowerCase()))
+      .filter(m => (m.name || '').toLowerCase().includes((summaryMaterialSearch || '').toLowerCase()))
       .sort((a, b) => {
         const direction = summaryMaterialSort.direction === 'asc' ? 1 : -1;
         const field = summaryMaterialSort.field as keyof typeof a;
@@ -440,7 +440,7 @@ export const Reports: React.FC = () => {
       }
     });
     const supplierSummary = Object.values(supplierSummaryMap)
-      .filter(s => s.name.toLowerCase().includes(summarySupplierSearch.toLowerCase()))
+      .filter(s => (s.name || '').toLowerCase().includes((summarySupplierSearch || '').toLowerCase()))
       .sort((a, b) => {
         const direction = summarySupplierSort.direction === 'asc' ? 1 : -1;
         const field = summarySupplierSort.field as keyof typeof a;
@@ -462,7 +462,7 @@ export const Reports: React.FC = () => {
       }
     });
     const laborSummary = Object.values(laborSummaryMap)
-      .filter(l => l.name.toLowerCase().includes(summaryLaborSearch.toLowerCase()))
+      .filter(l => (l.name || '').toLowerCase().includes((summaryLaborSearch || '').toLowerCase()))
       .sort((a, b) => {
         const direction = summaryLaborSort.direction === 'asc' ? 1 : -1;
         const field = summaryLaborSort.field as keyof typeof a;
@@ -475,7 +475,7 @@ export const Reports: React.FC = () => {
 
     const invoiceSummary = invoices
       .filter(i => i.projectId === summaryProjectId)
-      .filter(i => i.description.toLowerCase().includes(summaryInvoiceSearch.toLowerCase()) || i.status.toLowerCase().includes(summaryInvoiceSearch.toLowerCase()))
+      .filter(i => (i.description || '').toLowerCase().includes((summaryInvoiceSearch || '').toLowerCase()) || (i.status || '').toLowerCase().includes((summaryInvoiceSearch || '').toLowerCase()))
       .map(inv => {
         const paidAmount = incomes.filter(inc => inc.invoiceId === inv.id).reduce((sum, inc) => sum + inc.amount, 0);
         return {
@@ -548,11 +548,11 @@ export const Reports: React.FC = () => {
       .filter(e => {
         const vendor = vendors.find(v => v.id === e.vendorId);
         const material = materials.find(m => m.id === e.materialId);
-        const search = purchasedMaterialSearch.toLowerCase();
+        const search = (purchasedMaterialSearch || '').toLowerCase();
         return (
-          e.description.toLowerCase().includes(search) ||
-          (vendor?.name.toLowerCase().includes(search)) ||
-          (material?.name.toLowerCase().includes(search))
+          (e.description || '').toLowerCase().includes(search) ||
+          (vendor?.name?.toLowerCase().includes(search)) ||
+          (material?.name?.toLowerCase().includes(search))
         );
       })
       .sort((a, b) => {

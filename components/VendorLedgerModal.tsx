@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   X, 
   ArrowDownCircle, 
@@ -9,7 +11,9 @@ import {
   ArrowUpRight,
   ChevronDown,
   Pencil,
-  Trash2
+  Trash2,
+  Download,
+  Calendar
 } from 'lucide-react';
 import { Vendor, Project } from '../types';
 
@@ -62,6 +66,8 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   const [activeTab, setActiveTab] = useState<'statement' | 'settlements' | 'stock'>('statement');
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [highlightedBillId, setHighlightedBillId] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
@@ -84,10 +90,63 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   };
 
   const filteredData = filteredCombinedLedger.filter(item => {
+    const itemDate = new Date(item.date);
+    const isWithinDateRange = (!startDate || itemDate >= new Date(startDate)) && 
+                             (!endDate || itemDate <= new Date(endDate + 'T23:59:59'));
+    
+    if (!isWithinDateRange) return false;
     if (activeTab === 'settlements') return item.type === 'PAYMENT';
     if (activeTab === 'stock') return item.type === 'PURCHASE';
     return true;
   });
+
+  const handleDownload = () => {
+    const doc = new jsPDF();
+    
+    // Add Header
+    doc.setFontSize(18);
+    doc.setTextColor(0, 51, 102);
+    doc.text('Supplier Ledger Statement', 14, 20);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Supplier: ${activeVendor.name}`, 14, 30);
+    doc.text(`Date Range: ${startDate || 'All'} to ${endDate || 'All'}`, 14, 35);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 40);
+
+    // Summary Stats
+    doc.setFontSize(10);
+    doc.text(`Total Paid: ${formatCurrency(activeVendorStats.totalPaid)}`, 14, 50);
+    doc.text(`Total Purchases: ${formatCurrency(activeVendorStats.totalPurchases)}`, 70, 50);
+    doc.text(`Outstanding Dues: ${formatCurrency(activeVendorStats.totalDues)}`, 130, 50);
+
+    const tableHeaders = [['Date', 'Type', 'Description', 'Site', 'Debit', 'Credit', 'Balance']];
+    const tableRows = filteredData.map(item => [
+      new Date(item.date).toLocaleDateString('en-GB'),
+      item.type,
+      item.description,
+      item.siteDisplay || (projects.find(p => p.id === item.projectId)?.name || 'General'),
+      item.type === 'PURCHASE' ? formatCurrency(item.amount) : '-',
+      item.type === 'PAYMENT' ? formatCurrency(item.amount) : '-',
+      item.remainingBalance ? formatCurrency(item.remainingBalance) : '-'
+    ]);
+
+    autoTable(doc, {
+      head: tableHeaders,
+      body: tableRows,
+      startY: 60,
+      theme: 'grid',
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        4: { halign: 'right' },
+        5: { halign: 'right' },
+        6: { halign: 'right' }
+      }
+    });
+
+    doc.save(`Supplier_Ledger_${activeVendor.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
 
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
@@ -169,19 +228,48 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
             </button>
          </div>
 
-         {/* Search Bar */}
-         <div className="px-8 py-6 bg-slate-50/50 shrink-0">
-            <div className="relative max-w-2xl">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-               <input 
-                type="text" 
-                placeholder="Search ledger by date, site, material or reference..." 
-                className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/5 transition-all" 
-                value={ledgerSearchTerm}
-                onChange={(e) => setLedgerSearchTerm(e.target.value)}
-               />
+          {/* Search Bar & Filters */}
+          <div className="px-8 py-6 bg-slate-50/50 shrink-0 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Search ledger by date, site, material or reference..." 
+                  className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 outline-none focus:ring-4 focus:ring-blue-500/5 transition-all" 
+                  value={ledgerSearchTerm}
+                  onChange={(e) => setLedgerSearchTerm(e.target.value)}
+                />
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2">
+                  <Calendar size={16} className="text-slate-400" />
+                  <input 
+                    type="date" 
+                    className="text-xs font-bold outline-none bg-transparent"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                  <span className="text-slate-300">to</span>
+                  <input 
+                    type="date" 
+                    className="text-xs font-bold outline-none bg-transparent"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                  />
+                </div>
+                
+                <button 
+                  onClick={handleDownload}
+                  className="flex items-center gap-2 bg-[#003366] text-white px-6 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-800 transition-all shadow-lg active:scale-95"
+                >
+                  <Download size={18} />
+                  Download PDF
+                </button>
+              </div>
             </div>
-         </div>
+          </div>
 
          {/* Table */}
          <div className="flex-1 overflow-y-auto no-scrollbar px-8 pb-8">

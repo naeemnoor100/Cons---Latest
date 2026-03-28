@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   Search, 
   Plus,
@@ -12,7 +14,8 @@ import {
   Clock,
   Pencil,
   Trash2,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Vendor, Payment, PaymentMethod } from '../types';
@@ -396,6 +399,80 @@ export const VendorList: React.FC = () => {
     setFormErrors({});
   };
 
+  const handleDownloadLedger = (vendor: Vendor) => {
+    const vendorSupplies_local = getSuppliesForVendor(vendor.id);
+    const vendorPayments = payments.filter(p => p.vendorId === vendor.id && !p.isAllocation);
+    
+    const purchases = vendorSupplies_local.map(s => ({
+      date: s.date,
+      type: 'PURCHASE',
+      description: `${s.materialName} (${s.quantity} ${s.unit})`,
+      site: projects.find(proj => proj.id === s.projectId)?.name || 'General Office',
+      debit: s.estimatedValue,
+      credit: 0,
+      balance: s.remainingBalance
+    }));
+
+    const pays = vendorPayments.map(p => {
+      const allocations = payments.filter(a => a.masterPaymentId === p.id);
+      const uniqueProjectIds = Array.from(new Set(allocations.map(a => a.projectId)));
+      const projectNames = uniqueProjectIds
+        .map(pid => projects.find(proj => proj.id === pid)?.name)
+        .filter(Boolean);
+      
+      return {
+        date: p.date,
+        type: 'PAYMENT',
+        description: `Settlement via ${p.method}`,
+        site: projectNames.length > 0 ? projectNames.join(', ') : (projects.find(proj => proj.id === p.projectId)?.name || 'General Office'),
+        debit: 0,
+        credit: p.amount,
+        balance: 0
+      };
+    });
+
+    const ledger = [...purchases, ...pays].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const doc = new jsPDF();
+    
+    // Add Header
+    doc.setFontSize(18);
+    doc.setTextColor(0, 51, 102);
+    doc.text('Supplier Ledger Statement', 14, 20);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Supplier: ${vendor.name}`, 14, 30);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 35);
+
+    const tableHeaders = [['Date', 'Type', 'Description', 'Site', 'Debit', 'Credit', 'Balance']];
+    const tableRows = ledger.map(item => [
+      new Date(item.date).toLocaleDateString('en-GB'),
+      item.type,
+      item.description,
+      item.site,
+      item.debit > 0 ? formatCurrency(item.debit) : '-',
+      item.credit > 0 ? formatCurrency(item.credit) : '-',
+      item.balance > 0 ? formatCurrency(item.balance) : '-'
+    ]);
+
+    autoTable(doc, {
+      head: tableHeaders,
+      body: tableRows,
+      startY: 45,
+      theme: 'grid',
+      headStyles: { fillColor: [0, 51, 102], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        4: { halign: 'right' },
+        5: { halign: 'right' },
+        6: { halign: 'right' }
+      }
+    });
+
+    doc.save(`Supplier_Ledger_${vendor.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!payingVendor) return;
@@ -587,6 +664,16 @@ export const VendorList: React.FC = () => {
                         >
                           <ArrowUpRight size={14} />
                           View Full Ledger
+                        </button>
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handleDownloadLedger(vendor);
+                          }}
+                          className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                          title="Download Ledger"
+                        >
+                          <Download size={18} />
                         </button>
                         {canCreatePayments && (
                           <button 
