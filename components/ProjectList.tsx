@@ -131,6 +131,14 @@ export const ProjectList: React.FC = () => {
   });
 
   const [usageMaterialSearch, setUsageMaterialSearch] = useState('');
+  
+  const [siteCostsPage, setSiteCostsPage] = useState(1);
+  const [clientInvoicesPage, setClientInvoicesPage] = useState(1);
+  const [projectIncomePage, setProjectIncomePage] = useState(1);
+  const [materialArrivalsPage, setMaterialArrivalsPage] = useState(1);
+  const [labourUsedPage, setLabourUsedPage] = useState(1);
+
+  const ROWS_PER_PAGE = 10;
 
   const getInvoiceMetrics = useCallback((inv: Invoice) => {
     const collected = incomes
@@ -339,7 +347,7 @@ export const ProjectList: React.FC = () => {
     const projectExpenses = expenses.filter(e => e.projectId === projectId);
     const projectIncomes = incomes.filter(i => i.projectId === projectId);
     const projectInvoices = invoices.filter(inv => inv.projectId === projectId);
-    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer');
+    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Usage');
     
     const projectLaborPayments = laborPayments.filter(p => p.projectId === projectId);
     const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -351,7 +359,7 @@ export const ProjectList: React.FC = () => {
     const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
     const totalLabor = expenseLabor + laborFromPayments;
     
-    const projectPurchases = projectExpenses.filter(e => e.category !== 'Labor' && e.inventoryAction !== 'Transfer' && e.inventoryAction !== 'Usage');
+    const projectPurchases = projectExpenses.filter(e => e.category !== 'Labor' && e.inventoryAction !== 'Usage');
     const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
     
     const remainingBudget = budget - (totalPurchased + totalLabor);
@@ -592,7 +600,12 @@ export const ProjectList: React.FC = () => {
     if (!logMaterial || !viewingProject) return [];
     return (logMaterial.history || [])
       .filter(h => h.projectId === viewingProject.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => {
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        // Tie-breaker: use ID (which contains Date.now() in many cases) or just reverse original order
+        return b.id.localeCompare(a.id);
+      });
   }, [logMaterial, viewingProject]);
 
   const triggerCollectPayment = (inv: Invoice, remaining: number) => {
@@ -1197,7 +1210,7 @@ export const ProjectList: React.FC = () => {
                       <section>
                         <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Site Costs (by Category)</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {Object.entries(viewingProjectMetrics.categoryBreakdown).map(([category, amount]) => (
+                          {Object.entries(viewingProjectMetrics.categoryBreakdown).slice(0, siteCostsPage * ROWS_PER_PAGE).map(([category, amount]) => (
                             <div key={category} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex justify-between items-center shadow-sm">
                               <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase">{category}</span>
                               <span className="text-sm font-black text-slate-900 dark:text-white">{formatCurrency(amount as number)}</span>
@@ -1207,6 +1220,9 @@ export const ProjectList: React.FC = () => {
                             <div className="col-span-full text-center p-4 text-xs font-bold text-slate-400">No site costs recorded yet.</div>
                           )}
                         </div>
+                        {Object.keys(viewingProjectMetrics.categoryBreakdown).length > siteCostsPage * ROWS_PER_PAGE && (
+                          <button onClick={() => setSiteCostsPage(p => p + 1)} className="w-full mt-4 py-3 text-xs font-black uppercase text-blue-600 hover:bg-blue-50 rounded-2xl transition-all">Load More</button>
+                        )}
                       </section>
 
                       {/* Client Invoices */}
@@ -1218,7 +1234,7 @@ export const ProjectList: React.FC = () => {
                               <tr><th className="px-6 py-4">Inv #</th><th className="px-6 py-4">Date</th><th className="px-6 py-4 text-right">Amount</th><th className="px-6 py-4 text-center">Status</th><th className="px-6 py-4 text-right">Remaining</th></tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                              {viewingProjectMetrics.invoices.map(inv => {
+                              {viewingProjectMetrics.invoices.slice(0, clientInvoicesPage * ROWS_PER_PAGE).map(inv => {
                                 const { remaining, isPaid } = getInvoiceMetrics(inv);
                                 return (
                                   <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
@@ -1237,6 +1253,9 @@ export const ProjectList: React.FC = () => {
                               )}
                             </tbody>
                           </table>
+                          {viewingProjectMetrics.invoices.length > clientInvoicesPage * ROWS_PER_PAGE && (
+                            <button onClick={() => setClientInvoicesPage(p => p + 1)} className="w-full py-3 text-xs font-black uppercase text-blue-600 hover:bg-blue-50 border-t border-slate-100 transition-all">Load More</button>
+                          )}
                         </div>
                       </section>
 
@@ -1249,8 +1268,8 @@ export const ProjectList: React.FC = () => {
                               <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Description</th><th className="px-6 py-4">Method</th><th className="px-6 py-4 text-right">Amount</th></tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                              {incomes.filter(i => i.projectId === viewingProject.id).map(inc => (
-                                <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
+                              {incomes.filter(i => i.projectId === viewingProject.id).slice(0, projectIncomePage * ROWS_PER_PAGE).map(inc => (
+                                <tr key={inc.id} className="hover:bg-slate-50/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
                                   <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(inc.date).toLocaleDateString()}</td>
                                   <td className="px-6 py-4 text-sm font-black text-slate-800 dark:text-slate-200 uppercase">{inc.description}</td>
                                   <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase">{inc.method}</td>
@@ -1262,6 +1281,9 @@ export const ProjectList: React.FC = () => {
                               )}
                             </tbody>
                           </table>
+                          {incomes.filter(i => i.projectId === viewingProject.id).length > projectIncomePage * ROWS_PER_PAGE && (
+                            <button onClick={() => setProjectIncomePage(p => p + 1)} className="w-full py-3 text-xs font-black uppercase text-blue-600 hover:bg-blue-50 border-t border-slate-100 transition-all">Load More</button>
+                          )}
                         </div>
                       </section>
 
@@ -1274,7 +1296,7 @@ export const ProjectList: React.FC = () => {
                               <tr><th className="px-6 py-4">Date</th><th className="px-6 py-4">Material</th><th className="px-6 py-4 text-center">Arrived</th><th className="px-6 py-4 text-center">Remaining</th></tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                              {projectArrivals.map((arrival, idx) => (
+                              {projectArrivals.slice(0, materialArrivalsPage * ROWS_PER_PAGE).map((arrival, idx) => (
                                 <tr key={`${arrival.material.id}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors">
                                   <td className="px-6 py-4 text-xs font-bold text-slate-500">{new Date(arrival.entry.date).toLocaleDateString()}</td>
                                   <td className="px-6 py-4 text-sm font-black text-slate-800 dark:text-slate-200 uppercase">{arrival.material.name}</td>
@@ -1287,6 +1309,9 @@ export const ProjectList: React.FC = () => {
                               )}
                             </tbody>
                           </table>
+                          {projectArrivals.length > materialArrivalsPage * ROWS_PER_PAGE && (
+                            <button onClick={() => setMaterialArrivalsPage(p => p + 1)} className="w-full py-3 text-xs font-black uppercase text-blue-600 hover:bg-blue-50 border-t border-slate-100 transition-all">Load More</button>
+                          )}
                         </div>
                       </section>
 
@@ -1310,18 +1335,25 @@ export const ProjectList: React.FC = () => {
                             if (laborArray.length === 0) {
                               return <div className="col-span-full text-center p-4 text-xs font-bold text-slate-400">No labour recorded yet.</div>;
                             }
-                            return laborArray.map((emp, idx) => (
-                              <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                                <div className="flex justify-between items-start mb-2">
-                                  <div>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{emp.name}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">{emp.role}</p>
+                            return (
+                              <>
+                                {laborArray.slice(0, labourUsedPage * ROWS_PER_PAGE).map((emp, idx) => (
+                                  <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div>
+                                        <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{emp.name}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{emp.role}</p>
+                                      </div>
+                                      <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded-lg uppercase tracking-widest">{emp.days} days</span>
+                                    </div>
+                                    <p className="text-lg font-black text-slate-900 dark:text-white mt-2">{formatCurrency(emp.totalWage)}</p>
                                   </div>
-                                  <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded-lg uppercase tracking-widest">{emp.days} days</span>
-                                </div>
-                                <p className="text-lg font-black text-slate-900 dark:text-white mt-2">{formatCurrency(emp.totalWage)}</p>
-                              </div>
-                            ));
+                                ))}
+                                {laborArray.length > labourUsedPage * ROWS_PER_PAGE && (
+                                  <button onClick={() => setLabourUsedPage(p => p + 1)} className="col-span-full mt-4 py-3 text-xs font-black uppercase text-blue-600 hover:bg-blue-50 rounded-2xl transition-all">Load More</button>
+                                )}
+                              </>
+                            );
                           })()}
                         </div>
                       </section>
@@ -1455,7 +1487,7 @@ export const ProjectList: React.FC = () => {
                                </td>
                              </tr>
                            ))}
-                           {activeDetailTab === 'expenses' && viewingProjectMetrics.allExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer').slice().reverse().filter(e => {
+                           {activeDetailTab === 'expenses' && viewingProjectMetrics.allExpenses.filter(e => e.inventoryAction !== 'Usage').slice().reverse().filter(e => {
                              const d = (new Date(e.date).toLocaleDateString() || '').toLowerCase();
                              const det = (e.materialId ? materials.find(m => m.id === e.materialId)?.name : e.category)?.toLowerCase() || '';
                              const q = e.materialQuantity ? Math.abs(e.materialQuantity).toString() : '';

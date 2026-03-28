@@ -18,20 +18,33 @@
           extend: {
             fontFamily: {
               inter: ['Inter', 'sans-serif'],
+              display: ['Outfit', 'sans-serif'],
             },
             colors: {
+              brand: {
+                primary: '#6366f1', // Indigo
+                secondary: '#ec4899', // Pink
+                accent: '#f59e0b', // Amber
+                success: '#10b981', // Emerald
+                danger: '#ef4444', // Red
+                info: '#3b82f6', // Blue
+              },
               procore: {
                 blue: '#003366',
                 orange: '#FF5A00',
                 gray: '#F4F6F8',
                 border: '#E1E8EE'
               }
+            },
+            backgroundImage: {
+              'vibrant-gradient': 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)',
+              'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%)',
             }
           },
         },
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --safe-area-inset-top: env(safe-area-inset-top);
@@ -46,7 +59,7 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #F4F6F8;
+            background-color: #f8fafc;
             overflow: hidden;
             height: 100vh;
             height: -webkit-fill-available;
@@ -58,6 +71,10 @@
         
         .dark body {
             background-color: #020617;
+        }
+
+        .font-display {
+            font-family: 'Outfit', sans-serif;
         }
         
         ::-webkit-scrollbar {
@@ -88,6 +105,33 @@
         .no-scrollbar {
             -ms-overflow-style: none;
             scrollbar-width: none;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .dark .glass {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .vibrant-shadow {
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.3), 0 8px 10px -6px rgba(99, 102, 241, 0.3);
+        }
+
+        .vibrant-border {
+            border: 2px solid transparent;
+            background-image: linear-gradient(white, white), linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+            background-origin: border-box;
+            background-clip: content-box, border-box;
+        }
+
+        .dark .vibrant-border {
+            background-image: linear-gradient(#0f172a, #0f172a), linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
         }
 
         input, textarea, select {
@@ -131,6 +175,24 @@
         }
         .sync-pulse {
             animation: subtle-pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes gradient-x {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .animate-gradient-x {
+            background-size: 200% 200%;
+            animation: gradient-x 15s ease infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .float {
+            animation: float 3s infinite ease-in-out;
         }
     </style>
 <script type="importmap">

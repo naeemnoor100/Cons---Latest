@@ -11,16 +11,19 @@ import {
   Trash2,
   Check,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Download
 } from 'lucide-react';
 import { useApp } from '../AppContext';
 import { Invoice } from '../types';
 import { ConfirmationDialog } from './ConfirmationDialog';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
 export const InvoiceManager: React.FC = () => {
-  const { invoices, projects, addInvoice, updateInvoice, deleteInvoice, incomes, isProjectLocked, currentUser } = useApp();
+  const { invoices, projects, addInvoice, updateInvoice, deleteInvoice, incomes, isProjectLocked, currentUser, companyName, companyAddress } = useApp();
   
   const canCreateInvoices = currentUser.permissions?.['invoices']?.includes('create');
   const canEditInvoices = currentUser.permissions?.['invoices']?.includes('edit');
@@ -164,6 +167,71 @@ export const InvoiceManager: React.FC = () => {
     });
   };
 
+  const generatePDF = (inv: Invoice) => {
+    const project = projects.find(p => p.id === inv.projectId);
+    const doc = new jsPDF();
+    
+    doc.setFontSize(22);
+    doc.setTextColor(79, 70, 229);
+    doc.text('INVOICE', 14, 20);
+    
+    if (companyName) {
+      doc.setFontSize(14);
+      doc.setTextColor(0);
+      doc.text(companyName, 140, 20, { align: 'right' });
+    }
+    
+    if (companyAddress) {
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      const splitAddress = doc.splitTextToSize(companyAddress, 60);
+      doc.text(splitAddress, 140, 26, { align: 'right' });
+    }
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Invoice #: ${inv.id.toUpperCase()}`, 14, 30);
+    doc.text(`Date: ${new Date(inv.date).toLocaleDateString()}`, 14, 35);
+    doc.text(`Due Date: ${new Date(inv.dueDate).toLocaleDateString()}`, 14, 40);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.text('Bill To:', 14, 55);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Project: ${project?.name || 'Unknown Project'}`, 14, 62);
+    if (project?.clientName) {
+      doc.text(`Client: ${project.clientName}`, 14, 67);
+    }
+    
+    const { isPaid, remaining } = getInvoiceMetrics(inv);
+    const status = isPaid ? 'Paid' : (remaining < inv.amount ? 'Partially Paid' : 'Unpaid');
+    
+    const tableData = [
+      ['Description', inv.description],
+      ['Status', status],
+      ['Total Amount', formatCurrency(inv.amount)],
+      ['Amount Paid', formatCurrency(inv.amount - remaining)],
+      ['Balance Due', formatCurrency(remaining)]
+    ];
+    
+    autoTable(doc, {
+      startY: 80,
+      head: [['Item', 'Details']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229] },
+      styles: { fontSize: 10, cellPadding: 5 }
+    });
+    
+    const finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || 80;
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text('Thank you for your business!', 14, finalY + 20);
+    
+    doc.save(`Invoice_${inv.id}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -173,7 +241,7 @@ export const InvoiceManager: React.FC = () => {
         </div>
         {canCreateInvoices && (
           <button 
-            onClick={() => { setEditingInvoice(null); setFormData({ projectId: projects[0]?.id || '', amount: '', date: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 15*86400000).toISOString().split('T')[0], description: '' }); setShowModal(true); }}
+            onClick={() => { setEditingInvoice(null); setFormData({ projectId: '', amount: '', date: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 15*86400000).toISOString().split('T')[0], description: '' }); setShowModal(true); }}
             className="w-full sm:w-auto bg-indigo-600 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
           >
             <Plus size={20} /> Generate Invoice
@@ -318,6 +386,13 @@ export const InvoiceManager: React.FC = () => {
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex items-center justify-end gap-2 transition-opacity">
+                        <button 
+                          onClick={() => generatePDF(inv)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Download PDF"
+                        >
+                          <Download size={18} />
+                        </button>
                         {canEditInvoices && (
                           <button 
                             onClick={() => { setEditingInvoice(inv); setFormData({ projectId: inv.projectId, amount: inv.amount.toString(), date: inv.date, dueDate: inv.dueDate, description: inv.description }); setShowModal(true); }}
@@ -370,10 +445,10 @@ export const InvoiceManager: React.FC = () => {
                   onChange={(e) => setFormData(p => ({ ...p, projectId: e.target.value }))}
                   required
                 >
-                  <option value="" disabled>Choose site...</option>
-                  {projects.filter(p => !p.isGodown).map(p => (
+                  <option value="" disabled>Select site</option>
+                  {projects.filter(p => !p.isGodown && !p.isDeleted && p.status !== 'Completed').map(p => (
                     <option key={p.id} value={p.id} disabled={isProjectLocked(p.id)}>
-                      {p.name} {p.status === 'Completed' ? '(Completed - Locked)' : ''}
+                      {p.name}
                     </option>
                   ))}
                 </select>

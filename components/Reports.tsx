@@ -30,13 +30,51 @@ import { useApp } from '../AppContext';
 
 const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
 
+const SortButton = ({ field, currentSort, onSort, label, className = "" }: { field: string, currentSort: { field: string, direction: 'asc' | 'desc' }, onSort: (field: string) => void, label: string, className?: string }) => {
+  const isActive = currentSort.field === field;
+  return (
+    <button 
+      onClick={() => onSort(field)}
+      className={`flex items-center gap-1 hover:text-blue-600 transition-colors ${isActive ? 'text-blue-600' : ''} ${className}`}
+    >
+      {label}
+      <div className="flex flex-col -space-y-1">
+        <ChevronDown size={10} className={`rotate-180 ${isActive && currentSort.direction === 'asc' ? 'text-blue-600' : 'text-slate-300'}`} />
+        <ChevronDown size={10} className={`${isActive && currentSort.direction === 'desc' ? 'text-blue-600' : 'text-slate-300'}`} />
+      </div>
+    </button>
+  );
+};
+
+const handleSort = (setter: React.Dispatch<React.SetStateAction<{ field: string; direction: 'asc' | 'desc' }>>) => (field: string) => {
+  setter(prev => ({
+    field,
+    direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+  }));
+};
+
 export const Reports: React.FC = () => {
   const { projects, expenses, materials, incomes, vendors, employees, invoices, payments, laborPayments } = useApp();
   const [reportActiveTab, setReportActiveTab] = useState<'overview' | 'project-drilldown' | 'project-summary' | 'sites-summary' | 'material-locator' | 'vendor-supply' | 'stock-report'>('overview');
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || '');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   
   const [summarySearchTerm, setSummarySearchTerm] = useState('');
-  const [summaryProjectId, setSummaryProjectId] = useState<string>(projects[0]?.id || '');
+  const [summaryProjectId, setSummaryProjectId] = useState<string>('');
+
+  const [purchasedMaterialSearch, setPurchasedMaterialSearch] = useState('');
+  const [purchasedMaterialSort, setPurchasedMaterialSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'date', direction: 'desc' });
+
+  const [summaryMaterialSearch, setSummaryMaterialSearch] = useState('');
+  const [summaryMaterialSort, setSummaryMaterialSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'name', direction: 'asc' });
+
+  const [summarySupplierSearch, setSummarySupplierSearch] = useState('');
+  const [summarySupplierSort, setSummarySupplierSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'amount', direction: 'desc' });
+
+  const [summaryLaborSearch, setSummaryLaborSearch] = useState('');
+  const [summaryLaborSort, setSummaryLaborSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'amount', direction: 'desc' });
+
+  const [summaryInvoiceSearch, setSummaryInvoiceSearch] = useState('');
+  const [summaryInvoiceSort, setSummaryInvoiceSort] = useState<{ field: string; direction: 'asc' | 'desc' }>({ field: 'date', direction: 'desc' });
 
   const [summaryMaterialId, setSummaryMaterialId] = useState<string>('');
   const [summaryVendorId, setSummaryVendorId] = useState<string>('');
@@ -332,21 +370,22 @@ export const Reports: React.FC = () => {
     const project = projects.find(p => p.id === summaryProjectId);
     if (!project) return null;
 
-    const search = summarySearchTerm.toLowerCase();
-
     const projectExpenses = expenses.filter(e => e.projectId === summaryProjectId);
-    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer' && e.category !== 'Labor');
-    const projectPurchases = projectExpenses.filter(e => e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.materialId));
+    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer');
+    const projectPurchases = projectExpenses.filter(e => e.category !== 'Labor' && e.inventoryAction !== 'Usage');
     const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
 
     const projectLaborPayments = laborPayments.filter(p => p.projectId === summaryProjectId);
     const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
     
+    const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
+    const totalLabor = expenseLabor + laborFromPayments;
+
     const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromPayments;
     const totalReceived = incomes.filter(i => i.projectId === summaryProjectId).reduce((sum, i) => sum + i.amount, 0);
-    const remainingBudget = project.budget - totalSpent;
+    const remainingBudget = project.budget - (totalPurchased + totalLabor);
 
-    const materialSummaryMap: Record<string, { id: string, name: string, unit: string, used: number, remaining: number, inward: number, usedValue: number, remainingValue: number }> = {};
+    const materialSummaryMap: Record<string, { id: string, name: string, unit: string, used: number, remaining: number, inward: number, transferredOut: number, usedValue: number, remainingValue: number }> = {};
 
     materials.forEach(mat => {
       const hist = mat.history || [];
@@ -365,10 +404,11 @@ export const Reports: React.FC = () => {
           const unitPrice = h.unitPrice || mat.costPerUnit;
 
           if (!materialSummaryMap[mat.id]) {
-            materialSummaryMap[mat.id] = { id: mat.id, name: mat.name, unit: mat.unit, used: 0, remaining: 0, inward: 0, usedValue: 0, remainingValue: 0 };
+            materialSummaryMap[mat.id] = { id: mat.id, name: mat.name, unit: mat.unit, used: 0, remaining: 0, inward: 0, transferredOut: 0, usedValue: 0, remainingValue: 0 };
           }
           materialSummaryMap[mat.id].inward += arrived;
           materialSummaryMap[mat.id].used += qtyUsed;
+          materialSummaryMap[mat.id].transferredOut += qtyMoved;
           materialSummaryMap[mat.id].remaining += remaining;
           materialSummaryMap[mat.id].usedValue += qtyUsed * unitPrice;
           materialSummaryMap[mat.id].remainingValue += remaining * unitPrice;
@@ -378,7 +418,16 @@ export const Reports: React.FC = () => {
 
     const materialSummary = Object.values(materialSummaryMap)
       .filter(m => m.inward > 0 || m.used > 0)
-      .filter(m => m.name.toLowerCase().includes(search));
+      .filter(m => m.name.toLowerCase().includes(summaryMaterialSearch.toLowerCase()))
+      .sort((a, b) => {
+        const direction = summaryMaterialSort.direction === 'asc' ? 1 : -1;
+        const field = summaryMaterialSort.field as keyof typeof a;
+        const valA = a[field];
+        const valB = b[field];
+        if (typeof valA === 'string' && typeof valB === 'string') return valA.localeCompare(valB) * direction;
+        if (typeof valA === 'number' && typeof valB === 'number') return (valA - valB) * direction;
+        return 0;
+      });
 
     const supplierSummaryMap: Record<string, { name: string; amount: number }> = {};
     projectExpenses.filter(e => e.vendorId).forEach(e => {
@@ -391,8 +440,16 @@ export const Reports: React.FC = () => {
       }
     });
     const supplierSummary = Object.values(supplierSummaryMap)
-      .filter(s => s.name.toLowerCase().includes(search))
-      .sort((a, b) => b.amount - a.amount);
+      .filter(s => s.name.toLowerCase().includes(summarySupplierSearch.toLowerCase()))
+      .sort((a, b) => {
+        const direction = summarySupplierSort.direction === 'asc' ? 1 : -1;
+        const field = summarySupplierSort.field as keyof typeof a;
+        const valA = a[field];
+        const valB = b[field];
+        if (typeof valA === 'string' && typeof valB === 'string') return valA.localeCompare(valB) * direction;
+        if (typeof valA === 'number' && typeof valB === 'number') return (valA - valB) * direction;
+        return 0;
+      });
 
     const laborSummaryMap: Record<string, { name: string; hours: number; amount: number }> = {};
     projectLaborPayments.forEach(pay => {
@@ -405,12 +462,20 @@ export const Reports: React.FC = () => {
       }
     });
     const laborSummary = Object.values(laborSummaryMap)
-      .filter(l => l.name.toLowerCase().includes(search))
-      .sort((a, b) => b.amount - a.amount);
+      .filter(l => l.name.toLowerCase().includes(summaryLaborSearch.toLowerCase()))
+      .sort((a, b) => {
+        const direction = summaryLaborSort.direction === 'asc' ? 1 : -1;
+        const field = summaryLaborSort.field as keyof typeof a;
+        const valA = a[field];
+        const valB = b[field];
+        if (typeof valA === 'string' && typeof valB === 'string') return valA.localeCompare(valB) * direction;
+        if (typeof valA === 'number' && typeof valB === 'number') return (valA - valB) * direction;
+        return 0;
+      });
 
     const invoiceSummary = invoices
       .filter(i => i.projectId === summaryProjectId)
-      .filter(i => i.description.toLowerCase().includes(search) || i.status.toLowerCase().includes(search))
+      .filter(i => i.description.toLowerCase().includes(summaryInvoiceSearch.toLowerCase()) || i.status.toLowerCase().includes(summaryInvoiceSearch.toLowerCase()))
       .map(inv => {
         const paidAmount = incomes.filter(inc => inc.invoiceId === inv.id).reduce((sum, inc) => sum + inc.amount, 0);
         return {
@@ -418,7 +483,16 @@ export const Reports: React.FC = () => {
           remainingPayment: inv.amount - paidAmount
         };
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => {
+        const direction = summaryInvoiceSort.direction === 'asc' ? 1 : -1;
+        const field = summaryInvoiceSort.field as keyof typeof a;
+        const valA = a[field];
+        const valB = b[field];
+        if (field === 'date') return (new Date(valA as string).getTime() - new Date(valB as string).getTime()) * direction;
+        if (typeof valA === 'string' && typeof valB === 'string') return valA.localeCompare(valB) * direction;
+        if (typeof valA === 'number' && typeof valB === 'number') return (valA - valB) * direction;
+        return 0;
+      });
 
     return {
       project,
@@ -431,7 +505,7 @@ export const Reports: React.FC = () => {
       laborSummary,
       invoiceSummary
     };
-  }, [summaryProjectId, projects, expenses, materials, vendors, laborPayments, employees, invoices, incomes, summarySearchTerm]);
+  }, [summaryProjectId, projects, expenses, materials, vendors, laborPayments, employees, invoices, incomes, summaryMaterialSearch, summaryMaterialSort, summarySupplierSearch, summarySupplierSort, summaryLaborSearch, summaryLaborSort, summaryInvoiceSearch, summaryInvoiceSort]);
 
   // Project Drilldown Calculations
   const selectedProjectReport = useMemo(() => {
@@ -442,16 +516,19 @@ export const Reports: React.FC = () => {
     const projectExpenses = expenses.filter(e => e.projectId === selectedProjectId);
     const projectIncomes = incomes.filter(i => i.projectId === selectedProjectId);
     
-    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer' && e.category !== 'Labor');
-    const projectPurchases = projectExpenses.filter(e => e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.materialId));
+    const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer');
+    const projectPurchases = projectExpenses.filter(e => e.category !== 'Labor' && e.inventoryAction !== 'Usage');
     const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
     
     const projectLaborPayments = laborPayments.filter(p => p.projectId === selectedProjectId);
     const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
 
+    const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
+    const totalLabor = expenseLabor + laborFromPayments;
+
     const totalSpent = actualSiteExpenses.reduce((sum, e) => sum + e.amount, 0) + laborFromPayments;
     const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
-    const remainingBudget = project.budget - totalSpent;
+    const remainingBudget = project.budget - (totalPurchased + totalLabor);
 
     // Category-wise summary
     const categorySummaryMap: Record<string, number> = {};
@@ -467,8 +544,27 @@ export const Reports: React.FC = () => {
       .sort((a, b) => b.amount - a.amount);
 
     const allExpenses = projectExpenses
-      .filter(e => e.category === 'Material' && e.inventoryAction !== 'Usage' && e.inventoryAction !== 'Transfer')
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .filter(e => e.category === 'Material' && e.inventoryAction !== 'Usage')
+      .filter(e => {
+        const vendor = vendors.find(v => v.id === e.vendorId);
+        const material = materials.find(m => m.id === e.materialId);
+        const search = purchasedMaterialSearch.toLowerCase();
+        return (
+          e.description.toLowerCase().includes(search) ||
+          (vendor?.name.toLowerCase().includes(search)) ||
+          (material?.name.toLowerCase().includes(search))
+        );
+      })
+      .sort((a, b) => {
+        const direction = purchasedMaterialSort.direction === 'asc' ? 1 : -1;
+        const field = purchasedMaterialSort.field as keyof typeof a;
+        const valA = a[field];
+        const valB = b[field];
+        if (field === 'date') return (new Date(valA as string).getTime() - new Date(valB as string).getTime()) * direction;
+        if (typeof valA === 'string' && typeof valB === 'string') return valA.localeCompare(valB) * direction;
+        if (typeof valA === 'number' && typeof valB === 'number') return (valA - valB) * direction;
+        return 0;
+      });
 
     return {
       project,
@@ -479,7 +575,7 @@ export const Reports: React.FC = () => {
       categorySummary,
       allExpenses
     };
-  }, [selectedProjectId, projects, expenses, incomes, laborPayments]);
+  }, [selectedProjectId, projects, expenses, incomes, laborPayments, purchasedMaterialSearch, purchasedMaterialSort, vendors, materials]);
 
   // Global Logic for Overview
   const sitesSummaryData = useMemo(() => {
@@ -488,11 +584,12 @@ export const Reports: React.FC = () => {
       const projectIncomes = incomes.filter(i => i.projectId === project.id);
       const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
       
-      const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer' && e.category !== 'Labor');
+      const actualSiteExpenses = projectExpenses.filter(e => e.inventoryAction !== 'Purchase' && !(!e.inventoryAction && !!e.materialId) && e.inventoryAction !== 'Transfer');
       const projectLaborPayments = laborPayments.filter(p => p.projectId === project.id);
       const laborFromPayments = projectLaborPayments.reduce((sum, p) => sum + p.amount, 0);
 
-      const totalLabor = laborFromPayments;
+      const expenseLabor = actualSiteExpenses.filter(e => e.category === 'Labor').reduce((sum, e) => sum + e.amount, 0);
+      const totalLabor = expenseLabor + laborFromPayments;
       
       const spentWithoutLabor = actualSiteExpenses.filter(e => e.category !== 'Labor').reduce((sum, e) => sum + e.amount, 0);
       const totalCost = spentWithoutLabor + totalLabor;
@@ -500,7 +597,7 @@ export const Reports: React.FC = () => {
       const totalCollected = projectIncomes.reduce((sum, i) => sum + i.amount, 0);
       const totalInvoiced = projectInvoices.reduce((sum, inv) => sum + inv.amount, 0);
       
-      const projectPurchases = projectExpenses.filter(e => e.inventoryAction === 'Purchase' || (!e.inventoryAction && !!e.materialId));
+      const projectPurchases = projectExpenses.filter(e => e.category !== 'Labor' && e.inventoryAction !== 'Usage');
       const totalPurchased = projectPurchases.reduce((sum, e) => sum + e.amount, 0);
 
       const receivable = totalInvoiced - totalCollected;
@@ -839,6 +936,7 @@ export const Reports: React.FC = () => {
                       onChange={(e) => setSelectedProjectId(e.target.value)}
                       className="w-full md:w-72 px-0 bg-transparent text-lg font-black text-slate-900 dark:text-white outline-none appearance-none cursor-pointer pr-10"
                     >
+                      <option value="" disabled className="text-slate-400">Select Site</option>
                       {projects.map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
@@ -852,7 +950,7 @@ export const Reports: React.FC = () => {
           {selectedProjectReport ? (
             <div className="space-y-8">
               {/* Financial Pulse Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
                   <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl w-fit">
                     <Briefcase size={20} />
@@ -949,23 +1047,43 @@ export const Reports: React.FC = () => {
 
                 {/* Top 50 Expenses List */}
                 <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex justify-between items-center bg-slate-50/30 dark:bg-slate-900/20">
+                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/30 dark:bg-slate-900/20">
                     <div className="flex items-center gap-3">
                       <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
                         <ClipboardList size={20} />
                       </div>
                       <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">Purchased Material</h4>
                     </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-900 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">Audit Trail</span>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="relative flex-1 sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input 
+                          type="text"
+                          placeholder="Search expenses..."
+                          className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                          value={purchasedMaterialSearch}
+                          onChange={(e) => setPurchasedMaterialSearch(e.target.value)}
+                        />
+                      </div>
+                      <span className="hidden sm:inline-block text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-900 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">Audit Trail</span>
+                    </div>
                   </div>
                   <div className="overflow-x-auto no-scrollbar">
                     <table className="w-full text-left min-w-[600px]">
                       <thead className="bg-white dark:bg-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                         <tr>
-                          <th className="px-8 py-5">Date</th>
-                          <th className="px-8 py-5">Details</th>
-                          <th className="px-8 py-5">Vendor</th>
-                          <th className="px-8 py-5 text-right">Amount</th>
+                          <th className="px-8 py-5">
+                            <SortButton field="date" currentSort={purchasedMaterialSort} onSort={handleSort(setPurchasedMaterialSort)} label="Date" />
+                          </th>
+                          <th className="px-8 py-5">
+                            <SortButton field="notes" currentSort={purchasedMaterialSort} onSort={handleSort(setPurchasedMaterialSort)} label="Details" />
+                          </th>
+                          <th className="px-8 py-5">
+                            <SortButton field="vendorId" currentSort={purchasedMaterialSort} onSort={handleSort(setPurchasedMaterialSort)} label="Vendor" />
+                          </th>
+                          <th className="px-8 py-5">
+                            <SortButton field="amount" currentSort={purchasedMaterialSort} onSort={handleSort(setPurchasedMaterialSort)} label="Amount" className="justify-end" />
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -997,7 +1115,7 @@ export const Reports: React.FC = () => {
                                </span>
                             </td>
                             <td className="px-8 py-5 text-right">
-                               <span className="text-sm font-black text-red-600">{formatCurrency(exp.amount)}</span>
+                               <span className={`text-sm font-black ${exp.amount < 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatCurrency(exp.amount)}</span>
                             </td>
                           </tr>
                         )) : (
@@ -1037,6 +1155,7 @@ export const Reports: React.FC = () => {
                       onChange={(e) => setSummaryProjectId(e.target.value)}
                       className="w-full md:w-72 px-0 bg-transparent text-lg font-black text-slate-900 dark:text-white outline-none appearance-none cursor-pointer pr-10"
                     >
+                      <option value="" disabled className="text-slate-400">Select Site</option>
                       {projects.map(p => <option key={p.id} value={p.id} className="text-slate-900">{p.name}</option>)}
                     </select>
                     <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
@@ -1061,7 +1180,7 @@ export const Reports: React.FC = () => {
           {projectSummaryData ? (
             <div className="space-y-8">
               {/* Budget Summary */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col gap-3">
                   <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl w-fit">
                     <Wallet size={20} />
@@ -1123,19 +1242,38 @@ export const Reports: React.FC = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Material Summary */}
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
+                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                       <Package size={18} className="text-blue-600" />
                       Material (Used & Remaining)
                     </h3>
+                    <div className="relative w-full sm:w-48">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                      <input 
+                        type="text"
+                        placeholder="Search materials..."
+                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        value={summaryMaterialSearch}
+                        onChange={(e) => setSummaryMaterialSearch(e.target.value)}
+                      />
+                    </div>
                   </div>
                   <div className="overflow-x-auto no-scrollbar max-h-96">
                     <table className="w-full text-left">
                       <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
                         <tr>
-                          <th className="px-8 py-4">Material</th>
-                          <th className="px-8 py-4 text-right">Used</th>
-                          <th className="px-8 py-4 text-right">In Hand</th>
+                          <th className="px-8 py-4">
+                            <SortButton field="name" currentSort={summaryMaterialSort} onSort={handleSort(setSummaryMaterialSort)} label="Material" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="used" currentSort={summaryMaterialSort} onSort={handleSort(setSummaryMaterialSort)} label="Used" className="justify-end" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="transferredOut" currentSort={summaryMaterialSort} onSort={handleSort(setSummaryMaterialSort)} label="Moved" className="justify-end" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="remaining" currentSort={summaryMaterialSort} onSort={handleSort(setSummaryMaterialSort)} label="In Hand" className="justify-end" />
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -1148,6 +1286,9 @@ export const Reports: React.FC = () => {
                             <td className="px-8 py-4 text-right text-xs font-black text-red-600">
                               {mat.used.toLocaleString()}
                               <div className="text-[9px] text-slate-400 font-bold">{formatCurrency(mat.usedValue)}</div>
+                            </td>
+                            <td className="px-8 py-4 text-right text-xs font-black text-blue-600">
+                              {mat.transferredOut.toLocaleString()}
                             </td>
                             <td className="px-8 py-4 text-right text-xs font-black text-emerald-600">
                               {mat.remaining.toLocaleString()}
@@ -1187,18 +1328,32 @@ export const Reports: React.FC = () => {
 
                 {/* Suppliers Summary */}
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
+                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                       <Users size={18} className="text-emerald-600" />
                       Suppliers
                     </h3>
+                    <div className="relative w-full sm:w-48">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                      <input 
+                        type="text"
+                        placeholder="Search suppliers..."
+                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        value={summarySupplierSearch}
+                        onChange={(e) => setSummarySupplierSearch(e.target.value)}
+                      />
+                    </div>
                   </div>
                   <div className="overflow-x-auto no-scrollbar max-h-96">
                     <table className="w-full text-left">
                       <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
                         <tr>
-                          <th className="px-8 py-4">Supplier Name</th>
-                          <th className="px-8 py-4 text-right">Total Spent</th>
+                          <th className="px-8 py-4">
+                            <SortButton field="name" currentSort={summarySupplierSort} onSort={handleSort(setSummarySupplierSort)} label="Supplier Name" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="amount" currentSort={summarySupplierSort} onSort={handleSort(setSummarySupplierSort)} label="Total Spent" className="justify-end" />
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -1244,19 +1399,35 @@ export const Reports: React.FC = () => {
 
                 {/* Labor Summary */}
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
+                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                       <HardHat size={18} className="text-amber-600" />
                       Labor
                     </h3>
+                    <div className="relative w-full sm:w-48">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                      <input 
+                        type="text"
+                        placeholder="Search labor..."
+                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        value={summaryLaborSearch}
+                        onChange={(e) => setSummaryLaborSearch(e.target.value)}
+                      />
+                    </div>
                   </div>
                   <div className="overflow-x-auto no-scrollbar max-h-96">
                     <table className="w-full text-left">
                       <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
                         <tr>
-                          <th className="px-8 py-4">Laborer Name</th>
-                          <th className="px-8 py-4 text-right">Total Hours</th>
-                          <th className="px-8 py-4 text-right">Total Wages</th>
+                          <th className="px-8 py-4">
+                            <SortButton field="name" currentSort={summaryLaborSort} onSort={handleSort(setSummaryLaborSort)} label="Laborer Name" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="hours" currentSort={summaryLaborSort} onSort={handleSort(setSummaryLaborSort)} label="Total Hours" className="justify-end" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="amount" currentSort={summaryLaborSort} onSort={handleSort(setSummaryLaborSort)} label="Total Wages" className="justify-end" />
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
@@ -1305,20 +1476,38 @@ export const Reports: React.FC = () => {
 
                 {/* Invoices Summary */}
                 <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20">
+                  <div className="p-8 border-b border-slate-50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                       <Receipt size={18} className="text-indigo-600" />
                       Invoices
                     </h3>
+                    <div className="relative w-full sm:w-48">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                      <input 
+                        type="text"
+                        placeholder="Search invoices..."
+                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                        value={summaryInvoiceSearch}
+                        onChange={(e) => setSummaryInvoiceSearch(e.target.value)}
+                      />
+                    </div>
                   </div>
                   <div className="overflow-x-auto no-scrollbar max-h-96">
                     <table className="w-full text-left">
                       <thead className="bg-slate-50/50 dark:bg-slate-900/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 sticky top-0">
                         <tr>
-                          <th className="px-8 py-4">Description</th>
-                          <th className="px-8 py-4">Status</th>
-                          <th className="px-8 py-4 text-right">Amount</th>
-                          <th className="px-8 py-4 text-right">Remaining</th>
+                          <th className="px-8 py-4">
+                            <SortButton field="date" currentSort={summaryInvoiceSort} onSort={handleSort(setSummaryInvoiceSort)} label="Description" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="status" currentSort={summaryInvoiceSort} onSort={handleSort(setSummaryInvoiceSort)} label="Status" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="amount" currentSort={summaryInvoiceSort} onSort={handleSort(setSummaryInvoiceSort)} label="Amount" className="justify-end" />
+                          </th>
+                          <th className="px-8 py-4">
+                            <SortButton field="remainingPayment" currentSort={summaryInvoiceSort} onSort={handleSort(setSummaryInvoiceSort)} label="Remaining" className="justify-end" />
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-slate-700">

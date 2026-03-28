@@ -127,25 +127,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction?: string, 
     logEntityType?: string, 
     logEntityId?: string, 
-    logDetails?: string
+    logDetails?: string | ((prev: AppState) => string)
   ) => {
     setState(prev => {
       let next = updater(prev);
       
       if (logAction && logEntityType && logEntityId) {
+        const details = typeof logDetails === 'function' ? logDetails(prev) : (logDetails || '');
         const newLog: ActivityLog = {
           id: 'log-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
           timestamp: new Date().toISOString(),
           action: logAction,
           entityType: logEntityType,
           entityId: logEntityId,
-          details: logDetails || '',
+          details: details,
           userId: prev.currentUser.id,
           userName: prev.currentUser.name
         };
         next = { 
           ...next, 
-          activityLogs: [newLog, ...(next.activityLogs || [])].slice(0, 9999) 
+          activityLogs: [newLog, ...(next.activityLogs || [])].slice(0, 10000) 
         };
       }
 
@@ -185,14 +186,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     else document.documentElement.classList.remove('dark');
   }, [dispatchUpdate]);
   const setAllowDecimalStock = useCallback((val: boolean) => dispatchUpdate(prev => ({ ...prev, allowDecimalStock: val })), [dispatchUpdate]);
+  const setCompanyName = useCallback((name: string) => dispatchUpdate(prev => ({ ...prev, companyName: name })), [dispatchUpdate]);
+  const setCompanyAddress = useCallback((address: string) => dispatchUpdate(prev => ({ ...prev, companyAddress: address })), [dispatchUpdate]);
 
   const addProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: [...prev.projects, p] }), 'Create', 'Project', p.id, `Created project: ${p.name}`), [dispatchUpdate]);
-  const updateProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.map(proj => proj.id === p.id ? p : proj) }), 'Update', 'Project', p.id, `Updated project: ${p.name}`), [dispatchUpdate]);
+  const updateProject = useCallback(async (p: Project) => dispatchUpdate(prev => ({ ...prev, projects: prev.projects.map(proj => proj.id === p.id ? p : proj) }), 'Update', 'Project', p.id, (prev) => {
+    const old = prev.projects.find(proj => proj.id === p.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.name !== p.name) changes.push(`Name: "${old.name}" → "${p.name}"`);
+      if (old.status !== p.status) changes.push(`Status: "${old.status}" → "${p.status}"`);
+      if (old.budget !== p.budget) changes.push(`Budget: ${old.budget} → ${p.budget}`);
+      if (old.client !== p.client) changes.push(`Client: "${old.client}" → "${p.client}"`);
+      if (old.location !== p.location) changes.push(`Location: "${old.location}" → "${p.location}"`);
+    }
+    return `Updated project: ${p.name}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
   const deleteProject = useCallback(async (id: string) => {
     return dispatchUpdate(prev => ({ 
       ...prev, 
       projects: prev.projects.map(p => p.id === id ? { ...p, isDeleted: true } : p) 
-    }), 'Delete', 'Project', id, `Deleted project`);
+    }), 'Delete', 'Project', id, (prev) => `Deleted project: ${prev.projects.find(p => p.id === id)?.name || id}`);
   }, [dispatchUpdate]);
 
   const permanentDeleteProject = useCallback(async (id: string) => {
@@ -223,26 +237,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoices: nextInvoices,
         laborLogs: nextLaborLogs
       };
-    }, 'PermanentDelete', 'Project', id, `Permanently deleted project and associated data`);
+    }, 'PermanentDelete', 'Project', id, prev => `Permanently deleted project: ${prev.projects.find(p => p.id === id)?.name || id} and all associated data`);
   }, [dispatchUpdate]);
 
   const restoreProject = useCallback(async (id: string) => {
     return dispatchUpdate(prev => ({ 
       ...prev, 
       projects: prev.projects.map(p => p.id === id ? { ...p, isDeleted: false } : p) 
-    }), 'Restore', 'Project', id, `Restored project`);
+    }), 'Restore', 'Project', id, prev => `Restored project: ${prev.projects.find(p => p.id === id)?.name || id}`);
   }, [dispatchUpdate]);
   
   const addVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: [...prev.vendors, v] }), 'Create', 'Vendor', v.id, `Created vendor: ${v.name}`), [dispatchUpdate]);
-  const updateVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.map(vend => vend.id === v.id ? v : vend) }), 'Update', 'Vendor', v.id, `Updated vendor: ${v.name}`), [dispatchUpdate]);
+  const updateVendor = useCallback(async (v: Vendor) => dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.map(vend => vend.id === v.id ? v : vend) }), 'Update', 'Vendor', v.id, (prev) => {
+    const old = prev.vendors.find(vend => vend.id === v.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.name !== v.name) changes.push(`Name: "${old.name}" → "${v.name}"`);
+      if (old.contact !== v.contact) changes.push(`Contact: "${old.contact}" → "${v.contact}"`);
+      if (old.balance !== v.balance) changes.push(`Balance: ${old.balance} → ${v.balance}`);
+      if (old.phone !== v.phone) changes.push(`Phone: "${old.phone}" → "${v.phone}"`);
+    }
+    return `Updated vendor: ${v.name}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
   const deleteVendor = useCallback(async (id: string) => {
-    return dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.filter(v => v.id !== id) }), 'Delete', 'Vendor', id, `Deleted vendor`);
+    return dispatchUpdate(prev => ({ ...prev, vendors: prev.vendors.filter(v => v.id !== id) }), 'Delete', 'Vendor', id, (prev) => `Deleted vendor: ${prev.vendors.find(v => v.id === id)?.name || id}`);
   }, [dispatchUpdate]);
 
-  const addMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: [...prev.materials, m] }), 'Create', 'Material', m.id, `Created material: ${m.name}`), [dispatchUpdate]);
-  const updateMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.map(mat => mat.id === m.id ? m : mat) }), 'Update', 'Material', m.id, `Updated material: ${m.name}`), [dispatchUpdate]);
+  const addMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: [...prev.materials, m] }), 'Create', 'Material', m.id, `Created material: ${m.name} (${m.unit})`), [dispatchUpdate]);
+  const updateMaterial = useCallback(async (m: Material) => dispatchUpdate(prev => ({ ...prev, materials: prev.materials.map(mat => mat.id === m.id ? m : mat) }), 'Update', 'Material', m.id, (prev) => {
+    const old = prev.materials.find(mat => mat.id === m.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.name !== m.name) changes.push(`Name: "${old.name}" → "${m.name}"`);
+      if (old.unit !== m.unit) changes.push(`Unit: "${old.unit}" → "${m.unit}"`);
+      if (old.costPerUnit !== m.costPerUnit) changes.push(`Cost: ${old.costPerUnit} → ${m.costPerUnit}`);
+      if (old.lowStockThreshold !== m.lowStockThreshold) changes.push(`Threshold: ${old.lowStockThreshold} → ${m.lowStockThreshold}`);
+    }
+    return `Updated material: ${m.name}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
   const deleteMaterial = useCallback(async (id: string) => {
-    return dispatchUpdate(prev => ({ ...prev, materials: prev.materials.filter(m => m.id !== id) }), 'Delete', 'Material', id, `Deleted material`);
+    return dispatchUpdate(prev => ({ ...prev, materials: prev.materials.filter(m => m.id !== id) }), 'Delete', 'Material', id, (prev) => `Deleted material: ${prev.materials.find(m => m.id === id)?.name || id}`);
   }, [dispatchUpdate]);
 
   const addExpense = useCallback(async (e: Expense) => dispatchUpdate(prev => {
@@ -277,7 +311,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
     return { ...prev, expenses: [...prev.expenses, e], vendors: nextVendors, materials: nextMaterials };
-  }, 'Create', 'Expense', e.id, `Recorded expense of ${e.amount} for ${e.category}`), [dispatchUpdate]);
+  }, 'Create', 'Expense', e.id, (prev) => {
+    const project = prev.projects.find(p => p.id === e.projectId)?.name || 'Unknown';
+    const vendor = prev.vendors.find(v => v.id === e.vendorId)?.name || 'Unknown';
+    const material = prev.materials.find(m => m.id === e.materialId)?.name || 'Unknown';
+    const materialInfo = e.materialId ? ` (${material}: ${e.materialQuantity} ${prev.materials.find(m => m.id === e.materialId)?.unit || ''})` : '';
+    const vendorInfo = e.vendorId ? ` from ${vendor}` : '';
+    return `Recorded expense of ${e.amount} for ${e.category}${materialInfo}${vendorInfo} in project: ${project}`;
+  }), [dispatchUpdate]);
 
   const addExpenses = useCallback(async (newExpenses: Expense[]) => dispatchUpdate(prev => {
     let nextVendors = [...prev.vendors];
@@ -317,7 +358,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return { ...prev, expenses: nextExpenses, vendors: nextVendors, materials: nextMaterials };
-  }, 'BulkCreate', 'Expense', 'multiple', `Recorded ${newExpenses.length} expenses in bulk`), [dispatchUpdate]);
+  }, 'BulkCreate', 'Expense', 'multiple', () => {
+    const totalAmount = newExpenses.reduce((sum, e) => sum + e.amount, 0);
+    return `Recorded ${newExpenses.length} expenses in bulk (Total: ${totalAmount})`;
+  }), [dispatchUpdate]);
 
   const updateExpense = useCallback(async (e: Expense) => dispatchUpdate(prev => {
     const oldExp = prev.expenses.find(x => x.id === e.id);
@@ -423,7 +467,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       materials: nextMaterials,
       vendors: nextVendors
     };
-  }, 'Update', 'Expense', e.id, `Updated expense of ${e.amount}`), [dispatchUpdate]);
+  }, 'Update', 'Expense', e.id, (prev) => {
+    const old = prev.expenses.find(x => x.id === e.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.amount !== e.amount) changes.push(`Amount: ${old.amount} → ${e.amount}`);
+      if (old.category !== e.category) changes.push(`Category: "${old.category}" → "${e.category}"`);
+      if (old.materialId !== e.materialId) {
+        const oldMat = prev.materials.find(m => m.id === old.materialId)?.name || 'None';
+        const newMat = prev.materials.find(m => m.id === e.materialId)?.name || 'None';
+        changes.push(`Material: "${oldMat}" → "${newMat}"`);
+      }
+      if (old.materialQuantity !== e.materialQuantity) changes.push(`Quantity: ${old.materialQuantity} → ${e.materialQuantity}`);
+      if (old.vendorId !== e.vendorId) {
+        const oldVen = prev.vendors.find(v => v.id === old.vendorId)?.name || 'None';
+        const newVen = prev.vendors.find(v => v.id === e.vendorId)?.name || 'None';
+        changes.push(`Vendor: "${oldVen}" → "${newVen}"`);
+      }
+      if (old.projectId !== e.projectId) {
+        const oldProj = prev.projects.find(p => p.id === old.projectId)?.name || 'None';
+        const newProj = prev.projects.find(p => p.id === e.projectId)?.name || 'None';
+        changes.push(`Project: "${oldProj}" → "${newProj}"`);
+      }
+    }
+    const project = prev.projects.find(p => p.id === e.projectId)?.name || 'Unknown';
+    return `Updated expense in project: ${project}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
 
   const deleteExpense = useCallback(async (id: string) => {
     return dispatchUpdate(prev => {
@@ -455,7 +524,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       materials: nextMaterials,
       vendors: nextVendors
     };
-  }, 'Delete', 'Expense', id, `Deleted expense`);
+  }, 'Delete', 'Expense', id, (prev) => {
+    const exp = prev.expenses.find(x => x.id === id);
+    const project = prev.projects.find(p => p.id === exp?.projectId)?.name || 'Unknown';
+    const vendor = prev.vendors.find(v => v.id === exp?.vendorId)?.name || 'Unknown';
+    const material = prev.materials.find(m => m.id === exp?.materialId)?.name || 'Unknown';
+    const materialInfo = exp?.materialId ? ` (${material})` : '';
+    const vendorInfo = exp?.vendorId ? ` from ${vendor}` : '';
+    return `Deleted expense of ${exp?.amount || ''} for ${exp?.category || ''}${materialInfo}${vendorInfo} in project: ${project}`;
+  });
   }, [dispatchUpdate]);
 
   const addPayment = useCallback(async (p: Payment) => dispatchUpdate(prev => {
@@ -516,7 +593,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: [...prev.payments, p],
       vendors: nextVendors
     };
-  }, 'Create', 'Payment', p.id, `Recorded payment of ${p.amount}`), [dispatchUpdate]);
+  }, 'Create', 'Payment', p.id, (prev) => {
+    const vendor = prev.vendors.find(v => v.id === p.vendorId)?.name || 'Unknown';
+    const project = prev.projects.find(proj => proj.id === p.projectId)?.name || 'Unknown';
+    return `Recorded payment of ${p.amount} to vendor: ${vendor} for project: ${project}`;
+  }), [dispatchUpdate]);
 
   const updatePayment = useCallback(async (p: Payment) => dispatchUpdate(prev => {
     if (p.amount <= 0) {
@@ -595,7 +676,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: [...paymentsWithoutOldAllocations, p, ...newAllocations],
       vendors: nextVendors
     };
-  }, 'Update', 'Payment', p.id, `Updated payment of ${p.amount}`), [dispatchUpdate]);
+  }, 'Update', 'Payment', p.id, (prev) => {
+    const old = prev.payments.find(x => x.id === p.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.amount !== p.amount) changes.push(`Amount: ${old.amount} → ${p.amount}`);
+      if (old.reference !== p.reference) changes.push(`Ref: "${old.reference}" → "${p.reference}"`);
+      if (old.date !== p.date) changes.push(`Date: ${old.date} → ${p.date}`);
+      if (old.vendorId !== p.vendorId) {
+        const oldVen = prev.vendors.find(v => v.id === old.vendorId)?.name || 'None';
+        const newVen = prev.vendors.find(v => v.id === p.vendorId)?.name || 'None';
+        changes.push(`Vendor: "${oldVen}" → "${newVen}"`);
+      }
+    }
+    const vendor = prev.vendors.find(v => v.id === p.vendorId)?.name || 'Unknown';
+    const project = prev.projects.find(proj => proj.id === p.projectId)?.name || 'Unknown';
+    return `Updated payment to ${vendor} for project: ${project}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
 
   const deletePayment = useCallback(async (id: string) => {
     return dispatchUpdate(prev => {
@@ -615,25 +712,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       payments: nextPayments,
       vendors: nextVendors
     };
-  }, 'Delete', 'Payment', id, `Deleted payment`);
+  }, 'Delete', 'Payment', id, (prev) => {
+    const pay = prev.payments.find(x => x.id === id);
+    const vendor = prev.vendors.find(v => v.id === pay?.vendorId)?.name || 'Unknown';
+    const project = prev.projects.find(proj => proj.id === pay?.projectId)?.name || 'Unknown';
+    return `Deleted payment of ${pay?.amount || ''} to vendor: ${vendor} for project: ${project}`;
+  });
   }, [dispatchUpdate]);
 
-  const addIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: [...prev.incomes, i] }), 'Create', 'Income', i.id, `Recorded income of ${i.amount}`), [dispatchUpdate]);
-  const updateIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.map(inc => inc.id === i.id ? i : inc) }), 'Update', 'Income', i.id, `Updated income of ${i.amount}`), [dispatchUpdate]);
+  const addIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: [...prev.incomes, i] }), 'Create', 'Income', i.id, (prev) => {
+    const project = prev.projects.find(p => p.id === i.projectId);
+    return `Recorded income of ${i.amount} for project: ${project?.name || 'Unknown'} (Client: ${project?.client || 'Unknown'})`;
+  }), [dispatchUpdate]);
+  const updateIncome = useCallback(async (i: Income) => dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.map(inc => inc.id === i.id ? i : inc) }), 'Update', 'Income', i.id, (prev) => {
+    const old = prev.incomes.find(inc => inc.id === i.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.amount !== i.amount) changes.push(`Amount: ${old.amount} → ${i.amount}`);
+      if (old.date !== i.date) changes.push(`Date: ${old.date} → ${i.date}`);
+      if (old.projectId !== i.projectId) {
+        const oldProj = prev.projects.find(p => p.id === old.projectId)?.name || 'None';
+        const newProj = prev.projects.find(p => p.id === i.projectId)?.name || 'None';
+        changes.push(`Project: "${oldProj}" → "${newProj}"`);
+      }
+    }
+    const project = prev.projects.find(p => p.id === i.projectId);
+    return `Updated income for project: ${project?.name || 'Unknown'}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
   const deleteIncome = useCallback(async (id: string) => {
-    return dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.filter(i => i.id !== id) }), 'Delete', 'Income', id, `Deleted income`);
+    return dispatchUpdate(prev => ({ ...prev, incomes: prev.incomes.filter(i => i.id !== id) }), 'Delete', 'Income', id, (prev) => {
+      const inc = prev.incomes.find(i => i.id === id);
+      const project = prev.projects.find(p => p.id === inc?.projectId);
+      return `Deleted income of ${inc?.amount || ''} for project: ${project?.name || 'Unknown'} (Client: ${project?.client || 'Unknown'})`;
+    });
   }, [dispatchUpdate]);
 
-  const addInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: [...prev.invoices, inv] }), 'Create', 'Invoice', inv.id, `Generated invoice for ${inv.amount}`), [dispatchUpdate]);
-  const updateInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? inv : i) }), 'Update', 'Invoice', inv.id, `Updated invoice for ${inv.amount}`), [dispatchUpdate]);
+  const addInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: [...prev.invoices, inv] }), 'Create', 'Invoice', inv.id, (prev) => {
+    const project = prev.projects.find(p => p.id === inv.projectId);
+    return `Generated invoice for ${inv.amount} for project: ${project?.name || 'Unknown'} (Client: ${project?.client || 'Unknown'})`;
+  }), [dispatchUpdate]);
+  const updateInvoice = useCallback(async (inv: Invoice) => dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.map(i => i.id === inv.id ? inv : i) }), 'Update', 'Invoice', inv.id, (prev) => {
+    const old = prev.invoices.find(i => i.id === inv.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.amount !== inv.amount) changes.push(`Amount: ${old.amount} → ${inv.amount}`);
+      if (old.date !== inv.date) changes.push(`Date: ${old.date} → ${inv.date}`);
+    }
+    const project = prev.projects.find(p => p.id === inv.projectId);
+    return `Updated invoice for project: ${project?.name || 'Unknown'}${changes.length ? ` (${changes.join(', ')})` : ''}`;
+  }), [dispatchUpdate]);
   const deleteInvoice = useCallback(async (id: string) => {
-    return dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }), 'Delete', 'Invoice', id, `Deleted invoice`);
+    return dispatchUpdate(prev => ({ ...prev, invoices: prev.invoices.filter(i => i.id !== id) }), 'Delete', 'Invoice', id, (prev) => {
+      const inv = prev.invoices.find(i => i.id === id);
+      const project = prev.projects.find(p => p.id === inv?.projectId);
+      return `Deleted invoice for ${inv?.amount || ''} for project: ${project?.name || 'Unknown'} (Client: ${project?.client || 'Unknown'})`;
+    });
   }, [dispatchUpdate]);
 
   const addEmployee = useCallback(async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: [...prev.employees, emp] }), 'Create', 'Employee', emp.id, `Added employee: ${emp.name}`), [dispatchUpdate]);
-  const updateEmployee = useCallback(async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.map(e => e.id === emp.id ? emp : e) }), 'Update', 'Employee', emp.id, `Updated employee: ${emp.name}`), [dispatchUpdate]);
+  const updateEmployee = useCallback(async (emp: Employee) => dispatchUpdate(prev => ({ ...prev, employees: prev.employees.map(e => e.id === emp.id ? emp : e) }), 'Update', 'Employee', emp.id, (prev) => {
+    const old = prev.employees.find(e => e.id === emp.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.name !== emp.name) changes.push(`Name: "${old.name}" → "${emp.name}"`);
+      if (old.role !== emp.role) changes.push(`Role: "${old.role}" → "${emp.role}"`);
+      if (old.phone !== emp.phone) changes.push(`Phone: "${old.phone}" → "${emp.phone}"`);
+      if (old.dailyWage !== emp.dailyWage) changes.push(`Wage: ${old.dailyWage} → ${emp.dailyWage}`);
+    }
+    return `Updated employee: ${emp.name}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
   const deleteEmployee = useCallback(async (id: string) => {
-    return dispatchUpdate(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) }), 'Delete', 'Employee', id, `Deleted employee`);
+    return dispatchUpdate(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) }), 'Delete', 'Employee', id, (prev) => `Deleted employee: ${prev.employees.find(e => e.id === id)?.name || id}`);
   }, [dispatchUpdate]);
 
   const addLaborLog = useCallback(async (log: LaborLog) => dispatchUpdate(prev => {
@@ -648,7 +797,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: `Labor Wage: ${employee?.name || 'Unknown'} (${log.status})`
     };
     return { ...prev, laborLogs: [...prev.laborLogs, log], expenses: [...prev.expenses, expense] };
-  }, 'Create', 'LaborLog', log.id, `Recorded labor log for ${log.hoursWorked} hours`), [dispatchUpdate]);
+  }, 'Create', 'LaborLog', log.id, (prev) => {
+    const emp = prev.employees.find(e => e.id === log.employeeId);
+    const project = prev.projects.find(p => p.id === log.projectId);
+    return `Recorded labor log for ${emp?.name || 'Unknown'}: ${log.hoursWorked} hours (Wage: ${log.wageAmount}) in project: ${project?.name || 'Unknown'}`;
+  }), [dispatchUpdate]);
 
   const updateLaborLog = useCallback(async (log: LaborLog) => dispatchUpdate(prev => {
     const expenseId = 'exp-labor-' + log.id;
@@ -666,19 +819,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return exp;
     });
     return { ...prev, laborLogs: prev.laborLogs.map(l => l.id === log.id ? log : l), expenses: nextExpenses };
-  }, 'Update', 'LaborLog', log.id, `Updated labor log for ${log.hoursWorked} hours`), [dispatchUpdate]);
+  }, 'Update', 'LaborLog', log.id, (prev) => {
+    const old = prev.laborLogs.find(l => l.id === log.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.hoursWorked !== log.hoursWorked) changes.push(`Hours: ${old.hoursWorked} → ${log.hoursWorked}`);
+      if (old.wageAmount !== log.wageAmount) changes.push(`Wage: ${old.wageAmount} → ${log.wageAmount}`);
+      if (old.date !== log.date) changes.push(`Date: ${old.date} → ${log.date}`);
+      if (old.status !== log.status) changes.push(`Status: "${old.status}" → "${log.status}"`);
+    }
+    const emp = prev.employees.find(e => e.id === log.employeeId);
+    const project = prev.projects.find(p => p.id === log.projectId);
+    return `Updated labor log for ${emp?.name || 'Unknown'} in project: ${project?.name || 'Unknown'}${changes.length ? ` [${changes.join(' | ')}]` : ''}`;
+  }), [dispatchUpdate]);
 
   const deleteLaborLog = useCallback(async (id: string) => {
     return dispatchUpdate(prev => {
       const expenseId = 'exp-labor-' + id;
       return { ...prev, laborLogs: prev.laborLogs.filter(l => l.id !== id), expenses: prev.expenses.filter(exp => exp.id !== expenseId) };
-    }, 'Delete', 'LaborLog', id, `Deleted labor log`);
+    }, 'Delete', 'LaborLog', id, (prev) => {
+      const log = prev.laborLogs.find(l => l.id === id);
+      const emp = prev.employees.find(e => e.id === log?.employeeId);
+      const project = prev.projects.find(p => p.id === log?.projectId);
+      return `Deleted labor log for ${emp?.name || 'Unknown'} in project: ${project?.name || 'Unknown'}`;
+    });
   }, [dispatchUpdate]);
 
-  const addLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: [...prev.laborPayments, pay] }), 'Create', 'LaborPayment', pay.id, `Recorded labor payment of ${pay.amount}`), [dispatchUpdate]);
-  const updateLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.map(p => p.id === pay.id ? pay : p) }), 'Update', 'LaborPayment', pay.id, `Updated labor payment of ${pay.amount}`), [dispatchUpdate]);
+  const addLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: [...prev.laborPayments, pay] }), 'Create', 'LaborPayment', pay.id, (prev) => {
+    const emp = prev.employees.find(e => e.id === pay.employeeId);
+    const project = prev.projects.find(p => p.id === pay.projectId);
+    return `Recorded labor payment of ${pay.amount} to employee: ${emp?.name || 'Unknown'} for project: ${project?.name || 'Unknown'}`;
+  }), [dispatchUpdate]);
+  const updateLaborPayment = useCallback(async (pay: LaborPayment) => dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.map(p => p.id === pay.id ? pay : p) }), 'Update', 'LaborPayment', pay.id, (prev) => {
+    const old = prev.laborPayments.find(p => p.id === pay.id);
+    const changes: string[] = [];
+    if (old) {
+      if (old.amount !== pay.amount) changes.push(`Amount: ${old.amount} → ${pay.amount}`);
+      if (old.date !== pay.date) changes.push(`Date: ${old.date} → ${pay.date}`);
+    }
+    const emp = prev.employees.find(e => e.id === pay.employeeId);
+    const project = prev.projects.find(p => p.id === pay.projectId);
+    return `Updated labor payment to ${emp?.name || 'Unknown'} for project: ${project?.name || 'Unknown'}${changes.length ? ` (${changes.join(', ')})` : ''}`;
+  }), [dispatchUpdate]);
   const deleteLaborPayment = useCallback(async (id: string) => {
-    return dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.filter(p => p.id !== id) }), 'Delete', 'LaborPayment', id, `Deleted labor payment`);
+    return dispatchUpdate(prev => ({ ...prev, laborPayments: prev.laborPayments.filter(p => p.id !== id) }), 'Delete', 'LaborPayment', id, (prev) => {
+      const pay = prev.laborPayments.find(p => p.id === id);
+      const emp = prev.employees.find(e => e.id === pay?.employeeId);
+      const project = prev.projects.find(p => p.id === pay?.projectId);
+      return `Deleted labor payment of ${pay?.amount || ''} to employee: ${emp?.name || 'Unknown'} for project: ${project?.name || 'Unknown'}`;
+    });
   }, [dispatchUpdate]);
 
   const forceSync = useCallback(async () => loadFromDB(), [loadFromDB]);
@@ -766,7 +955,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const value = useMemo(() => ({
     ...state,
-    updateUser, setTheme, setAllowDecimalStock,
+    updateUser, setTheme, setAllowDecimalStock, setCompanyName, setCompanyAddress,
     addProject, updateProject, deleteProject, permanentDeleteProject, restoreProject,
     addVendor, updateVendor, deleteVendor,
     addMaterial, updateMaterial, deleteMaterial,
@@ -786,8 +975,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isProjectLocked,
     isLoading, isSyncing, syncError, lastSynced,
     undo, redo, canUndo: past.length > 0, canRedo: future.length > 0, lastActionName: ''
-  }), [state, isLoading, isSyncing, syncError, lastSynced, past.length, future.length, undo, redo, isProjectLocked, 
-      updateUser, setTheme, setAllowDecimalStock, addProject, updateProject, deleteProject, permanentDeleteProject, restoreProject, addVendor, updateVendor, deleteVendor, 
+  }), [state, isLoading, isSyncing, syncError, lastSynced, past.length, future.length, undo, redo, isProjectLocked,
+      updateUser, setTheme, setAllowDecimalStock, setCompanyName, setCompanyAddress, addProject, updateProject, deleteProject, permanentDeleteProject, restoreProject, addVendor, updateVendor, deleteVendor, 
       addMaterial, updateMaterial, deleteMaterial, addExpense, addExpenses, updateExpense, deleteExpense, addPayment, updatePayment, deletePayment, 
       addIncome, updateIncome, deleteIncome, addInvoice, updateInvoice, deleteInvoice, addEmployee, updateEmployee, deleteEmployee, 
       addLaborLog, updateLaborLog, deleteLaborLog, addLaborPayment, updateLaborPayment, deleteLaborPayment, forceSync, 

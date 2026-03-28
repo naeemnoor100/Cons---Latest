@@ -329,12 +329,14 @@ export const Inventory: React.FC = () => {
 
     const transferId = 'trf-' + Date.now();
     
+    const transferValue = qty * selectedBatch.unitPrice;
+
     // 1. Deduction from source
     await addExpense({
       id: transferId + '-out',
       date: transferData.date,
       projectId: transferData.sourceProjectId,
-      amount: 0, // Zero financial impact, internal movement
+      amount: -transferValue, // Negative amount to reduce Total Purchased at source
       paymentMethod: 'Bank',
       category: 'Material',
       materialId: selectedBatch.id,
@@ -351,7 +353,7 @@ export const Inventory: React.FC = () => {
       id: transferId + '-in',
       date: transferData.date,
       projectId: transferData.destProjectId,
-      amount: 0,
+      amount: transferValue, // Positive amount to increase Total Purchased at destination
       paymentMethod: 'Bank',
       category: 'Material',
       materialId: selectedBatch.id,
@@ -507,9 +509,10 @@ export const Inventory: React.FC = () => {
       return (entry.note?.toLowerCase().includes(search) || entry.type.toLowerCase().includes(search) || projectName.toLowerCase().includes(search) || vendorName.toLowerCase().includes(search) || entry.date.includes(search));
     });
     return result.sort((a, b) => {
-      const timeB = new Date(b.date).getTime();
-      const timeA = new Date(a.date).getTime();
-      return timeB - timeA;
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      // Tie-breaker: use ID (which contains Date.now() in many cases) or just reverse original order
+      return b.id.localeCompare(a.id);
     });
   }, [historyMaterial, historySearch, projects, vendors, activeHistoryTab, historyFilters]);
 

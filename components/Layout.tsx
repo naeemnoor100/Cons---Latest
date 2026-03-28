@@ -45,18 +45,18 @@ const SidebarItem: React.FC<{
 }> = ({ icon, label, isActive, onClick, isSpecial, isCollapsed }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 ${
       isActive 
-        ? 'bg-[#003366] text-white shadow-lg' 
+        ? 'bg-vibrant-gradient text-white shadow-lg vibrant-shadow scale-[1.02]' 
         : isSpecial 
-          ? 'text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20'
-          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+          ? 'text-brand-secondary hover:bg-brand-secondary/10'
+          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary'
     } ${isCollapsed ? 'justify-center px-2' : ''}`}
     title={isCollapsed ? label : ''}
   >
-    <span className={`shrink-0 ${isActive ? 'text-white' : ''}`}>{icon}</span>
-    {!isCollapsed && <span className="font-bold text-sm whitespace-nowrap overflow-hidden">{label}</span>}
-    {isActive && !isCollapsed && <ChevronRight className="ml-auto w-4 h-4 opacity-50 shrink-0" />}
+    <span className={`shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`}>{icon}</span>
+    {!isCollapsed && <span className="font-bold text-sm whitespace-nowrap overflow-hidden font-display">{label}</span>}
+    {isActive && !isCollapsed && <motion.div layoutId="active-indicator" className="ml-auto w-1.5 h-1.5 bg-white rounded-full" />}
   </button>
 );
 
@@ -68,14 +68,20 @@ const MobileTabItem: React.FC<{
 }> = ({ icon, label, isActive, onClick }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-90 ${
-      isActive ? 'text-[#003366] dark:text-white' : 'text-slate-400'
+    className={`flex flex-col items-center justify-center flex-1 h-full transition-all active:scale-90 relative ${
+      isActive ? 'text-brand-primary dark:text-brand-secondary' : 'text-slate-400'
     }`}
   >
-    <div className={`p-1 rounded-xl transition-all ${isActive ? 'scale-110' : ''}`}>
-      {React.cloneElement(icon as React.ReactElement, { size: 20 })}
+    {isActive && (
+      <motion.div 
+        layoutId="mobile-active-bg"
+        className="absolute inset-x-2 inset-y-2 bg-brand-primary/10 dark:bg-brand-secondary/10 rounded-2xl -z-10"
+      />
+    )}
+    <div className={`p-1 transition-all duration-300 ${isActive ? 'scale-125 -translate-y-1' : ''}`}>
+      {React.cloneElement(icon as React.ReactElement, { size: 22, strokeWidth: isActive ? 2.5 : 2 })}
     </div>
-    <span className={`text-[8px] font-black uppercase mt-0.5 tracking-tighter ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+    <span className={`text-[9px] font-black uppercase mt-0.5 tracking-tighter font-display ${isActive ? 'opacity-100' : 'opacity-70'}`}>
       {label}
     </span>
   </button>
@@ -120,13 +126,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
   const filteredSecondaryMenuItems = secondaryMenuItems.filter(item => allowedTabs.includes(item.id));
 
   return (
-    <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} bg-slate-50 dark:bg-slate-950 overflow-hidden`}>
+    <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} bg-slate-50 dark:bg-slate-950 overflow-hidden font-inter`}>
       {/* Desktop Sidebar */}
-      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-64'} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50 transition-all duration-300 relative`}>
-        <div className="h-20 flex items-center px-6 border-b border-slate-100 dark:border-slate-800 overflow-hidden">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white shadow-lg shadow-orange-200 dark:shadow-none shrink-0"><Briefcase size={20} strokeWidth={3} /></div>
-            {!isCollapsed && <h1 className="text-lg font-black text-[#003366] dark:text-white tracking-tighter whitespace-nowrap">BUILDTRACK<span className="text-[#FF5A00]">PRO</span></h1>}
+      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-50 transition-all duration-300 relative`}>
+        <div className="h-24 flex items-center px-8 overflow-hidden">
+          <div className="flex items-center gap-3">
+            <div className="bg-vibrant-gradient p-2 rounded-2xl text-white shadow-lg vibrant-shadow float shrink-0">
+              <Briefcase size={24} strokeWidth={3} />
+            </div>
+            {!isCollapsed && (
+              <h1 className="text-xl font-black tracking-tighter whitespace-nowrap font-display">
+                <span className="text-brand-primary">BUILD</span>
+                <span className="text-brand-secondary">TRACK</span>
+                <span className="text-slate-400 ml-1">PRO</span>
+              </h1>
+            )}
           </div>
         </div>
         
@@ -159,57 +173,60 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Universal App Header */}
-        <header className="h-16 lg:h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 lg:px-10 shrink-0 z-40 pt-safe">
+        <header className="h-16 lg:h-24 glass border-b border-slate-200/50 dark:border-slate-800/50 flex items-center justify-between px-4 lg:px-12 shrink-0 z-40 pt-safe">
           <div className="flex items-center gap-3">
             <div className="lg:hidden flex items-center gap-3">
                <button 
                  onClick={() => setShowMobileSidebar(true)}
-                 className="p-2 -ml-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                 className="p-2.5 -ml-2 text-slate-600 dark:text-slate-400 hover:bg-brand-primary/10 rounded-2xl transition-colors"
                >
-                 <Menu size={20} strokeWidth={2.5} />
+                 <Menu size={22} strokeWidth={2.5} />
                </button>
                <div className="flex items-center gap-2">
-                 <div className="bg-[#FF5A00] p-1.5 rounded-lg text-white"><Briefcase size={16} strokeWidth={3} /></div>
-                 <h1 className="text-sm font-black text-[#003366] dark:text-white tracking-tighter uppercase">BT<span className="text-[#FF5A00]">PRO</span></h1>
+                 <div className="bg-vibrant-gradient p-1.5 rounded-xl text-white shadow-md"><Briefcase size={18} strokeWidth={3} /></div>
+                 <h1 className="text-base font-black tracking-tighter uppercase font-display">
+                   <span className="text-brand-primary">BT</span>
+                   <span className="text-brand-secondary">PRO</span>
+                 </h1>
                </div>
             </div>
             <div className="hidden lg:block">
-               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{primaryMenuItems.find(m => m.id === activeTab)?.label || secondaryMenuItems.find(m => m.id === activeTab)?.label || 'Console'}</h2>
+               <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] font-display">{primaryMenuItems.find(m => m.id === activeTab)?.label || secondaryMenuItems.find(m => m.id === activeTab)?.label || 'Console'}</h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="hidden sm:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
-              <button onClick={undo} disabled={!canUndo} className="p-2 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-20 rounded-lg transition-all text-slate-500"><Undo2 size={16} /></button>
-              <button onClick={redo} disabled={!canRedo} className="p-2 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-20 rounded-lg transition-all text-slate-500"><Redo2 size={16} /></button>
+          <div className="flex items-center gap-3 sm:gap-6">
+            <div className="hidden sm:flex items-center bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-md rounded-2xl p-1.5 border border-slate-200/50 dark:border-slate-700/50">
+              <button onClick={undo} disabled={!canUndo} className="p-2.5 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-20 rounded-xl transition-all text-slate-500 hover:text-brand-primary"><Undo2 size={18} /></button>
+              <button onClick={redo} disabled={!canRedo} className="p-2.5 hover:bg-white dark:hover:bg-slate-700 disabled:opacity-20 rounded-xl transition-all text-slate-500 hover:text-brand-primary"><Redo2 size={18} /></button>
             </div>
             
             <button 
               onClick={() => setShowSyncCenter(true)} 
-              className={`p-2 rounded-xl border transition-all relative flex items-center justify-center group ${
-                syncError ? 'bg-rose-50 border-rose-200 text-rose-600' : isSyncing ? 'bg-blue-50 border-blue-200 text-blue-600' : syncId ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-400'
+              className={`p-2.5 rounded-2xl border transition-all relative flex items-center justify-center group shadow-sm ${
+                syncError ? 'bg-rose-50 border-rose-200 text-rose-600' : isSyncing ? 'bg-blue-50 border-blue-200 text-blue-600' : syncId ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-100/50 border-slate-200/50 text-slate-400'
               }`}
             >
-              {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : syncError ? <AlertCircle size={18} /> : syncId ? <Cloud size={18} /> : <WifiOff size={18} />}
+              {isSyncing ? <RefreshCw size={20} className="animate-spin" /> : syncError ? <AlertCircle size={20} /> : syncId ? <Cloud size={20} /> : <WifiOff size={20} />}
             </button>
 
             {allowedTabs.includes('settings') && (
-              <button onClick={() => setActiveTab('settings')} className="p-2.5 text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm hover:bg-slate-50 transition-all">
-                <SettingsIcon size={18} />
+              <button onClick={() => setActiveTab('settings')} className="p-2.5 sm:p-3 text-slate-500 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-md hover:scale-105 transition-all">
+                <SettingsIcon size={20} />
               </button>
             )}
           </div>
         </header>
 
         {/* Content Area */}
-        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950 p-3 sm:p-4 lg:p-10 pb-32 lg:pb-10 scroll-smooth">
-          <div className="max-w-7xl mx-auto animate-in fade-in duration-500">
+        <main className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-950 p-4 sm:p-6 lg:p-12 pb-32 lg:pb-12 scroll-smooth">
+          <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
             {children}
           </div>
         </main>
 
         {/* Mobile Bottom Navigation */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border-t border-slate-200/50 dark:border-slate-800/50 px-2 flex items-center justify-around h-[72px] pb-safe z-50">
+        <nav className="lg:hidden fixed bottom-4 left-4 right-4 glass rounded-[2.5rem] px-4 flex items-center justify-around h-[76px] shadow-2xl z-50 border border-white/20">
           {filteredPrimaryMenuItems.map(item => (
             <MobileTabItem 
               key={item.id} 

@@ -54,7 +54,11 @@ export const SupplierPayments: React.FC = () => {
         vendors.find(v => v.id === p.vendorId)?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.reference?.toLowerCase().includes(searchTerm.toLowerCase())
       ))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => {
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return b.id.localeCompare(a.id);
+      });
   }, [payments, vendors, searchTerm]);
 
   const selectedVendorBalance = useMemo(() => {

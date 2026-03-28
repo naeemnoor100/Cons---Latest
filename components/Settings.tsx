@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { 
   Globe, 
   Plus, 
@@ -13,8 +13,10 @@ import {
   UploadCloud,
   Server,
   History,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Building
 } from 'lucide-react';
+import { TableVirtuoso } from 'react-virtuoso';
 import * as XLSX from 'xlsx';
 import { useApp } from '../AppContext';
 import { AppState } from '../types';
@@ -28,10 +30,12 @@ export const Settings: React.FC = () => {
     siteStatuses, addSiteStatus, removeSiteStatus,
     allowDecimalStock, setAllowDecimalStock,
     importState, forceSync, syncId,
-    exportData, exportExcel
+    exportData, exportExcel,
+    activityLogs,
+    companyName, companyAddress, setCompanyName, setCompanyAddress
   } = useApp();
   
-  const [activeSection, setActiveSection] = useState<'system' | 'master-lists' | 'database' | 'backup' | 'activity-log'>('system');
+  const [activeSection, setActiveSection] = useState<'system' | 'master-lists' | 'database' | 'backup' | 'activity-log' | 'company-info'>('company-info');
   const [dbInitStatus, setDbInitStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [importStatus, setImportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
@@ -40,6 +44,25 @@ export const Settings: React.FC = () => {
   const [wipePassword, setWipePassword] = useState('');
   const [wipeError, setWipeError] = useState('');
   
+  const filteredLogs = useMemo(() => {
+    if (!activityLogs) return [];
+    
+    // Sort logs by timestamp descending (latest first)
+    const sorted = [...activityLogs].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+
+    const search = activitySearch.toLowerCase();
+    if (!search) return sorted;
+    
+    return sorted.filter(log => 
+      log.userName.toLowerCase().includes(search) ||
+      log.action.toLowerCase().includes(search) ||
+      log.entityType.toLowerCase().includes(search) ||
+      log.details.toLowerCase().includes(search)
+    );
+  }, [activityLogs, activitySearch]);
+
   // To avoid unused var errors
   console.log(dbInitStatus, testStatus, importStatus);
   
@@ -204,6 +227,9 @@ export const Settings: React.FC = () => {
         <aside className="w-full md:w-64 flex md:flex-col gap-1 overflow-x-auto no-scrollbar shrink-0 pb-2 md:pb-0 border-b md:border-b-0 border-slate-100 dark:border-slate-800">
           <button onClick={() => setActiveSection('database')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'database' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
             <Server size={18} /> <span className="text-xs sm:text-sm font-bold">Database</span>
+          </button>
+          <button onClick={() => setActiveSection('company-info')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'company-info' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
+            <Building size={18} /> <span className="text-xs sm:text-sm font-bold">Company Info</span>
           </button>
           <button onClick={() => setActiveSection('master-lists')} className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-xl transition-all whitespace-nowrap ${activeSection === 'master-lists' ? 'bg-[#003366] text-white shadow-lg' : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>
             <List size={18} /> <span className="text-xs sm:text-sm font-bold">Master Lists</span>
@@ -419,83 +445,110 @@ export const Settings: React.FC = () => {
                     <div className="max-h-[600px] overflow-y-auto no-scrollbar min-w-[800px]">
                       {(!activityLogs || activityLogs.length === 0) ? (
                         <div className="p-12 text-center text-slate-500 font-bold text-sm">No activity recorded yet.</div>
+                      ) : activityLogs.length > 0 && filteredLogs.length === 0 ? (
+                        <div className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">No matching logs found</div>
                       ) : (
-                        <table className="w-full text-left border-collapse">
-                          <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm backdrop-blur-sm">
+                        <TableVirtuoso
+                          style={{ height: 600 }}
+                          data={filteredLogs}
+                          fixedHeaderContent={() => (
                             <tr>
-                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-40">Time</th>
-                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-48">User</th>
-                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-32">Action</th>
-                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-40">Entity</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-32">Time</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-40">User</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-28">Action</th>
+                              <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 w-32">Entity</th>
                               <th className="px-6 py-4 border-b border-slate-100 dark:border-slate-800">Details</th>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                            {activityLogs
-                              .filter(log => 
-                                !activitySearch || 
-                                log.userName.toLowerCase().includes(activitySearch.toLowerCase()) ||
-                                log.action.toLowerCase().includes(activitySearch.toLowerCase()) ||
-                                log.entityType.toLowerCase().includes(activitySearch.toLowerCase()) ||
-                                log.details.toLowerCase().includes(activitySearch.toLowerCase())
-                              )
-                              .map(log => (
-                              <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                                <td className="px-6 py-4 text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                                  <div className="flex flex-col">
-                                    <span className="font-bold text-slate-700 dark:text-slate-300">
-                                      {new Date(log.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400">
-                                      {new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-black text-slate-500 uppercase">
-                                      {log.userName.charAt(0)}
-                                    </div>
-                                    <span className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[120px]" title={log.userName}>
-                                      {log.userName}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${
-                                    log.action === 'Create' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30' :
-                                    log.action === 'Update' ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30' :
-                                    log.action === 'Delete' ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:border-rose-900/30' :
-                                    'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
-                                  }`}>
-                                    {log.action}
+                          )}
+                          itemContent={(index, log) => (
+                            <>
+                              <td className="px-6 py-4 text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                                    {new Date(log.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                                   </span>
-                                </td>
-                                <td className="px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                                  {log.entityType}
-                                </td>
-                                <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-400 font-medium">
-                                  <p className="line-clamp-2" title={log.details}>{log.details}</p>
-                                </td>
-                              </tr>
-                            ))}
-                            {activityLogs.length > 0 && activityLogs.filter(log => 
-                                !activitySearch || 
-                                log.userName.toLowerCase().includes(activitySearch.toLowerCase()) ||
-                                log.action.toLowerCase().includes(activitySearch.toLowerCase()) ||
-                                log.entityType.toLowerCase().includes(activitySearch.toLowerCase()) ||
-                                log.details.toLowerCase().includes(activitySearch.toLowerCase())
-                              ).length === 0 && (
-                                <tr>
-                                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">
-                                    No matching logs found
-                                  </td>
-                                </tr>
-                              )}
-                          </tbody>
-                        </table>
+                                  <span className="text-[10px] text-slate-400">
+                                    {new Date(log.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-black text-slate-500 uppercase">
+                                    {log.userName.charAt(0)}
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[120px]" title={log.userName}>
+                                    {log.userName}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${
+                                  log.action === 'Create' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30' :
+                                  log.action === 'Update' ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30' :
+                                  log.action === 'Delete' ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:border-rose-900/30' :
+                                  'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
+                                }`}>
+                                  {log.action}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                                {log.entityType}
+                              </td>
+                              <td className="px-6 py-4 text-xs text-slate-600 dark:text-slate-400 font-medium">
+                                <p className="whitespace-normal break-words" title={log.details}>{log.details}</p>
+                              </td>
+                            </>
+                          )}
+                          components={{
+                            Table: (props) => <table {...props} className="w-full text-left border-collapse" />,
+                            TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10 shadow-sm backdrop-blur-sm" />),
+                            TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-slate-100 dark:divide-slate-800/50" />),
+                            TableRow: (props) => <tr {...props} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" />
+                          }}
+                        />
                       )}
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'company-info' && (
+              <div className="p-8 space-y-12 animate-in fade-in duration-300">
+                <div className="space-y-4 p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-[2rem] border border-blue-100 dark:border-blue-900/20">
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                        <div className="p-3 bg-[#003366] text-white rounded-2xl"><Building size={20} /></div>
+                        <div>
+                           <h3 className="font-bold text-slate-900 dark:text-white text-sm uppercase tracking-tight">Company Details</h3>
+                           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Used in invoices and reports</p>
+                        </div>
+                     </div>
+                   </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Company Name</label>
+                    <input 
+                      type="text" 
+                      className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-2 focus:ring-[#003366]" 
+                      value={companyName || ''}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Enter company name"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Contact Address</label>
+                    <textarea 
+                      rows={3}
+                      className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-2 focus:ring-[#003366]" 
+                      value={companyAddress || ''}
+                      onChange={(e) => setCompanyAddress(e.target.value)}
+                      placeholder="Enter company address"
+                    />
                   </div>
                 </div>
               </div>

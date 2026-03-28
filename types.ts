@@ -188,6 +188,8 @@ export interface AppState {
   stockingUnits: string[];
   siteStatuses: string[];
   allowDecimalStock: boolean;
+  companyName?: string;
+  companyAddress?: string;
   currentUser: User;
   theme: 'light' | 'dark';
   syncId?: string;
@@ -198,6 +200,8 @@ export interface AppContextType extends AppState {
   updateUser: (u: User) => void;
   setTheme: (theme: 'light' | 'dark') => void;
   setAllowDecimalStock: (val: boolean) => void;
+  setCompanyName: (name: string) => void;
+  setCompanyAddress: (address: string) => void;
   addProject: (p: Project) => Promise<void>;
   updateProject: (p: Project) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;

@@ -13,6 +13,7 @@ import {
   MapPin,
   AlertCircle
 } from 'lucide-react';
+import { TableVirtuoso } from 'react-virtuoso';
 import { useApp } from '../AppContext';
 import { Employee, LaborLog, PaymentMethod, LaborPayment } from '../types';
 import { BulkLaborLogModal } from './BulkLaborLogModal';
@@ -254,7 +255,11 @@ export const LaborManager: React.FC = () => {
       const matchesEnd = !endDate || logDate <= new Date(endDate);
       
       return matchesSearch && matchesProject && matchesEmployee && matchesStatus && matchesStart && matchesEnd;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }).sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return b.id.localeCompare(a.id);
+    });
   }, [laborLogs, employees, projects, searchTerm, projectFilter, employeeFilter, statusFilter, startDate, endDate]);
 
   const filteredPayments = useMemo(() => {
@@ -741,25 +746,29 @@ export const LaborManager: React.FC = () => {
       ) : activeSubTab === 'logs' ? (
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
           <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full text-left min-w-[800px]">
-              <thead className="bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
-                <tr>
-                  <th className="px-8 py-5">Date</th>
-                  <th className="px-8 py-5">Employee</th>
-                  <th className="px-8 py-5">Project Site</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5">Hours</th>
-                  <th className="px-8 py-5 text-right">Wage</th>
-                  <th className="px-8 py-5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {filteredLogs.map(log => {
+            {filteredLogs.length === 0 ? (
+              <div className="p-12 text-center text-slate-500 font-bold text-sm">No labor logs found.</div>
+            ) : (
+              <TableVirtuoso
+                style={{ height: 600 }}
+                data={filteredLogs}
+                fixedHeaderContent={() => (
+                  <tr>
+                    <th className="px-8 py-5">Date</th>
+                    <th className="px-8 py-5">Employee</th>
+                    <th className="px-8 py-5">Project Site</th>
+                    <th className="px-8 py-5">Status</th>
+                    <th className="px-8 py-5">Hours</th>
+                    <th className="px-8 py-5 text-right">Wage</th>
+                    <th className="px-8 py-5 text-right">Actions</th>
+                  </tr>
+                )}
+                itemContent={(index, log) => {
                   const emp = employees.find(e => e.id === log.employeeId);
                   const proj = projects.find(p => p.id === log.projectId);
                   const isCompleted = isProjectLocked(log.projectId);
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
+                    <>
                       <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(log.date).toLocaleDateString()}</td>
                       <td className="px-8 py-5">
                         <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{emp?.name || 'Unknown'}</p>
@@ -798,11 +807,17 @@ export const LaborManager: React.FC = () => {
                           )}
                         </div>
                       </td>
-                    </tr>
+                    </>
                   );
-                })}
-              </tbody>
-            </table>
+                }}
+                components={{
+                  Table: (props) => <table {...props} className="w-full text-left min-w-[800px]" />,
+                  TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 sticky top-0 z-10" />),
+                  TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-slate-100 dark:divide-slate-700" />),
+                  TableRow: (props) => <tr {...props} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group" />
+                }}
+              />
+            )}
           </div>
         </div>
       ) : (

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Plus, Receipt, X, Briefcase, Pencil, Trash2, Package, ShoppingCart, Search, Filter, LayoutGrid, ArrowUpRight, ToggleLeft, ToggleRight, FileText, Trash, ClipboardPaste
 } from 'lucide-react';
+import { TableVirtuoso } from 'react-virtuoso';
 import { useApp } from '../AppContext';
 import { Expense, PaymentMethod } from '../types';
 import { ConfirmationDialog } from './ConfirmationDialog';
@@ -218,7 +219,11 @@ export const ExpenseTracker: React.FC = () => {
       const matchesProject = projectFilter === 'All' || exp.projectId === projectFilter;
 
       return matchesSearch && matchesCategory && matchesProject;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }).sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateDiff !== 0) return dateDiff;
+      return b.id.localeCompare(a.id);
+    });
   }, [expenses, searchTerm, categoryFilter, projectFilter, materials, vendors, projects]);
 
   const filteredTotal = useMemo(() => {
@@ -521,23 +526,30 @@ export const ExpenseTracker: React.FC = () => {
 
       <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
         <div className="overflow-x-auto no-scrollbar">
-          <table className="w-full text-left min-w-[1000px]">
-            <thead className="bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
-              <tr>
-                <th className="px-8 py-5">Value Date</th>
-                <th className="px-8 py-5">Ledger Entry Details</th>
-                <th className="px-8 py-5 text-center">Quantity</th>
-                <th className="px-8 py-5">Category</th>
-                <th className="px-8 py-5 text-right">Amount</th>
-                <th className="px-8 py-5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {filteredExpenses.length > 0 ? filteredExpenses.map((exp) => {
+          {filteredExpenses.length === 0 ? (
+            <div className="px-8 py-20 text-center">
+              <LayoutGrid size={48} className="mx-auto text-slate-200 mb-4" />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No entries match your deep search</p>
+            </div>
+          ) : (
+            <TableVirtuoso
+              style={{ height: 600 }}
+              data={filteredExpenses}
+              fixedHeaderContent={() => (
+                <tr>
+                  <th className="px-8 py-5">Value Date</th>
+                  <th className="px-8 py-5">Ledger Entry Details</th>
+                  <th className="px-8 py-5 text-center">Quantity</th>
+                  <th className="px-8 py-5">Category</th>
+                  <th className="px-8 py-5 text-right">Amount</th>
+                  <th className="px-8 py-5 text-right">Actions</th>
+                </tr>
+              )}
+              itemContent={(index, exp) => {
                 const mat = exp.materialId ? materials.find(m => m.id === exp.materialId) : null;
                 const vendor = exp.vendorId ? vendors.find(v => v.id === exp.vendorId) : null;
                 return (
-                  <tr key={exp.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group">
+                  <>
                     <td className="px-8 py-5 text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(exp.date).toLocaleDateString()}</td>
                     <td className="px-8 py-5">
                       <div className="flex flex-col">
@@ -592,18 +604,17 @@ export const ExpenseTracker: React.FC = () => {
                         )}
                       </div>
                     </td>
-                  </tr>
+                  </>
                 );
-              }) : (
-                <tr>
-                   <td colSpan={5} className="px-8 py-20 text-center">
-                      <LayoutGrid size={48} className="mx-auto text-slate-200 mb-4" />
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No entries match your deep search</p>
-                   </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              }}
+              components={{
+                Table: (props) => <table {...props} className="w-full text-left min-w-[1000px]" />,
+                TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="bg-slate-50 dark:bg-slate-900 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700 sticky top-0 z-10" />),
+                TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-slate-100 dark:divide-slate-700" />),
+                TableRow: (props) => <tr {...props} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 even:bg-slate-50/30 dark:even:bg-slate-800/20 transition-colors group" />
+              }}
+            />
+          )}
         </div>
       </div>
 
